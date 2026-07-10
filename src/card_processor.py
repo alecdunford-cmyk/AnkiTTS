@@ -7,7 +7,7 @@ from cache import get_audio_path
 def process_card(text):
     chunks = parse_text(text)
 
-    audio_files = []
+    audio_segments = []
 
     for chunk in chunks:
         language = chunk["language"]
@@ -36,12 +36,16 @@ def process_card(text):
                 f"Using cache: {chunk['text']}"
             )
 
-        audio_files.append(
-            str(audio_path)
+        audio_segments.append(
+            {
+                "file": str(audio_path),
+                "text": chunk["text"],
+                "parenthetical": chunk["parenthetical"]
+            }
         )
 
     stitch_audio(
-        audio_files,
+        audio_segments,
         "output/card_audio.mp3"
     )
 

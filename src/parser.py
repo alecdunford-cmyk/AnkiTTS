@@ -22,8 +22,11 @@ def split_segments(text):
             continue
 
         # Remove parentheses but keep the contents
+        is_parenthetical = False
+        
         if segment.startswith("(") and segment.endswith(")"):
             segment = segment[1:-1].strip()
+            is_parenthetical = True
 
         # Further split long segments at semicolons
         parts = segment.split(";")
@@ -46,12 +49,19 @@ def parse_text(text):
     chunks = []
 
     for segment in segments:
+        is_parenthetical = False
+
+        if segment.startswith("(") and segment.endswith(")"):
+            segment = segment [1:-1].strip()
+            is_parenthetical = True
+
         language = detect_language(segment)
 
         chunks.append(
             {
                 "language": language,
-                "text": segment
+                "text": segment,
+                "parenthetical": is_parenthetical
             }
         )
 

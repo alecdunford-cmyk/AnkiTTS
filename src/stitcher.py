@@ -1,15 +1,34 @@
 from pydub import AudioSegment
 
 
-def stitch_audio(files, output_file):
+def get_pause(segment):
+    """
+    Determine pause length based on context.
+    """
+
+    if segment["parenthetical"]:
+        return 350
+
+    if segment["text"].endswith((".", "!", "?")):
+        return 700
+
+    return 300
+
+
+def stitch_audio(segments, output_file):
+
     combined = AudioSegment.empty()
 
-    for file in files:
-        audio = AudioSegment.from_file(file)
+    for segment in segments:
+        audio = AudioSegment.from_file(
+            segment["file"]
+        )
+
         combined += audio
 
-        # Half-second pause between language segments
-        combined += AudioSegment.silent(duration=500)
+        combined += AudioSegment.silent(
+            duration=get_pause(segment)
+        )
 
     combined.export(
         output_file,
