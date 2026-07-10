@@ -2,10 +2,17 @@ from parser import parse_text
 from generator import create_audio
 from stitcher import stitch_audio
 from cache import get_audio_path
+from filename import create_filename
 
 
-def process_card(text):
+def process_card(text, output_dir="output"):
     chunks = parse_text(text)
+
+    filename = create_filename(text)
+
+    output_file = (
+        f"{output_dir}/{filename}"
+    )
 
     audio_segments = []
 
@@ -46,10 +53,12 @@ def process_card(text):
 
     stitch_audio(
         audio_segments,
-        "output/card_audio.mp3"
+        output_file
     )
 
     print("Card audio created!")
+
+    return filename
 
 
 if __name__ == "__main__":
@@ -61,4 +70,9 @@ if __name__ == "__main__":
     ) as file:
         sample = file.read()
 
-    process_card(sample)
+    result = process_card(sample)
+
+    print(
+        "Generated:",
+        result
+    )
