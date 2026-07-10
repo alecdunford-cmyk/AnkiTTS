@@ -54,8 +54,11 @@ def process_card(text):
 
 if __name__ == "__main__":
 
-    sample = """
-rundown, spiel; Ex. faire un topo sur (give a rundown on), c'est toujours le même topo (it's always the same old story), Tu vois un peu le topo? (Get the picture?)
-"""
+    with open(
+        "cards/test_card.txt",
+        "r",
+        encoding="utf-8"
+    ) as file:
+        sample = file.read()
 
     process_card(sample)
