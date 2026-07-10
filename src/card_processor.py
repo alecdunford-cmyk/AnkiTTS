@@ -51,13 +51,7 @@ def process_card(text):
 if __name__ == "__main__":
 
     sample = """
-aborder
-
-to approach
-
-J'ai abordé le problème.
-
-I approached the problem.
+rundown, spiel; Ex. faire un topo sur (give a rundown on), c'est toujours le même topo (it's always the same old story), Tu vois un peu le topo? (Get the picture?)
 """
 
     process_card(sample)
