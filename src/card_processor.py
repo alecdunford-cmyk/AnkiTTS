@@ -17,15 +17,35 @@ OUTPUT_DIR.mkdir(
 )
 
 
+def empty_statistics():
+    return {
+        "generated": 0,
+        "cached": 0,
+        "skipped": 0,
+    }
+
+
+def combine_statistics(*statistics):
+    combined = empty_statistics()
+
+    for current in statistics:
+        for key in combined:
+            combined[key] += current.get(key, 0)
+
+    return combined
+
+
 def process_chunks(chunks, filename, settings):
     output_file = OUTPUT_DIR / filename
 
     audio_segments = []
+    statistics = empty_statistics()
 
     for chunk in chunks:
         language = chunk["language"]
 
         if language is None:
+            statistics["skipped"] += 1
             continue
 
         voice = settings.voices.get(language)
@@ -34,6 +54,8 @@ def process_chunks(chunks, filename, settings):
             print(
                 f"No voice configured for language: {language}"
             )
+
+            statistics["skipped"] += 1
             continue
 
         audio_path = get_audio_path(
@@ -59,10 +81,14 @@ def process_chunks(chunks, filename, settings):
                 pitch=settings.pitch,
             )
 
+            statistics["generated"] += 1
+
         else:
             print(
                 f"Using cache: {chunk['text']}"
             )
+
+            statistics["cached"] += 1
 
         audio_segments.append(
             {
@@ -71,6 +97,11 @@ def process_chunks(chunks, filename, settings):
                 "parenthetical": chunk["parenthetical"],
             }
         )
+
+    if not audio_segments:
+        print("No playable audio segments were found.")
+
+        return None, statistics
 
     print("DEBUG OUTPUT FILE:", output_file)
 
@@ -81,12 +112,12 @@ def process_chunks(chunks, filename, settings):
 
     print("Card audio created!")
 
-    return filename
+    return filename, statistics
 
 
 def process_front(text, language, settings):
     if not text.strip():
-        return None
+        return None, empty_statistics()
 
     chunks = [
         {
@@ -110,7 +141,7 @@ def process_front(text, language, settings):
 
 def process_back(text, settings):
     if not text.strip():
-        return None
+        return None, empty_statistics()
 
     chunks = parse_text(text)
 
@@ -138,13 +169,13 @@ def process_card(
     if front_language is None:
         front_language = settings.front_language
 
-    front_audio = process_front(
+    front_audio, front_statistics = process_front(
         front,
         front_language,
         settings,
     )
 
-    back_audio = process_back(
+    back_audio, back_statistics = process_back(
         back,
         settings,
     )
@@ -152,6 +183,10 @@ def process_card(
     return {
         "front": front_audio,
         "back": back_audio,
+        "statistics": combine_statistics(
+            front_statistics,
+            back_statistics,
+        ),
     }
 
 

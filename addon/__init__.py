@@ -132,7 +132,41 @@ def tts_button(editor):
 
     editor.loadNoteKeepingFocus()
 
-    showInfo("TTS audio added!")
+    statistics = audio_files.get(
+        "statistics",
+        {},
+    )
+
+    generated_count = statistics.get(
+        "generated",
+        0,
+    )
+
+    cached_count = statistics.get(
+        "cached",
+        0,
+    )
+
+    skipped_count = statistics.get(
+        "skipped",
+        0,
+    )
+
+    message_lines = [
+        "TTS audio added!",
+        "",
+        f"Generated segments: {generated_count}",
+        f"Reused from cache: {cached_count}",
+    ]
+
+    if skipped_count:
+        message_lines.append(
+            f"Skipped segments: {skipped_count}"
+        )
+
+    showInfo(
+        "\n".join(message_lines)
+    )
 
 
 def add_tts_button(buttons, editor):

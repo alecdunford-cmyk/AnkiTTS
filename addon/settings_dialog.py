@@ -10,12 +10,25 @@ from aqt.qt import (
 from aqt.utils import qconnect, showInfo
 
 from settings import AppSettings
+from voice_manager import VoiceManager
 
 
 LANGUAGES = {
     "French": "fr",
     "English": "en",
     "Japanese": "ja",
+}
+
+VOICE_LANGUAGES = {
+    "fr": "French",
+    "en": "English",
+    "ja": "Japanese",
+}
+
+DEFAULT_VOICES = {
+    "fr": "fr-FR-DeniseNeural",
+    "en": "en-US-JennyNeural",
+    "ja": "ja-JP-NanamiNeural",
 }
 
 
@@ -26,13 +39,82 @@ class SettingsDialog(QDialog):
         super().__init__(parent)
 
         self.setWindowTitle("AnkiTTS Settings")
-        self.setMinimumWidth(360)
+        self.setMinimumWidth(480)
 
         config = mw.addonManager.getConfig(__package__) or {}
         self.settings = AppSettings.from_dict(config)
 
-        self.front_language_combo = QComboBox()
+        self.voice_manager = VoiceManager()
 
+        self.front_language_combo = QComboBox()
+        self.voice_combos = {}
+
+        self.populate_language_combo()
+
+        try:
+            self.voice_manager.get_all_voices()
+            voices_available = True
+
+        except Exception as error:
+            print(
+                "Could not retrieve Edge TTS voices:",
+                error,
+            )
+
+            voices_available = False
+
+        description = QLabel(
+            "Choose the language used for the front of each card "
+            "and the preferred voice for each supported language."
+        )
+        description.setWordWrap(True)
+
+        form_layout = QFormLayout()
+
+        form_layout.addRow(
+            "Front language:",
+            self.front_language_combo,
+        )
+
+        for language_code, display_name in VOICE_LANGUAGES.items():
+            combo = QComboBox()
+
+            self.populate_voice_combo(
+                combo=combo,
+                language_code=language_code,
+                voices_available=voices_available,
+            )
+
+            self.voice_combos[language_code] = combo
+
+            form_layout.addRow(
+                f"{display_name} voice:",
+                combo,
+            )
+
+        self.button_box = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Save
+            | QDialogButtonBox.StandardButton.Cancel
+        )
+
+        qconnect(
+            self.button_box.accepted,
+            self.save_settings,
+        )
+
+        qconnect(
+            self.button_box.rejected,
+            self.reject,
+        )
+
+        main_layout = QVBoxLayout()
+        main_layout.addWidget(description)
+        main_layout.addLayout(form_layout)
+        main_layout.addWidget(self.button_box)
+
+        self.setLayout(main_layout)
+
+    def populate_language_combo(self):
         for display_name, language_code in LANGUAGES.items():
             self.front_language_combo.addItem(
                 display_name,
@@ -48,48 +130,72 @@ class SettingsDialog(QDialog):
                 current_index
             )
 
-        description = QLabel(
-            "Choose the language used to pronounce the front "
-            "of each card."
-        )
-        description.setWordWrap(True)
-
-        form_layout = QFormLayout()
-        form_layout.addRow(
-            "Front language:",
-            self.front_language_combo,
-        )
-
-        self.button_box = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Save
-            | QDialogButtonBox.StandardButton.Cancel
+    def populate_voice_combo(
+        self,
+        combo,
+        language_code,
+        voices_available,
+    ):
+        current_voice = self.settings.voices.get(
+            language_code,
+            DEFAULT_VOICES[language_code],
         )
 
-        qconnect(
-            self.button_box.accepted,
-            self.save_settings,
-        )
-        qconnect(
-            self.button_box.rejected,
-            self.reject,
+        if voices_available:
+            matching_voices = self.voice_manager.get_voices(
+                language_code
+            )
+
+            for voice in matching_voices:
+                combo.addItem(
+                    self.voice_manager.get_display_name(
+                        voice
+                    ),
+                    voice["ShortName"],
+                )
+
+        current_index = combo.findData(
+            current_voice
         )
 
-        main_layout = QVBoxLayout()
-        main_layout.addWidget(description)
-        main_layout.addLayout(form_layout)
-        main_layout.addWidget(self.button_box)
+        if current_index < 0:
+            combo.addItem(
+                current_voice,
+                current_voice,
+            )
 
-        self.setLayout(main_layout)
+            current_index = combo.findData(
+                current_voice
+            )
+
+        combo.setCurrentIndex(
+            current_index
+        )
 
     def save_settings(self):
-        language_code = self.front_language_combo.currentData()
-
         config = mw.addonManager.getConfig(__package__) or {}
 
-        config["front_language"] = language_code
+        voices = dict(
+            config.get(
+                "voices",
+                self.settings.voices,
+            )
+        )
+
+        for language_code, combo in self.voice_combos.items():
+            voices[language_code] = combo.currentData()
+
+        config["front_language"] = (
+            self.front_language_combo.currentData()
+        )
+
+        config["voices"] = voices
 
         try:
-            validated_settings = AppSettings.from_dict(config)
+            validated_settings = AppSettings.from_dict(
+                config
+            )
+
         except ValueError as error:
             showInfo(
                 f"Could not save AnkiTTS settings:\n\n{error}"
@@ -98,7 +204,9 @@ class SettingsDialog(QDialog):
 
         config.update(
             {
-                "front_language": validated_settings.front_language,
+                "front_language": (
+                    validated_settings.front_language
+                ),
                 "voices": validated_settings.voices,
                 "rate": validated_settings.rate,
                 "volume": validated_settings.volume,
