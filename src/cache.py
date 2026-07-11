@@ -1,8 +1,9 @@
-import hashlib
 from pathlib import Path
+import hashlib
 
 
-CACHE_DIR = Path("cache/audio")
+BASE_DIR = Path(__file__).resolve().parent.parent
+CACHE_DIR = BASE_DIR / "cache" / "audio"
 
 CACHE_DIR.mkdir(
     parents=True,
@@ -11,19 +12,10 @@ CACHE_DIR.mkdir(
 
 
 def get_audio_path(text, language):
+    safe_text = hashlib.md5(
+        text.encode("utf-8")
+    ).hexdigest()
 
-    key = (
-        language
-        + ":"
-        + text
-    )
-
-    filename = (
-        hashlib.sha256(
-            key.encode("utf-8")
-        )
-        .hexdigest()
-        + ".mp3"
-    )
+    filename = f"{safe_text}_{language}.mp3"
 
     return CACHE_DIR / filename

@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from parser import parse_text
 from generator import create_audio
 from stitcher import stitch_audio
@@ -5,14 +7,17 @@ from cache import get_audio_path
 from filename import create_filename
 
 
-def process_card(text, output_dir="output"):
-    chunks = parse_text(text)
+BASE_DIR = Path(__file__).resolve().parent.parent
+OUTPUT_DIR = BASE_DIR / "output"
 
-    filename = create_filename(text)
+OUTPUT_DIR.mkdir(
+    parents=True,
+    exist_ok=True
+)
 
-    output_file = (
-        f"{output_dir}/{filename}"
-    )
+
+def process_chunks(chunks, filename):
+    output_file = OUTPUT_DIR / filename
 
     audio_segments = []
 
@@ -51,14 +56,72 @@ def process_card(text, output_dir="output"):
             }
         )
 
+    print("DEBUG OUTPUT FILE:", output_file)
+
     stitch_audio(
         audio_segments,
-        output_file
+        str(output_file)
     )
 
     print("Card audio created!")
 
     return filename
+
+
+def process_front(text, language):
+    if not text.strip():
+        return None
+
+    chunks = [
+        {
+            "text": text,
+            "language": language,
+            "parenthetical": False
+        }
+    ]
+
+    filename = create_filename(text).replace(
+        ".mp3",
+        "_front.mp3"
+    )
+
+    return process_chunks(
+        chunks,
+        filename
+    )
+
+
+def process_back(text):
+    if not text.strip():
+        return None
+
+    chunks = parse_text(text)
+
+    filename = create_filename(text).replace(
+        ".mp3",
+        "_back.mp3"
+    )
+
+    return process_chunks(
+        chunks,
+        filename
+    )
+
+
+def process_card(front, back, front_language):
+    front_audio = process_front(
+        front,
+        front_language
+    )
+
+    back_audio = process_back(
+        back
+    )
+
+    return {
+        "front": front_audio,
+        "back": back_audio
+    }
 
 
 if __name__ == "__main__":
