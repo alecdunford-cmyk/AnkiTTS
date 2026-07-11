@@ -1,0 +1,11 @@
+{
+    "front_language": "fr",
+    "voices": {
+        "fr": "fr-FR-DeniseNeural",
+        "en": "en-US-JennyNeural",
+        "ja": "ja-JP-NanamiNeural"
+    },
+    "rate": "0%",
+    "volume": "+0%",
+    "pitch": "+0Hz"
+}
