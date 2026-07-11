@@ -1,5 +1,5 @@
-import sys
 import shutil
+import sys
 from pathlib import Path
 
 from aqt import gui_hooks, mw
@@ -7,15 +7,14 @@ from aqt.qt import QAction
 from aqt.utils import qconnect, showInfo
 
 
-LIB_PATH = Path(__file__).parent / "libs"
+ADDON_DIR = Path(__file__).resolve().parent
+PROJECT_DIR = ADDON_DIR.parent
+
+LIB_PATH = ADDON_DIR / "libs"
+ENGINE_PATH = PROJECT_DIR / "src"
 
 sys.path.append(
     str(LIB_PATH)
-)
-
-
-ENGINE_PATH = Path(
-    r"C:\AnkiTTS\src"
 )
 
 sys.path.append(
@@ -40,8 +39,7 @@ def get_field_index(note, field_name):
 
 
 def tts_button(editor):
-
-    from card_processor import process_card
+    from card_processor import OUTPUT_DIR, process_card
     from settings import AppSettings
     from stitcher import hide_subprocess_windows
 
@@ -80,16 +78,12 @@ def tts_button(editor):
     print("DEBUG BACK:")
     print(repr(back))
 
-    with hide_subprocess_windows():   
+    with hide_subprocess_windows():
         audio_files = process_card(
             front=front,
             back=back,
             settings=settings,
         )
-    
-    output_folder = Path(
-        r"C:\AnkiTTS\output"
-    )
 
     media_folder = Path(
         mw.col.media.dir()
@@ -100,7 +94,7 @@ def tts_button(editor):
 
     if front_filename:
         front_audio_path = (
-            output_folder / front_filename
+            OUTPUT_DIR / front_filename
         )
 
         shutil.copy(
@@ -116,7 +110,7 @@ def tts_button(editor):
 
     if back_filename:
         back_audio_path = (
-            output_folder / back_filename
+            OUTPUT_DIR / back_filename
         )
 
         shutil.copy(
@@ -170,13 +164,12 @@ def tts_button(editor):
 
 
 def add_tts_button(buttons, editor):
-
     button = editor.addButton(
         None,
         "generate_tts_audio",
         tts_button,
         tip="Generate TTS Audio",
-        label="TTS"
+        label="TTS",
     )
 
     buttons.append(button)
@@ -185,7 +178,6 @@ def add_tts_button(buttons, editor):
 gui_hooks.editor_did_init_buttons.append(
     add_tts_button
 )
-
 
 
 settings_action = QAction(
