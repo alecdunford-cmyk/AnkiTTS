@@ -16,4 +16,10 @@ output/
 cache/
 
 # IDE files
-.vscode/AnkiTTS_backup/
+.vscode/
+
+# Local backup created during junction migration
+AnkiTTS_backup/
+
+# Bundled local runtime dependencies
+addon/libs/
