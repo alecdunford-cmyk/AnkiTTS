@@ -10,12 +10,14 @@ def process_notes(
     settings,
 ):
     """
-    Process one or more notes.
+    Process one or more audio-generation jobs.
 
-    Each note should contain:
+    Each job may contain:
         front
         back
-        front_language (optional)
+        front_language
+        generate_front
+        generate_back
     """
 
     results = []
@@ -29,6 +31,14 @@ def process_notes(
                 "front_language"
             ),
             settings=settings,
+            generate_front=note.get(
+                "generate_front",
+                True,
+            ),
+            generate_back=note.get(
+                "generate_back",
+                True,
+            ),
         )
 
         statistics = combine_statistics(
@@ -36,7 +46,9 @@ def process_notes(
             result["statistics"],
         )
 
-        results.append(result)
+        results.append(
+            result
+        )
 
     return {
         "processed": len(notes),

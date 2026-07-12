@@ -2,7 +2,11 @@ import shutil
 from pathlib import Path
 
 from aqt.qt import QAction
-from aqt.utils import qconnect, showInfo, showWarning
+from aqt.utils import (
+    qconnect,
+    showInfo,
+    showWarning,
+)
 
 from batch_processor import process_notes
 from card_processor import OUTPUT_DIR
@@ -55,37 +59,59 @@ def has_required_fields(note):
     )
 
 
+def field_has_audio(
+    note,
+    field_name,
+):
+    return bool(
+        note[field_name].strip()
+    )
+
+
 def copy_audio_to_media(
     note,
     audio_files,
     media_folder,
 ):
-    front_filename = audio_files["front"]
-    back_filename = audio_files["back"]
+    if audio_files.get(
+        "front_processed",
+        True,
+    ):
+        front_filename = audio_files[
+            "front"
+        ]
 
-    if front_filename:
-        shutil.copy(
-            OUTPUT_DIR / front_filename,
-            media_folder / front_filename,
-        )
+        if front_filename:
+            shutil.copy(
+                OUTPUT_DIR / front_filename,
+                media_folder / front_filename,
+            )
 
-        note["Front Audio"] = (
-            f"[sound:{front_filename}]"
-        )
-    else:
-        note["Front Audio"] = ""
+            note["Front Audio"] = (
+                f"[sound:{front_filename}]"
+            )
+        else:
+            note["Front Audio"] = ""
 
-    if back_filename:
-        shutil.copy(
-            OUTPUT_DIR / back_filename,
-            media_folder / back_filename,
-        )
+    if audio_files.get(
+        "back_processed",
+        True,
+    ):
+        back_filename = audio_files[
+            "back"
+        ]
 
-        note["Back Audio"] = (
-            f"[sound:{back_filename}]"
-        )
-    else:
-        note["Back Audio"] = ""
+        if back_filename:
+            shutil.copy(
+                OUTPUT_DIR / back_filename,
+                media_folder / back_filename,
+            )
+
+            note["Back Audio"] = (
+                f"[sound:{back_filename}]"
+            )
+        else:
+            note["Back Audio"] = ""
 
 
 def process_selected_notes(
@@ -120,7 +146,9 @@ def process_selected_notes(
 
     compatible_notes = []
     jobs = []
+
     skipped_note_types = 0
+    already_complete = 0
 
     for note_id in note_ids:
         note = mw.col.get_note(
@@ -133,25 +161,50 @@ def process_selected_notes(
             skipped_note_types += 1
             continue
 
+        generate_front = not field_has_audio(
+            note,
+            "Front Audio",
+        )
+
+        generate_back = not field_has_audio(
+            note,
+            "Back Audio",
+        )
+
+        if not (
+            generate_front
+            or generate_back
+        ):
+            already_complete += 1
+            continue
+
         compatible_notes.append(
             note
         )
 
         jobs.append(
             create_note_job(
-                note["Front"],
-                note["Back"],
+                front=note["Front"],
+                back=note["Back"],
+                generate_front=generate_front,
+                generate_back=generate_back,
             )
         )
 
     if not jobs:
-        showWarning(
-            "None of the selected notes contain all four required fields:\n\n"
-            "Front\n"
-            "Back\n"
-            "Front Audio\n"
-            "Back Audio"
-        )
+        if already_complete:
+            showInfo(
+                "All selected compatible notes already have audio."
+            )
+        else:
+            showWarning(
+                "None of the selected notes contain all four required fields:\n\n"
+                "Front\n"
+                "Back\n"
+                "Front Audio\n"
+                "Back Audio"
+            )
+
         return
 
     with hide_subprocess_windows():
@@ -204,6 +257,11 @@ def process_selected_notes(
         f"Reused from cache: {cached_count}",
     ]
 
+    if already_complete:
+        message_lines.append(
+            f"Already complete: {already_complete}"
+        )
+
     if skipped_segments:
         message_lines.append(
             f"Skipped segments: {skipped_segments}"
@@ -244,6 +302,4 @@ def add_browser_menu_action(
         action
     )
 
-    # Keep the Python QAction wrapper alive for as long as
-    # the Browser window remains open.
-    browser.ankitts_batch_action = action
+    browser.ankitts_generate_action = action

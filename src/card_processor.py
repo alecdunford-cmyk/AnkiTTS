@@ -1,11 +1,11 @@
 from pathlib import Path
 
-from parser import parse_text
-from generator import create_audio
-from stitcher import stitch_audio
 from cache import get_audio_path
 from filename import create_filename
+from generator import create_audio
+from parser import parse_text
 from settings import SettingsManager
+from stitcher import stitch_audio
 from text_normalizer import normalize_text
 
 
@@ -31,12 +31,19 @@ def combine_statistics(*statistics):
 
     for current in statistics:
         for key in combined:
-            combined[key] += current.get(key, 0)
+            combined[key] += current.get(
+                key,
+                0,
+            )
 
     return combined
 
 
-def process_chunks(chunks, filename, settings):
+def process_chunks(
+    chunks,
+    filename,
+    settings,
+):
     output_file = OUTPUT_DIR / filename
 
     audio_segments = []
@@ -49,7 +56,9 @@ def process_chunks(chunks, filename, settings):
             statistics["skipped"] += 1
             continue
 
-        voice = settings.voices.get(language)
+        voice = settings.voices.get(
+            language
+        )
 
         if voice is None:
             print(
@@ -76,14 +85,15 @@ def process_chunks(chunks, filename, settings):
             create_audio(
                 text=chunk["text"],
                 voice=voice,
-                output_file=str(audio_path),
+                output_file=str(
+                    audio_path
+                ),
                 rate=settings.rate,
                 volume=settings.volume,
                 pitch=settings.pitch,
             )
 
             statistics["generated"] += 1
-
         else:
             print(
                 f"Using cache: {chunk['text']}"
@@ -95,29 +105,44 @@ def process_chunks(chunks, filename, settings):
             {
                 "file": str(audio_path),
                 "text": chunk["text"],
-                "parenthetical": chunk["parenthetical"],
+                "parenthetical": chunk[
+                    "parenthetical"
+                ],
             }
         )
 
     if not audio_segments:
-        print("No playable audio segments were found.")
+        print(
+            "No playable audio segments were found."
+        )
 
         return None, statistics
 
-    print("DEBUG OUTPUT FILE:", output_file)
+    print(
+        "DEBUG OUTPUT FILE:",
+        output_file,
+    )
 
     stitch_audio(
         audio_segments,
         str(output_file),
     )
 
-    print("Card audio created!")
+    print(
+        "Card audio created!"
+    )
 
     return filename, statistics
 
 
-def process_front(text, language, settings):
-    text = normalize_text(text)
+def process_front(
+    text,
+    language,
+    settings,
+):
+    text = normalize_text(
+        text
+    )
 
     if not text:
         return None, empty_statistics()
@@ -130,7 +155,9 @@ def process_front(text, language, settings):
         }
     ]
 
-    filename = create_filename(text).replace(
+    filename = create_filename(
+        text
+    ).replace(
         ".mp3",
         "_front.mp3",
     )
@@ -142,15 +169,24 @@ def process_front(text, language, settings):
     )
 
 
-def process_back(text, settings):
-    text = normalize_text(text)
+def process_back(
+    text,
+    settings,
+):
+    text = normalize_text(
+        text
+    )
 
     if not text:
         return None, empty_statistics()
 
-    chunks = parse_text(text)
+    chunks = parse_text(
+        text
+    )
 
-    filename = create_filename(text).replace(
+    filename = create_filename(
+        text
+    ).replace(
         ".mp3",
         "_back.mp3",
     )
@@ -167,6 +203,8 @@ def process_card(
     back,
     front_language=None,
     settings=None,
+    generate_front=True,
+    generate_back=True,
 ):
     if settings is None:
         settings = SettingsManager().load()
@@ -174,20 +212,30 @@ def process_card(
     if front_language is None:
         front_language = settings.front_language
 
-    front_audio, front_statistics = process_front(
-        front,
-        front_language,
-        settings,
-    )
+    if generate_front:
+        front_audio, front_statistics = process_front(
+            front,
+            front_language,
+            settings,
+        )
+    else:
+        front_audio = None
+        front_statistics = empty_statistics()
 
-    back_audio, back_statistics = process_back(
-        back,
-        settings,
-    )
+    if generate_back:
+        back_audio, back_statistics = process_back(
+            back,
+            settings,
+        )
+    else:
+        back_audio = None
+        back_statistics = empty_statistics()
 
     return {
         "front": front_audio,
         "back": back_audio,
+        "front_processed": generate_front,
+        "back_processed": generate_back,
         "statistics": combine_statistics(
             front_statistics,
             back_statistics,
