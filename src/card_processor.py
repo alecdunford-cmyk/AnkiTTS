@@ -196,17 +196,6 @@ def process_front(
     )
 
 
-def process_back(
-    text,
-    settings,
-):
-    return process_field(
-        text=text,
-        filename_suffix="back",
-        settings=settings,
-    )
-
-
 def process_card(
     front,
     back,
@@ -221,35 +210,55 @@ def process_card(
     if front_language is None:
         front_language = settings.front_language
 
-    if generate_front:
-        front_audio, front_statistics = process_front(
-            front,
-            front_language,
-            settings,
-        )
-    else:
-        front_audio = None
-        front_statistics = empty_statistics()
-
-    if generate_back:
-        back_audio, back_statistics = process_back(
-            back,
-            settings,
-        )
-    else:
-        back_audio = None
-        back_statistics = empty_statistics()
-
-    return {
-        "front": front_audio,
-        "back": back_audio,
-        "front_processed": generate_front,
-        "back_processed": generate_back,
-        "statistics": combine_statistics(
-            front_statistics,
-            back_statistics,
-        ),
+    field_definitions = {
+        "front": {
+            "text": front,
+            "language": front_language,
+            "enabled": generate_front,
+        },
+        "back": {
+            "text": back,
+            "language": None,
+            "enabled": generate_back,
+        },
     }
+
+    result = {}
+    statistics = empty_statistics()
+
+    for field_name, field_definition in field_definitions.items():
+        enabled = field_definition[
+            "enabled"
+        ]
+
+        if enabled:
+            audio_file, field_statistics = process_field(
+                text=field_definition[
+                    "text"
+                ],
+                filename_suffix=field_name,
+                language=field_definition[
+                    "language"
+                ],
+                settings=settings,
+            )
+        else:
+            audio_file = None
+            field_statistics = empty_statistics()
+
+        result[field_name] = audio_file
+        result[
+            f"{field_name}_processed"
+        ] = enabled
+
+        statistics = combine_statistics(
+            statistics,
+            field_statistics,
+        )
+
+    result["statistics"] = statistics
+
+    return result
 
 
 if __name__ == "__main__":
