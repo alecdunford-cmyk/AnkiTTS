@@ -5,6 +5,7 @@ from aqt.qt import (
     QDialogButtonBox,
     QFormLayout,
     QLabel,
+    QLineEdit,
     QVBoxLayout,
 )
 from aqt.utils import qconnect, showInfo
@@ -49,6 +50,22 @@ class SettingsDialog(QDialog):
         self.front_language_combo = QComboBox()
         self.voice_combos = {}
 
+        self.front_text_field_edit = QLineEdit(
+            self.settings.front_text_field
+        )
+
+        self.back_text_field_edit = QLineEdit(
+            self.settings.back_text_field
+        )
+
+        self.front_audio_field_edit = QLineEdit(
+            self.settings.front_audio_field
+        )
+
+        self.back_audio_field_edit = QLineEdit(
+            self.settings.back_audio_field
+        )
+
         self.populate_language_combo()
 
         try:
@@ -64,8 +81,9 @@ class SettingsDialog(QDialog):
             voices_available = False
 
         description = QLabel(
-            "Choose the language used for the front of each card "
-            "and the preferred voice for each supported language."
+            "Choose the language used for the front of each card, "
+            "the preferred voice for each supported language, and "
+            "the note fields AnkiTTS should use."
         )
         description.setWordWrap(True)
 
@@ -91,6 +109,34 @@ class SettingsDialog(QDialog):
                 f"{display_name} voice:",
                 combo,
             )
+
+        field_mapping_label = QLabel(
+            "<b>Field mapping</b>"
+        )
+
+        form_layout.addRow(
+            field_mapping_label
+        )
+
+        form_layout.addRow(
+            "Front text field:",
+            self.front_text_field_edit,
+        )
+
+        form_layout.addRow(
+            "Back text field:",
+            self.back_text_field_edit,
+        )
+
+        form_layout.addRow(
+            "Front audio field:",
+            self.front_audio_field_edit,
+        )
+
+        form_layout.addRow(
+            "Back audio field:",
+            self.back_audio_field_edit,
+        )
 
         self.button_box = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Save
@@ -191,6 +237,22 @@ class SettingsDialog(QDialog):
 
         config["voices"] = voices
 
+        config["front_text_field"] = (
+            self.front_text_field_edit.text().strip()
+        )
+
+        config["back_text_field"] = (
+            self.back_text_field_edit.text().strip()
+        )
+
+        config["front_audio_field"] = (
+            self.front_audio_field_edit.text().strip()
+        )
+
+        config["back_audio_field"] = (
+            self.back_audio_field_edit.text().strip()
+        )
+
         try:
             validated_settings = AppSettings.from_dict(
                 config
@@ -208,6 +270,18 @@ class SettingsDialog(QDialog):
                     validated_settings.front_language
                 ),
                 "voices": validated_settings.voices,
+                "front_text_field": (
+                    validated_settings.front_text_field
+                ),
+                "back_text_field": (
+                    validated_settings.back_text_field
+                ),
+                "front_audio_field": (
+                    validated_settings.front_audio_field
+                ),
+                "back_audio_field": (
+                    validated_settings.back_audio_field
+                ),
                 "rate": validated_settings.rate,
                 "volume": validated_settings.volume,
                 "pitch": validated_settings.pitch,

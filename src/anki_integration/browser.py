@@ -10,17 +10,15 @@ from aqt.utils import (
 
 from batch_processor import process_notes
 from card_processor import OUTPUT_DIR
-from note_mapper import create_note_job
+from note_mapper import (
+    create_job_from_note,
+    get_generation_requirements,
+    get_mapped_field_names,
+    has_mapped_fields,
+    write_audio_fields,
+)
 from settings import AppSettings
 from stitcher import hide_subprocess_windows
-
-
-REQUIRED_FIELDS = (
-    "Front",
-    "Back",
-    "Front Audio",
-    "Back Audio",
-)
 
 
 def get_selected_note_ids(browser):
@@ -52,66 +50,51 @@ def get_selected_note_ids(browser):
     return []
 
 
-def has_required_fields(note):
-    return all(
-        field_name in note
-        for field_name in REQUIRED_FIELDS
-    )
-
-
-def field_has_audio(
-    note,
-    field_name,
-):
-    return bool(
-        note[field_name].strip()
-    )
-
-
-def copy_audio_to_media(
-    note,
+def copy_generated_audio_to_media(
     audio_files,
     media_folder,
 ):
-    if audio_files.get(
-        "front_processed",
-        True,
+    """Copy only the audio files processed for this batch job."""
+
+    for side in (
+        "front",
+        "back",
     ):
-        front_filename = audio_files[
-            "front"
-        ]
+        processed_key = (
+            f"{side}_processed"
+        )
 
-        if front_filename:
-            shutil.copy(
-                OUTPUT_DIR / front_filename,
-                media_folder / front_filename,
-            )
+        if not audio_files.get(
+            processed_key,
+            True,
+        ):
+            continue
 
-            note["Front Audio"] = (
-                f"[sound:{front_filename}]"
-            )
-        else:
-            note["Front Audio"] = ""
+        filename = audio_files.get(
+            side
+        )
 
-    if audio_files.get(
-        "back_processed",
-        True,
-    ):
-        back_filename = audio_files[
-            "back"
-        ]
+        if not filename:
+            continue
 
-        if back_filename:
-            shutil.copy(
-                OUTPUT_DIR / back_filename,
-                media_folder / back_filename,
-            )
+        shutil.copy(
+            OUTPUT_DIR / filename,
+            media_folder / filename,
+        )
 
-            note["Back Audio"] = (
-                f"[sound:{back_filename}]"
-            )
-        else:
-            note["Back Audio"] = ""
+
+def format_required_fields_message(
+    settings,
+):
+    """Format the configured field names for user-facing warnings."""
+
+    field_names = get_mapped_field_names(
+        settings
+    )
+
+    return "\n".join(
+        field_names.values()
+    )
 
 
 def process_selected_notes(
@@ -155,20 +138,30 @@ def process_selected_notes(
             note_id
         )
 
-        if not has_required_fields(
-            note
+        if not has_mapped_fields(
+            note,
+            settings,
         ):
             skipped_note_types += 1
             continue
 
-        generate_front = not field_has_audio(
-            note,
-            "Front Audio",
+        generation_requirements = (
+            get_generation_requirements(
+                note,
+                settings,
+            )
         )
 
-        generate_back = not field_has_audio(
-            note,
-            "Back Audio",
+        generate_front = (
+            generation_requirements[
+                "generate_front"
+            ]
+        )
+
+        generate_back = (
+            generation_requirements[
+                "generate_back"
+            ]
         )
 
         if not (
@@ -183,9 +176,9 @@ def process_selected_notes(
         )
 
         jobs.append(
-            create_note_job(
-                front=note["Front"],
-                back=note["Back"],
+            create_job_from_note(
+                note,
+                settings,
                 generate_front=generate_front,
                 generate_back=generate_back,
             )
@@ -197,12 +190,16 @@ def process_selected_notes(
                 "All selected compatible notes already have audio."
             )
         else:
+            required_fields = (
+                format_required_fields_message(
+                    settings
+                )
+            )
+
             showWarning(
-                "None of the selected notes contain all four required fields:\n\n"
-                "Front\n"
-                "Back\n"
-                "Front Audio\n"
-                "Back Audio"
+                "None of the selected notes contain all four "
+                "configured AnkiTTS fields:\n\n"
+                f"{required_fields}"
             )
 
         return
@@ -217,10 +214,15 @@ def process_selected_notes(
         compatible_notes,
         batch_result["results"],
     ):
-        copy_audio_to_media(
-            note,
+        copy_generated_audio_to_media(
             audio_files,
             media_folder,
+        )
+
+        write_audio_fields(
+            note,
+            audio_files,
+            settings,
         )
 
         mw.col.update_note(

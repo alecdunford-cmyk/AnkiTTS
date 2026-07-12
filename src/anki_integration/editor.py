@@ -3,23 +3,35 @@ from pathlib import Path
 
 from batch_processor import process_notes
 from card_processor import OUTPUT_DIR
-from note_mapper import create_note_job
+from note_mapper import (
+    create_job_from_note,
+    write_audio_fields,
+)
 from settings import AppSettings
 from stitcher import hide_subprocess_windows
 
 
-def get_field_index(note, field_name):
-    field_names = [
-        field["name"]
-        for field in note.note_type()["flds"]
-    ]
+def copy_generated_audio_to_media(
+    audio_files,
+    media_folder,
+):
+    """Copy generated front and back audio files into Anki media."""
 
-    if field_name not in field_names:
-        raise ValueError(
-            f'Required field "{field_name}" was not found.'
+    for side in (
+        "front",
+        "back",
+    ):
+        filename = audio_files.get(
+            side
         )
 
-    return field_names.index(field_name)
+        if not filename:
+            continue
+
+        shutil.copy(
+            OUTPUT_DIR / filename,
+            media_folder / filename,
+        )
 
 
 def process_editor_note(
@@ -27,82 +39,58 @@ def process_editor_note(
     mw,
     addon_name,
 ):
+    """
+    Explicitly regenerate audio for the current editor note.
+
+    Unlike batch generation, this always processes both configured sides.
+    """
+
     note = editor.note
 
-    front_index = get_field_index(
-        note,
-        "Front"
+    config = (
+        mw.addonManager.getConfig(
+            addon_name
+        )
+        or {}
     )
-
-    back_index = get_field_index(
-        note,
-        "Back"
-    )
-
-    front_audio_index = get_field_index(
-        note,
-        "Front Audio"
-    )
-
-    back_audio_index = get_field_index(
-        note,
-        "Back Audio"
-    )
-
-    front = note.fields[front_index]
-    back = note.fields[back_index]
-
-    config = mw.addonManager.getConfig(
-        addon_name
-    ) or {}
 
     settings = AppSettings.from_dict(
         config
     )
 
+    job = create_job_from_note(
+        note,
+        settings,
+        generate_front=True,
+        generate_back=True,
+    )
+
     with hide_subprocess_windows():
         batch_result = process_notes(
             [
-                create_note_job(
-                    front,
-                    back,
-                )
+                job
             ],
             settings=settings,
         )
 
-    audio_files = batch_result["results"][0]
+    audio_files = batch_result[
+        "results"
+    ][0]
 
     media_folder = Path(
         mw.col.media.dir()
     )
 
-    front_filename = audio_files["front"]
-    back_filename = audio_files["back"]
+    copy_generated_audio_to_media(
+        audio_files,
+        media_folder,
+    )
 
-    if front_filename:
-        shutil.copy(
-            OUTPUT_DIR / front_filename,
-            media_folder / front_filename,
-        )
-
-        note.fields[front_audio_index] = (
-            f"[sound:{front_filename}]"
-        )
-    else:
-        note.fields[front_audio_index] = ""
-
-    if back_filename:
-        shutil.copy(
-            OUTPUT_DIR / back_filename,
-            media_folder / back_filename,
-        )
-
-        note.fields[back_audio_index] = (
-            f"[sound:{back_filename}]"
-        )
-    else:
-        note.fields[back_audio_index] = ""
+    write_audio_fields(
+        note,
+        audio_files,
+        settings,
+    )
 
     editor.loadNoteKeepingFocus()
 
