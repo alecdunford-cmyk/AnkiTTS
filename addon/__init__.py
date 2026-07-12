@@ -1,4 +1,3 @@
-import shutil
 import sys
 from pathlib import Path
 
@@ -8,123 +7,37 @@ from aqt.utils import qconnect, showInfo
 
 
 ADDON_DIR = Path(__file__).resolve().parent
-PROJECT_DIR = ADDON_DIR.parent
+
+if (ADDON_DIR / "src").is_dir():
+    ENGINE_PATH = ADDON_DIR / "src"
+else:
+    ENGINE_PATH = ADDON_DIR.parent / "src"
 
 LIB_PATH = ADDON_DIR / "libs"
-ENGINE_PATH = PROJECT_DIR / "src"
 
-sys.path.append(
-    str(LIB_PATH)
-)
+if str(LIB_PATH) not in sys.path:
+    sys.path.insert(
+        0,
+        str(LIB_PATH),
+    )
 
-sys.path.append(
-    str(ENGINE_PATH)
-)
+if str(ENGINE_PATH) not in sys.path:
+    sys.path.insert(
+        0,
+        str(ENGINE_PATH),
+    )
 
+from anki_integration.browser import add_browser_menu_action
+from anki_integration.editor import process_editor_note
 from .settings_dialog import show_settings_dialog
 
 
-def get_field_index(note, field_name):
-    field_names = [
-        field["name"]
-        for field in note.note_type()["flds"]
-    ]
-
-    if field_name not in field_names:
-        raise ValueError(
-            f'Required field "{field_name}" was not found.'
-        )
-
-    return field_names.index(field_name)
-
-
 def tts_button(editor):
-    from card_processor import OUTPUT_DIR, process_card
-    from settings import AppSettings
-    from stitcher import hide_subprocess_windows
-
-    note = editor.note
-
-    front_index = get_field_index(
-        note,
-        "Front"
+    audio_files = process_editor_note(
+        editor,
+        mw,
+        __name__,
     )
-
-    back_index = get_field_index(
-        note,
-        "Back"
-    )
-
-    front_audio_index = get_field_index(
-        note,
-        "Front Audio"
-    )
-
-    back_audio_index = get_field_index(
-        note,
-        "Back Audio"
-    )
-
-    front = note.fields[front_index]
-    back = note.fields[back_index]
-
-    config = mw.addonManager.getConfig(__name__) or {}
-
-    settings = AppSettings.from_dict(config)
-
-    print("DEBUG FRONT:")
-    print(repr(front))
-
-    print("DEBUG BACK:")
-    print(repr(back))
-
-    with hide_subprocess_windows():
-        audio_files = process_card(
-            front=front,
-            back=back,
-            settings=settings,
-        )
-
-    media_folder = Path(
-        mw.col.media.dir()
-    )
-
-    front_filename = audio_files["front"]
-    back_filename = audio_files["back"]
-
-    if front_filename:
-        front_audio_path = (
-            OUTPUT_DIR / front_filename
-        )
-
-        shutil.copy(
-            front_audio_path,
-            media_folder / front_filename
-        )
-
-        note.fields[front_audio_index] = (
-            f"[sound:{front_filename}]"
-        )
-    else:
-        note.fields[front_audio_index] = ""
-
-    if back_filename:
-        back_audio_path = (
-            OUTPUT_DIR / back_filename
-        )
-
-        shutil.copy(
-            back_audio_path,
-            media_folder / back_filename
-        )
-
-        note.fields[back_audio_index] = (
-            f"[sound:{back_filename}]"
-        )
-    else:
-        note.fields[back_audio_index] = ""
-
-    editor.loadNoteKeepingFocus()
 
     statistics = audio_files.get(
         "statistics",
@@ -159,11 +72,16 @@ def tts_button(editor):
         )
 
     showInfo(
-        "\n".join(message_lines)
+        "\n".join(
+            message_lines
+        )
     )
 
 
-def add_tts_button(buttons, editor):
+def add_tts_button(
+    buttons,
+    editor,
+):
     button = editor.addButton(
         None,
         "generate_tts_audio",
@@ -172,11 +90,27 @@ def add_tts_button(buttons, editor):
         label="TTS",
     )
 
-    buttons.append(button)
+    buttons.append(
+        button
+    )
+
+
+def initialize_browser_menu(
+    browser,
+):
+    add_browser_menu_action(
+        browser,
+        mw,
+        __name__,
+    )
 
 
 gui_hooks.editor_did_init_buttons.append(
     add_tts_button
+)
+
+gui_hooks.browser_menus_did_init.append(
+    initialize_browser_menu
 )
 
 
