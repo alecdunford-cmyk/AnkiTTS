@@ -309,10 +309,20 @@ if __name__ == "__main__":
     ) as file:
         sample = file.read()
 
-    result = process_card(
-        front=sample,
-        back="",
-        settings=settings,
+    result = process_field_definitions(
+        {
+            "front": {
+                "text": sample,
+                "voice_mode": "front",
+                "enabled": True,
+            },
+            "back": {
+                "text": "",
+                "voice_mode": "auto",
+                "enabled": True,
+            },
+        },
+        settings,
     )
 
     print(
