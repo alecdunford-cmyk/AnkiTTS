@@ -12,7 +12,6 @@ from batch_processor import process_notes
 from card_processor import OUTPUT_DIR
 from note_mapper import (
     create_job_from_note,
-    get_generation_requirements,
     get_mapped_field_names,
     has_mapped_fields,
     write_audio_fields,
@@ -131,7 +130,6 @@ def process_selected_notes(
     jobs = []
 
     skipped_note_types = 0
-    already_complete = 0
 
     for note_id in note_ids:
         note = mw.col.get_note(
@@ -145,32 +143,6 @@ def process_selected_notes(
             skipped_note_types += 1
             continue
 
-        generation_requirements = (
-            get_generation_requirements(
-                note,
-                settings,
-            )
-        )
-
-        generate_front = (
-            generation_requirements[
-                "generate_front"
-            ]
-        )
-
-        generate_back = (
-            generation_requirements[
-                "generate_back"
-            ]
-        )
-
-        if not (
-            generate_front
-            or generate_back
-        ):
-            already_complete += 1
-            continue
-
         compatible_notes.append(
             note
         )
@@ -179,8 +151,8 @@ def process_selected_notes(
             create_job_from_note(
                 note,
                 settings,
-                generate_front=generate_front,
-                generate_back=generate_back,
+                generate_front=True,
+                generate_back=True,
             )
         )
 
@@ -258,11 +230,6 @@ def process_selected_notes(
         f"Generated segments: {generated_count}",
         f"Reused from cache: {cached_count}",
     ]
-
-    if already_complete:
-        message_lines.append(
-            f"Already complete: {already_complete}"
-        )
 
     if skipped_segments:
         message_lines.append(
