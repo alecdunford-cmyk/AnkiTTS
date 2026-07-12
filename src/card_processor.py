@@ -183,19 +183,6 @@ def process_field(
     )
 
 
-def process_front(
-    text,
-    language,
-    settings,
-):
-    return process_field(
-        text=text,
-        filename_suffix="front",
-        language=language,
-        settings=settings,
-    )
-
-
 def resolve_field_language(
     field_definition,
     settings,
