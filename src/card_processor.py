@@ -266,39 +266,6 @@ def process_field_definitions(
     return result
 
 
-def process_card(
-    front,
-    back,
-    front_language=None,
-    settings=None,
-    generate_front=True,
-    generate_back=True,
-):
-    if settings is None:
-        settings = SettingsManager().load()
-
-    if front_language is None:
-        front_language = settings.front_language
-
-    field_definitions = {
-        "front": {
-            "text": front,
-            "language": front_language,
-            "enabled": generate_front,
-        },
-        "back": {
-            "text": back,
-            "language": None,
-            "enabled": generate_back,
-        },
-    }
-
-    return process_field_definitions(
-        field_definitions,
-        settings,
-    )
-
-
 if __name__ == "__main__":
     settings = SettingsManager().load()
 
