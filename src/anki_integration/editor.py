@@ -47,6 +47,11 @@ def process_editor_note(
 
     note = editor.note
 
+    if note.id:
+        note = mw.col.get_note(
+            note.id
+        )
+
     config = (
         mw.addonManager.getConfig(
             addon_name
@@ -92,6 +97,12 @@ def process_editor_note(
         settings,
     )
 
+    if note.id:
+        mw.col.update_note(
+            note
+        )
+
+    editor.note = note
     editor.loadNoteKeepingFocus()
 
     return audio_files
