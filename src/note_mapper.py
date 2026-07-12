@@ -168,34 +168,16 @@ def create_job_from_note(
     generate_front=True,
     generate_back=True,
 ):
-    """Create an engine job from the configured Anki note fields."""
+    """Create a fields-based engine job from an Anki note."""
 
-    field_definitions = (
-        create_field_definitions_from_note(
+    return {
+        "fields": create_field_definitions_from_note(
             note,
             settings,
             generate_front=generate_front,
             generate_back=generate_back,
         )
-    )
-
-    return create_note_job(
-        front=field_definitions[
-            "front"
-        ]["text"],
-        back=field_definitions[
-            "back"
-        ]["text"],
-        front_language=field_definitions[
-            "front"
-        ]["language"],
-        generate_front=field_definitions[
-            "front"
-        ]["enabled"],
-        generate_back=field_definitions[
-            "back"
-        ]["enabled"],
-    )
+    }
 
 
 def get_generation_requirements(
