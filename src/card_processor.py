@@ -196,6 +196,37 @@ def process_front(
     )
 
 
+def resolve_field_language(
+    field_definition,
+    settings,
+):
+    """
+    Resolve a field definition to a concrete language.
+
+    Existing language-based definitions remain supported while
+    voice-mode definitions are introduced.
+    """
+
+    if "voice_mode" not in field_definition:
+        return field_definition.get(
+            "language"
+        )
+
+    voice_mode = field_definition[
+        "voice_mode"
+    ]
+
+    if voice_mode == "auto":
+        return None
+
+    if voice_mode == "front":
+        return settings.front_language
+
+    raise ValueError(
+        f'Unsupported voice mode: "{voice_mode}".'
+    )
+
+
 def process_field_definitions(
     field_definitions,
     settings,
@@ -223,8 +254,9 @@ def process_field_definitions(
                     "text"
                 ],
                 filename_suffix=field_name,
-                language=field_definition.get(
-                    "language"
+                language=resolve_field_language(
+                    field_definition,
+                    settings,
                 ),
                 settings=settings,
             )
