@@ -6,6 +6,7 @@ from stitcher import stitch_audio
 from cache import get_audio_path
 from filename import create_filename
 from settings import SettingsManager
+from text_normalizer import normalize_text
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -116,7 +117,9 @@ def process_chunks(chunks, filename, settings):
 
 
 def process_front(text, language, settings):
-    if not text.strip():
+    text = normalize_text(text)
+
+    if not text:
         return None, empty_statistics()
 
     chunks = [
@@ -140,7 +143,9 @@ def process_front(text, language, settings):
 
 
 def process_back(text, settings):
-    if not text.strip():
+    text = normalize_text(text)
+
+    if not text:
         return None, empty_statistics()
 
     chunks = parse_text(text)
