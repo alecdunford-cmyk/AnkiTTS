@@ -1,12 +1,47 @@
-def get_mapped_field_names(settings):
-    """Return the four configured Anki field names."""
+SUPPORTED_SIDES = (
+    "front",
+    "back",
+)
 
-    return {
-        "front_text": settings.front_text_field,
-        "back_text": settings.back_text_field,
-        "front_audio": settings.front_audio_field,
-        "back_audio": settings.back_audio_field,
-    }
+
+def get_side_mapping(
+    settings,
+    side,
+):
+    """Return the configured text/audio mapping for one side."""
+
+    if side not in SUPPORTED_SIDES:
+        raise ValueError(
+            f'Unsupported audio side: "{side}".'
+        )
+
+    return settings.field_mapping[
+        side
+    ]
+
+
+def get_mapped_field_names(
+    settings,
+):
+    """Return all currently configured Anki field names."""
+
+    field_names = {}
+
+    for side in SUPPORTED_SIDES:
+        side_mapping = get_side_mapping(
+            settings,
+            side,
+        )
+
+        field_names[
+            f"{side}_text"
+        ] = side_mapping["text"]
+
+        field_names[
+            f"{side}_audio"
+        ] = side_mapping["audio"]
+
+    return field_names
 
 
 def get_missing_mapped_fields(
@@ -15,13 +50,11 @@ def get_missing_mapped_fields(
 ):
     """Return configured fields that do not exist on the note."""
 
-    field_names = get_mapped_field_names(
-        settings
-    )
-
     return [
         field_name
-        for field_name in field_names.values()
+        for field_name in get_mapped_field_names(
+            settings
+        ).values()
         if field_name not in note
     ]
 
@@ -56,7 +89,7 @@ def create_note_job(
     generate_front=True,
     generate_back=True,
 ):
-    """Create a generic audio-generation job."""
+    """Create the engine's current front/back audio job."""
 
     return {
         "front": front,
@@ -73,7 +106,7 @@ def create_job_from_note(
     generate_front=True,
     generate_back=True,
 ):
-    """Create an audio job using the configured note fields."""
+    """Create an engine job from the configured Anki note fields."""
 
     missing_fields = get_missing_mapped_fields(
         note,
@@ -90,12 +123,22 @@ def create_job_from_note(
             f"configured AnkiTTS fields:\n\n{formatted_fields}"
         )
 
+    front_mapping = get_side_mapping(
+        settings,
+        "front",
+    )
+
+    back_mapping = get_side_mapping(
+        settings,
+        "back",
+    )
+
     return create_note_job(
         front=note[
-            settings.front_text_field
+            front_mapping["text"]
         ],
         back=note[
-            settings.back_text_field
+            back_mapping["text"]
         ],
         generate_front=generate_front,
         generate_back=generate_back,
@@ -109,19 +152,25 @@ def get_generation_requirements(
     """
     Return which sides need audio.
 
-    This is intended for missing-only batch generation.
+    This preserves the Browser command's missing-only behavior.
     """
 
-    return {
-        "generate_front": not field_has_audio(
+    requirements = {}
+
+    for side in SUPPORTED_SIDES:
+        side_mapping = get_side_mapping(
+            settings,
+            side,
+        )
+
+        requirements[
+            f"generate_{side}"
+        ] = not field_has_audio(
             note,
-            settings.front_audio_field,
-        ),
-        "generate_back": not field_has_audio(
-            note,
-            settings.back_audio_field,
-        ),
-    }
+            side_mapping["audio"],
+        )
+
+    return requirements
 
 
 def write_audio_fields(
@@ -129,38 +178,31 @@ def write_audio_fields(
     audio_files,
     settings,
 ):
-    """Write generated sound tags into the configured audio fields."""
+    """Write sound tags into the configured audio fields."""
 
-    if audio_files.get(
-        "front_processed",
-        True,
-    ):
-        front_filename = audio_files.get(
-            "front"
+    for side in SUPPORTED_SIDES:
+        if not audio_files.get(
+            f"{side}_processed",
+            True,
+        ):
+            continue
+
+        side_mapping = get_side_mapping(
+            settings,
+            side,
         )
 
-        if front_filename:
-            note[
-                settings.front_audio_field
-            ] = f"[sound:{front_filename}]"
-        else:
-            note[
-                settings.front_audio_field
-            ] = ""
-
-    if audio_files.get(
-        "back_processed",
-        True,
-    ):
-        back_filename = audio_files.get(
-            "back"
+        filename = audio_files.get(
+            side
         )
 
-        if back_filename:
-            note[
-                settings.back_audio_field
-            ] = f"[sound:{back_filename}]"
+        if filename:
+            field_value = (
+                f"[sound:{filename}]"
+            )
         else:
-            note[
-                settings.back_audio_field
-            ] = ""
+            field_value = ""
+
+        note[
+            side_mapping["audio"]
+        ] = field_value
