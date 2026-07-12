@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
@@ -10,6 +11,17 @@ DEFAULT_VOICES = {
     "fr": "fr-FR-DeniseNeural",
     "en": "en-US-JennyNeural",
     "ja": "ja-JP-NanamiNeural",
+}
+
+DEFAULT_FIELD_MAPPING = {
+    "front": {
+        "text": "Front",
+        "audio": "Front Audio",
+    },
+    "back": {
+        "text": "Back",
+        "audio": "Back Audio",
+    },
 }
 
 
@@ -23,14 +35,47 @@ class AppSettings:
         default_factory=lambda: DEFAULT_VOICES.copy()
     )
 
-    front_text_field: str = "Front"
-    back_text_field: str = "Back"
-    front_audio_field: str = "Front Audio"
-    back_audio_field: str = "Back Audio"
+    field_mapping: dict[str, dict[str, str]] = field(
+        default_factory=lambda: deepcopy(
+            DEFAULT_FIELD_MAPPING
+        )
+    )
 
     rate: str = "+0%"
     volume: str = "+0%"
     pitch: str = "+0Hz"
+
+    @property
+    def front_text_field(self) -> str:
+        return self.field_mapping["front"]["text"]
+
+    @front_text_field.setter
+    def front_text_field(self, value: str) -> None:
+        self.field_mapping["front"]["text"] = value
+
+    @property
+    def back_text_field(self) -> str:
+        return self.field_mapping["back"]["text"]
+
+    @back_text_field.setter
+    def back_text_field(self, value: str) -> None:
+        self.field_mapping["back"]["text"] = value
+
+    @property
+    def front_audio_field(self) -> str:
+        return self.field_mapping["front"]["audio"]
+
+    @front_audio_field.setter
+    def front_audio_field(self, value: str) -> None:
+        self.field_mapping["front"]["audio"] = value
+
+    @property
+    def back_audio_field(self) -> str:
+        return self.field_mapping["back"]["audio"]
+
+    @back_audio_field.setter
+    def back_audio_field(self, value: str) -> None:
+        self.field_mapping["back"]["audio"] = value
 
     def validate(self) -> None:
         """Raise ValueError when a setting has an invalid structure."""
@@ -54,40 +99,69 @@ class AppSettings:
                 or not isinstance(voice, str)
             ):
                 raise ValueError(
-                    "Every voice entry must contain string keys and values."
+                    "Every voice entry must contain "
+                    "string keys and values."
                 )
 
-        field_settings = (
-            "front_text_field",
-            "back_text_field",
-            "front_audio_field",
-            "back_audio_field",
-        )
-
-        for attribute_name in field_settings:
-            value = getattr(
-                self,
-                attribute_name,
+        if not isinstance(
+            self.field_mapping,
+            dict,
+        ):
+            raise ValueError(
+                "field_mapping must be a dictionary."
             )
 
-            if (
-                not isinstance(value, str)
-                or not value.strip()
+        mapped_field_names = []
+
+        for side in (
+            "front",
+            "back",
+        ):
+            side_mapping = self.field_mapping.get(
+                side
+            )
+
+            if not isinstance(
+                side_mapping,
+                dict,
             ):
                 raise ValueError(
-                    f"{attribute_name} must be a non-empty string."
+                    f'field_mapping["{side}"] must '
+                    "be a dictionary."
                 )
 
-        mapped_fields = [
-            self.front_text_field.strip(),
-            self.back_text_field.strip(),
-            self.front_audio_field.strip(),
-            self.back_audio_field.strip(),
-        ]
+            for role in (
+                "text",
+                "audio",
+            ):
+                field_name = side_mapping.get(
+                    role
+                )
 
-        if len(set(mapped_fields)) != len(mapped_fields):
+                if (
+                    not isinstance(field_name, str)
+                    or not field_name.strip()
+                ):
+                    raise ValueError(
+                        f'field_mapping["{side}"]["{role}"] '
+                        "must be a non-empty string."
+                    )
+
+                side_mapping[role] = (
+                    field_name.strip()
+                )
+
+                mapped_field_names.append(
+                    side_mapping[role]
+                )
+
+        if (
+            len(set(mapped_field_names))
+            != len(mapped_field_names)
+        ):
             raise ValueError(
-                "Each mapped text and audio field must have a unique name."
+                "Each mapped text and audio field "
+                "must have a unique name."
             )
 
         for attribute_name in (
@@ -110,7 +184,12 @@ class AppSettings:
         cls,
         data: dict[str, Any],
     ) -> AppSettings:
-        """Create settings while safely ignoring unknown keys."""
+        """
+        Create settings while safely ignoring unknown keys.
+
+        Both the new nested field_mapping structure and the
+        four legacy field-name keys are supported.
+        """
 
         settings = cls()
 
@@ -135,27 +214,60 @@ class AppSettings:
                 }
             )
 
-        field_settings = (
-            "front_text_field",
-            "back_text_field",
-            "front_audio_field",
-            "back_audio_field",
-        )
+        if "field_mapping" in data:
+            field_mapping = data[
+                "field_mapping"
+            ]
 
-        for attribute_name in field_settings:
-            value = data.get(
-                attribute_name
+            if not isinstance(
+                field_mapping,
+                dict,
+            ):
+                raise ValueError(
+                    "field_mapping must be a dictionary."
+                )
+
+            settings.field_mapping = deepcopy(
+                field_mapping
             )
 
-            if isinstance(
-                value,
-                str,
-            ):
-                setattr(
-                    settings,
-                    attribute_name,
-                    value.strip(),
+        else:
+            legacy_field_settings = {
+                "front_text_field": (
+                    "front",
+                    "text",
+                ),
+                "back_text_field": (
+                    "back",
+                    "text",
+                ),
+                "front_audio_field": (
+                    "front",
+                    "audio",
+                ),
+                "back_audio_field": (
+                    "back",
+                    "audio",
+                ),
+            }
+
+            for (
+                setting_name,
+                mapping_location,
+            ) in legacy_field_settings.items():
+                value = data.get(
+                    setting_name
                 )
+
+                if isinstance(
+                    value,
+                    str,
+                ):
+                    side, role = mapping_location
+
+                    settings.field_mapping[
+                        side
+                    ][role] = value.strip()
 
         if isinstance(
             data.get("rate"),
@@ -221,7 +333,8 @@ class SettingsManager:
                 dict,
             ):
                 raise ValueError(
-                    "The settings file must contain a JSON object."
+                    "The settings file must contain "
+                    "a JSON object."
                 )
 
             return AppSettings.from_dict(

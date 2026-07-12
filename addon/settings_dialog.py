@@ -237,21 +237,16 @@ class SettingsDialog(QDialog):
 
         config["voices"] = voices
 
-        config["front_text_field"] = (
-            self.front_text_field_edit.text().strip()
-        )
-
-        config["back_text_field"] = (
-            self.back_text_field_edit.text().strip()
-        )
-
-        config["front_audio_field"] = (
-            self.front_audio_field_edit.text().strip()
-        )
-
-        config["back_audio_field"] = (
-            self.back_audio_field_edit.text().strip()
-        )
+        config["field_mapping"] = {
+            "front": {
+                "text": self.front_text_field_edit.text().strip(),
+                "audio": self.front_audio_field_edit.text().strip(),
+            },
+            "back": {
+                "text": self.back_text_field_edit.text().strip(),
+                "audio": self.back_audio_field_edit.text().strip(),
+            },
+        }
 
         try:
             validated_settings = AppSettings.from_dict(
@@ -267,20 +262,11 @@ class SettingsDialog(QDialog):
         config.update(
             {
                 "front_language": (
-                    validated_settings.front_language
+            validated_settings.front_language
                 ),
                 "voices": validated_settings.voices,
-                "front_text_field": (
-                    validated_settings.front_text_field
-                ),
-                "back_text_field": (
-                    validated_settings.back_text_field
-                ),
-                "front_audio_field": (
-                    validated_settings.front_audio_field
-                ),
-                "back_audio_field": (
-                    validated_settings.back_audio_field
+                "field_mapping": (
+            validated_settings.field_mapping
                 ),
                 "rate": validated_settings.rate,
                 "volume": validated_settings.volume,
