@@ -135,11 +135,20 @@ def process_chunks(
     return filename, statistics
 
 
-def process_front(
+def process_field(
     text,
-    language,
+    filename_suffix,
     settings,
+    language=None,
 ):
+    """
+    Generate audio for one text field.
+
+    When language is provided, the entire field uses that language.
+    Otherwise, the text is parsed and its language is detected
+    chunk by chunk.
+    """
+
     text = normalize_text(
         text
     )
@@ -147,25 +156,43 @@ def process_front(
     if not text:
         return None, empty_statistics()
 
-    chunks = [
-        {
-            "text": text,
-            "language": language,
-            "parenthetical": False,
-        }
-    ]
+    if language is None:
+        chunks = parse_text(
+            text
+        )
+    else:
+        chunks = [
+            {
+                "text": text,
+                "language": language,
+                "parenthetical": False,
+            }
+        ]
 
     filename = create_filename(
         text
     ).replace(
         ".mp3",
-        "_front.mp3",
+        f"_{filename_suffix}.mp3",
     )
 
     return process_chunks(
         chunks,
         filename,
         settings,
+    )
+
+
+def process_front(
+    text,
+    language,
+    settings,
+):
+    return process_field(
+        text=text,
+        filename_suffix="front",
+        language=language,
+        settings=settings,
     )
 
 
@@ -173,28 +200,10 @@ def process_back(
     text,
     settings,
 ):
-    text = normalize_text(
-        text
-    )
-
-    if not text:
-        return None, empty_statistics()
-
-    chunks = parse_text(
-        text
-    )
-
-    filename = create_filename(
-        text
-    ).replace(
-        ".mp3",
-        "_back.mp3",
-    )
-
-    return process_chunks(
-        chunks,
-        filename,
-        settings,
+    return process_field(
+        text=text,
+        filename_suffix="back",
+        settings=settings,
     )
 
 
