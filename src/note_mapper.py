@@ -82,6 +82,68 @@ def field_has_audio(
     )
 
 
+def create_field_definitions_from_note(
+    note,
+    settings,
+    generate_front=True,
+    generate_back=True,
+):
+    """
+    Build engine field definitions from configured Anki fields.
+
+    This introduces the configuration-driven representation while
+    preserving the existing front/back job interface.
+    """
+
+    missing_fields = get_missing_mapped_fields(
+        note,
+        settings,
+    )
+
+    if missing_fields:
+        formatted_fields = "\n".join(
+            missing_fields
+        )
+
+        raise ValueError(
+            "The note does not contain the following "
+            f"configured AnkiTTS fields:\n\n{formatted_fields}"
+        )
+
+    generation_settings = {
+        "front": {
+            "enabled": generate_front,
+            "language": settings.front_language,
+        },
+        "back": {
+            "enabled": generate_back,
+            "language": None,
+        },
+    }
+
+    field_definitions = {}
+
+    for side in SUPPORTED_SIDES:
+        side_mapping = get_side_mapping(
+            settings,
+            side,
+        )
+
+        field_definitions[side] = {
+            "text": note[
+                side_mapping["text"]
+            ],
+            "language": generation_settings[
+                side
+            ]["language"],
+            "enabled": generation_settings[
+                side
+            ]["enabled"],
+        }
+
+    return field_definitions
+
+
 def create_note_job(
     front,
     back,
@@ -108,40 +170,31 @@ def create_job_from_note(
 ):
     """Create an engine job from the configured Anki note fields."""
 
-    missing_fields = get_missing_mapped_fields(
-        note,
-        settings,
-    )
-
-    if missing_fields:
-        formatted_fields = "\n".join(
-            missing_fields
+    field_definitions = (
+        create_field_definitions_from_note(
+            note,
+            settings,
+            generate_front=generate_front,
+            generate_back=generate_back,
         )
-
-        raise ValueError(
-            "The note does not contain the following "
-            f"configured AnkiTTS fields:\n\n{formatted_fields}"
-        )
-
-    front_mapping = get_side_mapping(
-        settings,
-        "front",
-    )
-
-    back_mapping = get_side_mapping(
-        settings,
-        "back",
     )
 
     return create_note_job(
-        front=note[
-            front_mapping["text"]
-        ],
-        back=note[
-            back_mapping["text"]
-        ],
-        generate_front=generate_front,
-        generate_back=generate_back,
+        front=field_definitions[
+            "front"
+        ]["text"],
+        back=field_definitions[
+            "back"
+        ]["text"],
+        front_language=field_definitions[
+            "front"
+        ]["language"],
+        generate_front=field_definitions[
+            "front"
+        ]["enabled"],
+        generate_back=field_definitions[
+            "back"
+        ]["enabled"],
     )
 
 
