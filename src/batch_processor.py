@@ -2,6 +2,7 @@ from card_processor import (
     combine_statistics,
     empty_statistics,
     process_card,
+    process_field_definitions,
 )
 
 
@@ -12,7 +13,10 @@ def process_notes(
     """
     Process one or more audio-generation jobs.
 
-    Each job may contain:
+    Jobs may contain either:
+        fields
+
+    or the legacy keys:
         front
         back
         front_language
@@ -23,23 +27,29 @@ def process_notes(
     results = []
     statistics = empty_statistics()
 
-    for note in notes:
-        result = process_card(
-            front=note["front"],
-            back=note["back"],
-            front_language=note.get(
-                "front_language"
-            ),
-            settings=settings,
-            generate_front=note.get(
-                "generate_front",
-                True,
-            ),
-            generate_back=note.get(
-                "generate_back",
-                True,
-            ),
-        )
+    for job in notes:
+        if "fields" in job:
+            result = process_field_definitions(
+                job["fields"],
+                settings,
+            )
+        else:
+            result = process_card(
+                front=job["front"],
+                back=job["back"],
+                front_language=job.get(
+                    "front_language"
+                ),
+                settings=settings,
+                generate_front=job.get(
+                    "generate_front",
+                    True,
+                ),
+                generate_back=job.get(
+                    "generate_back",
+                    True,
+                ),
+            )
 
         statistics = combine_statistics(
             statistics,
