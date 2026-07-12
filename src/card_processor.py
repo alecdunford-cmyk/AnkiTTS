@@ -196,6 +196,57 @@ def process_front(
     )
 
 
+def process_field_definitions(
+    field_definitions,
+    settings,
+):
+    """
+    Process configured field definitions without assuming
+    any particular field names.
+    """
+
+    result = {}
+    statistics = empty_statistics()
+
+    for (
+        field_name,
+        field_definition,
+    ) in field_definitions.items():
+        enabled = field_definition.get(
+            "enabled",
+            True,
+        )
+
+        if enabled:
+            audio_file, field_statistics = process_field(
+                text=field_definition[
+                    "text"
+                ],
+                filename_suffix=field_name,
+                language=field_definition.get(
+                    "language"
+                ),
+                settings=settings,
+            )
+        else:
+            audio_file = None
+            field_statistics = empty_statistics()
+
+        result[field_name] = audio_file
+        result[
+            f"{field_name}_processed"
+        ] = enabled
+
+        statistics = combine_statistics(
+            statistics,
+            field_statistics,
+        )
+
+    result["statistics"] = statistics
+
+    return result
+
+
 def process_card(
     front,
     back,
@@ -223,42 +274,10 @@ def process_card(
         },
     }
 
-    result = {}
-    statistics = empty_statistics()
-
-    for field_name, field_definition in field_definitions.items():
-        enabled = field_definition[
-            "enabled"
-        ]
-
-        if enabled:
-            audio_file, field_statistics = process_field(
-                text=field_definition[
-                    "text"
-                ],
-                filename_suffix=field_name,
-                language=field_definition[
-                    "language"
-                ],
-                settings=settings,
-            )
-        else:
-            audio_file = None
-            field_statistics = empty_statistics()
-
-        result[field_name] = audio_file
-        result[
-            f"{field_name}_processed"
-        ] = enabled
-
-        statistics = combine_statistics(
-            statistics,
-            field_statistics,
-        )
-
-    result["statistics"] = statistics
-
-    return result
+    return process_field_definitions(
+        field_definitions,
+        settings,
+    )
 
 
 if __name__ == "__main__":
