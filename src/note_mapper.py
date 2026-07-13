@@ -1,25 +1,3 @@
-SUPPORTED_SIDES = (
-    "front",
-    "back",
-)
-
-
-def get_side_mapping(
-    settings,
-    side,
-):
-    """Return the configured text/audio mapping for one side."""
-
-    if side not in SUPPORTED_SIDES:
-        raise ValueError(
-            f'Unsupported audio side: "{side}".'
-        )
-
-    return settings.field_mapping[
-        side
-    ]
-
-
 def get_mapped_field_names(
     settings,
 ):
@@ -69,17 +47,6 @@ def has_mapped_fields(
     )
 
 
-def field_has_audio(
-    note,
-    field_name,
-):
-    """Return whether an audio field already contains content."""
-
-    return bool(
-        note[field_name].strip()
-    )
-
-
 def create_field_definitions_from_note(
     note,
     settings,
@@ -115,12 +82,10 @@ def create_field_definitions_from_note(
 
     field_definitions = {}
 
-    for side in SUPPORTED_SIDES:
-        side_mapping = get_side_mapping(
-            settings,
-            side,
-        )
-
+    for (
+        side,
+        side_mapping,
+    ) in settings.field_mapping.items():
         field_definitions[side] = {
             "text": note[
                 side_mapping["text"]
@@ -170,34 +135,6 @@ def create_job_from_note(
             generate_back=generate_back,
         )
     }
-
-
-def get_generation_requirements(
-    note,
-    settings,
-):
-    """
-    Return which sides need audio.
-
-    This preserves the Browser command's missing-only behavior.
-    """
-
-    requirements = {}
-
-    for side in SUPPORTED_SIDES:
-        side_mapping = get_side_mapping(
-            settings,
-            side,
-        )
-
-        requirements[
-            f"generate_{side}"
-        ] = not field_has_audio(
-            note,
-            side_mapping["audio"],
-        )
-
-    return requirements
 
 
 def write_audio_fields(
