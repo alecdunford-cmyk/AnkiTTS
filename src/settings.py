@@ -52,7 +52,10 @@ class AppSettings:
         return self.field_mapping["front"]["text"]
 
     @front_text_field.setter
-    def front_text_field(self, value: str) -> None:
+    def front_text_field(
+        self,
+        value: str,
+    ) -> None:
         self.field_mapping["front"]["text"] = value
 
     @property
@@ -60,7 +63,10 @@ class AppSettings:
         return self.field_mapping["back"]["text"]
 
     @back_text_field.setter
-    def back_text_field(self, value: str) -> None:
+    def back_text_field(
+        self,
+        value: str,
+    ) -> None:
         self.field_mapping["back"]["text"] = value
 
     @property
@@ -68,7 +74,10 @@ class AppSettings:
         return self.field_mapping["front"]["audio"]
 
     @front_audio_field.setter
-    def front_audio_field(self, value: str) -> None:
+    def front_audio_field(
+        self,
+        value: str,
+    ) -> None:
         self.field_mapping["front"]["audio"] = value
 
     @property
@@ -76,29 +85,48 @@ class AppSettings:
         return self.field_mapping["back"]["audio"]
 
     @back_audio_field.setter
-    def back_audio_field(self, value: str) -> None:
+    def back_audio_field(
+        self,
+        value: str,
+    ) -> None:
         self.field_mapping["back"]["audio"] = value
 
     def validate(self) -> None:
         """Raise ValueError when a setting has an invalid structure."""
 
         if (
-            not isinstance(self.front_language, str)
+            not isinstance(
+                self.front_language,
+                str,
+            )
             or not self.front_language.strip()
         ):
             raise ValueError(
                 "front_language must be a non-empty string."
             )
 
-        if not isinstance(self.voices, dict):
+        self.front_language = (
+            self.front_language.strip()
+        )
+
+        if not isinstance(
+            self.voices,
+            dict,
+        ):
             raise ValueError(
                 "voices must be a dictionary."
             )
 
         for language, voice in self.voices.items():
             if (
-                not isinstance(language, str)
-                or not isinstance(voice, str)
+                not isinstance(
+                    language,
+                    str,
+                )
+                or not isinstance(
+                    voice,
+                    str,
+                )
             ):
                 raise ValueError(
                     "Every voice entry must contain "
@@ -113,22 +141,36 @@ class AppSettings:
                 "field_mapping must be a dictionary."
             )
 
-        mapped_field_names = []
-
-        for side in (
-            "front",
-            "back",
-        ):
-            side_mapping = self.field_mapping.get(
-                side
+        if not self.field_mapping:
+            raise ValueError(
+                "field_mapping must contain at least one "
+                "configured field mapping."
             )
 
+        mapped_field_names = []
+
+        for (
+            mapping_name,
+            mapping_definition,
+        ) in self.field_mapping.items():
+            if (
+                not isinstance(
+                    mapping_name,
+                    str,
+                )
+                or not mapping_name.strip()
+            ):
+                raise ValueError(
+                    "Every field_mapping key must be "
+                    "a non-empty string."
+                )
+
             if not isinstance(
-                side_mapping,
+                mapping_definition,
                 dict,
             ):
                 raise ValueError(
-                    f'field_mapping["{side}"] must '
+                    f'field_mapping["{mapping_name}"] must '
                     "be a dictionary."
                 )
 
@@ -136,28 +178,33 @@ class AppSettings:
                 "text",
                 "audio",
             ):
-                field_name = side_mapping.get(
-                    role
+                mapped_field_name = (
+                    mapping_definition.get(
+                        role
+                    )
                 )
 
                 if (
-                    not isinstance(field_name, str)
-                    or not field_name.strip()
+                    not isinstance(
+                        mapped_field_name,
+                        str,
+                    )
+                    or not mapped_field_name.strip()
                 ):
                     raise ValueError(
-                        f'field_mapping["{side}"]["{role}"] '
-                        "must be a non-empty string."
+                        f'field_mapping["{mapping_name}"]'
+                        f'["{role}"] must be a non-empty string.'
                     )
 
-                side_mapping[role] = (
-                    field_name.strip()
+                mapping_definition[role] = (
+                    mapped_field_name.strip()
                 )
 
                 mapped_field_names.append(
-                    side_mapping[role]
+                    mapping_definition[role]
                 )
 
-            voice_mode = side_mapping.get(
+            voice_mode = mapping_definition.get(
                 "voice_mode"
             )
 
@@ -166,13 +213,20 @@ class AppSettings:
                 "auto",
             ):
                 raise ValueError(
-                    f'field_mapping["{side}"]["voice_mode"] '
-                    'must be either "front" or "auto".'
+                    f'field_mapping["{mapping_name}"]'
+                    '["voice_mode"] must be either '
+                    '"front" or "auto".'
                 )
 
         if (
-            len(set(mapped_field_names))
-            != len(mapped_field_names)
+            len(
+                set(
+                    mapped_field_names
+                )
+            )
+            != len(
+                mapped_field_names
+            )
         ):
             raise ValueError(
                 "Each mapped text and audio field "
@@ -189,7 +243,10 @@ class AppSettings:
                 attribute_name,
             )
 
-            if not isinstance(value, str):
+            if not isinstance(
+                value,
+                str,
+            ):
                 raise ValueError(
                     f"{attribute_name} must be a string."
                 )
@@ -202,14 +259,16 @@ class AppSettings:
         """
         Create settings while safely ignoring unknown keys.
 
-        Both the new nested field_mapping structure and the
-        four legacy field-name keys are supported.
+        Both the nested field_mapping structure and the
+        four legacy field-name keys remain supported.
         """
 
         settings = cls()
 
         if isinstance(
-            data.get("front_language"),
+            data.get(
+                "front_language"
+            ),
             str,
         ):
             settings.front_language = data[
@@ -217,7 +276,9 @@ class AppSettings:
             ]
 
         if isinstance(
-            data.get("voices"),
+            data.get(
+                "voices"
+            ),
             dict,
         ):
             settings.voices.update(
@@ -230,12 +291,12 @@ class AppSettings:
             )
 
         if "field_mapping" in data:
-            field_mapping = data[
+            loaded_field_mapping = data[
                 "field_mapping"
             ]
 
             if not isinstance(
-                field_mapping,
+                loaded_field_mapping,
                 dict,
             ):
                 raise ValueError(
@@ -243,23 +304,28 @@ class AppSettings:
                 )
 
             settings.field_mapping = deepcopy(
-                field_mapping
+                loaded_field_mapping
             )
 
-            for side, default_mapping in (
-                DEFAULT_FIELD_MAPPING.items()
-            ):
-                side_mapping = settings.field_mapping.get(
-                    side
+            for (
+                mapping_name,
+                default_mapping,
+            ) in DEFAULT_FIELD_MAPPING.items():
+                mapping_definition = (
+                    settings.field_mapping.get(
+                        mapping_name
+                    )
                 )
 
                 if isinstance(
-                    side_mapping,
+                    mapping_definition,
                     dict,
                 ):
-                    side_mapping.setdefault(
+                    mapping_definition.setdefault(
                         "voice_mode",
-                        default_mapping["voice_mode"],
+                        default_mapping[
+                            "voice_mode"
+                        ],
                     )
 
         else:
@@ -294,31 +360,47 @@ class AppSettings:
                     value,
                     str,
                 ):
-                    side, role = mapping_location
+                    (
+                        mapping_name,
+                        role,
+                    ) = mapping_location
 
                     settings.field_mapping[
-                        side
+                        mapping_name
                     ][role] = value.strip()
 
         if isinstance(
-            data.get("rate"),
+            data.get(
+                "rate"
+            ),
             str,
         ):
-            settings.rate = data["rate"]
+            settings.rate = data[
+                "rate"
+            ]
 
         if isinstance(
-            data.get("volume"),
+            data.get(
+                "volume"
+            ),
             str,
         ):
-            settings.volume = data["volume"]
+            settings.volume = data[
+                "volume"
+            ]
 
         if isinstance(
-            data.get("pitch"),
+            data.get(
+                "pitch"
+            ),
             str,
         ):
-            settings.pitch = data["pitch"]
+            settings.pitch = data[
+                "pitch"
+            ]
 
         settings.validate()
+
         return settings
 
 
@@ -412,7 +494,9 @@ class SettingsManager:
             encoding="utf-8",
         ) as settings_file:
             json.dump(
-                asdict(settings),
+                asdict(
+                    settings
+                ),
                 settings_file,
                 ensure_ascii=False,
                 indent=4,
