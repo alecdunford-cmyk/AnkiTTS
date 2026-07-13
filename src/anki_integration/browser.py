@@ -52,15 +52,13 @@ def get_selected_note_ids(browser):
 def copy_generated_audio_to_media(
     audio_files,
     media_folder,
+    settings,
 ):
-    """Copy only the audio files processed for this batch job."""
+    """Copy processed audio files into Anki media."""
 
-    for side in (
-        "front",
-        "back",
-    ):
+    for field_name in settings.field_mapping:
         processed_key = (
-            f"{side}_processed"
+            f"{field_name}_processed"
         )
 
         if not audio_files.get(
@@ -70,7 +68,7 @@ def copy_generated_audio_to_media(
             continue
 
         filename = audio_files.get(
-            side
+            field_name
         )
 
         if not filename:
@@ -155,22 +153,17 @@ def process_selected_notes(
         )
 
     if not jobs:
-        if already_complete:
-            showInfo(
-                "All selected compatible notes already have audio."
+        required_fields = (
+            format_required_fields_message(
+                settings
             )
-        else:
-            required_fields = (
-                format_required_fields_message(
-                    settings
-                )
-            )
+        )
 
-            showWarning(
-                "None of the selected notes contain all four "
-                "configured AnkiTTS fields:\n\n"
-                f"{required_fields}"
-            )
+        showWarning(
+            "None of the selected notes contain all "
+            "configured AnkiTTS fields:\n\n"
+            f"{required_fields}"
+        )
 
         return
 
@@ -187,6 +180,7 @@ def process_selected_notes(
         copy_generated_audio_to_media(
             audio_files,
             media_folder,
+            settings,
         )
 
         write_audio_fields(

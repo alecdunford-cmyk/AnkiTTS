@@ -14,15 +14,13 @@ from stitcher import hide_subprocess_windows
 def copy_generated_audio_to_media(
     audio_files,
     media_folder,
+    settings,
 ):
-    """Copy generated front and back audio files into Anki media."""
+    """Copy generated audio files into Anki media."""
 
-    for side in (
-        "front",
-        "back",
-    ):
+    for field_name in settings.field_mapping:
         filename = audio_files.get(
-            side
+            field_name
         )
 
         if not filename:
@@ -42,7 +40,7 @@ def process_editor_note(
     """
     Explicitly regenerate audio for the current editor note.
 
-    Unlike batch generation, this always processes both configured sides.
+    This processes every configured field mapping.
     """
 
     note = editor.note
@@ -87,6 +85,7 @@ def process_editor_note(
     copy_generated_audio_to_media(
         audio_files,
         media_folder,
+        settings,
     )
 
     write_audio_fields(
