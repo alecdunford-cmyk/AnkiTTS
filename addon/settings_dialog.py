@@ -241,10 +241,16 @@ class SettingsDialog(QDialog):
             "front": {
                 "text": self.front_text_field_edit.text().strip(),
                 "audio": self.front_audio_field_edit.text().strip(),
+                "voice_mode": self.settings.field_mapping[
+                    "front"
+                ]["voice_mode"],
             },
             "back": {
                 "text": self.back_text_field_edit.text().strip(),
                 "audio": self.back_audio_field_edit.text().strip(),
+                "voice_mode": self.settings.field_mapping[
+                    "back"
+                ]["voice_mode"],
             },
         }
 

@@ -17,10 +17,12 @@ DEFAULT_FIELD_MAPPING = {
     "front": {
         "text": "Front",
         "audio": "Front Audio",
+        "voice_mode": "front",
     },
     "back": {
         "text": "Back",
         "audio": "Back Audio",
+        "voice_mode": "auto",
     },
 }
 
@@ -155,6 +157,19 @@ class AppSettings:
                     side_mapping[role]
                 )
 
+            voice_mode = side_mapping.get(
+                "voice_mode"
+            )
+
+            if voice_mode not in (
+                "front",
+                "auto",
+            ):
+                raise ValueError(
+                    f'field_mapping["{side}"]["voice_mode"] '
+                    'must be either "front" or "auto".'
+                )
+
         if (
             len(set(mapped_field_names))
             != len(mapped_field_names)
@@ -230,6 +245,22 @@ class AppSettings:
             settings.field_mapping = deepcopy(
                 field_mapping
             )
+
+            for side, default_mapping in (
+                DEFAULT_FIELD_MAPPING.items()
+            ):
+                side_mapping = settings.field_mapping.get(
+                    side
+                )
+
+                if isinstance(
+                    side_mapping,
+                    dict,
+                ):
+                    side_mapping.setdefault(
+                        "voice_mode",
+                        default_mapping["voice_mode"],
+                    )
 
         else:
             legacy_field_settings = {

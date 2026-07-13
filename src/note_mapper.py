@@ -111,14 +111,8 @@ def create_field_definitions_from_note(
         )
 
     generation_settings = {
-        "front": {
-            "enabled": generate_front,
-            "voice_mode": "front",
-        },
-        "back": {
-            "enabled": generate_back,
-            "voice_mode": "auto",
-        },
+        "front": generate_front,
+        "back": generate_back,
     }
 
     field_definitions = {}
@@ -133,12 +127,12 @@ def create_field_definitions_from_note(
             "text": note[
                 side_mapping["text"]
             ],
-            "voice_mode": generation_settings[
-                side
-            ]["voice_mode"],
+            "voice_mode": side_mapping[
+                "voice_mode"
+            ],
             "enabled": generation_settings[
                 side
-            ]["enabled"],
+            ],
         }
 
     return field_definitions
