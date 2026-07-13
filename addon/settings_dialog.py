@@ -32,6 +32,11 @@ DEFAULT_VOICES = {
     "ja": "ja-JP-NanamiNeural",
 }
 
+VOICE_MODES = {
+    "Fixed language": "front",
+    "Automatic detection": "auto",
+}
+
 
 class SettingsDialog(QDialog):
     """Graphical settings window for AnkiTTS."""
@@ -67,7 +72,7 @@ class SettingsDialog(QDialog):
 
         self.front_language_combo = QComboBox()
         self.voice_combos = {}
-        self.field_mapping_edits = {}
+        self.mapping_controls = {}
 
         self.populate_language_combo()
 
@@ -155,11 +160,21 @@ class SettingsDialog(QDialog):
                 ]
             )
 
-            self.field_mapping_edits[
+            voice_mode_combo = QComboBox()
+
+            self.populate_voice_mode_combo(
+                combo=voice_mode_combo,
+                current_voice_mode=mapping_definition[
+                    "voice_mode"
+                ],
+            )
+
+            self.mapping_controls[
                 mapping_name
             ] = {
                 "text": text_field_edit,
                 "audio": audio_field_edit,
+                "voice_mode": voice_mode_combo,
             }
 
             form_layout.addRow(
@@ -170,6 +185,11 @@ class SettingsDialog(QDialog):
             form_layout.addRow(
                 f"{display_name} audio field:",
                 audio_field_edit,
+            )
+
+            form_layout.addRow(
+                f"{display_name} voice strategy:",
+                voice_mode_combo,
             )
 
         self.button_box = QDialogButtonBox(
@@ -278,6 +298,31 @@ class SettingsDialog(QDialog):
             current_index
         )
 
+    def populate_voice_mode_combo(
+        self,
+        combo,
+        current_voice_mode,
+    ):
+        """Populate a field mapping's voice strategy selector."""
+
+        for (
+            display_name,
+            voice_mode,
+        ) in VOICE_MODES.items():
+            combo.addItem(
+                display_name,
+                voice_mode,
+            )
+
+        current_index = combo.findData(
+            current_voice_mode
+        )
+
+        if current_index >= 0:
+            combo.setCurrentIndex(
+                current_index
+            )
+
     def build_field_mapping(
         self,
     ):
@@ -287,26 +332,20 @@ class SettingsDialog(QDialog):
 
         for (
             mapping_name,
-            mapping_edits,
-        ) in self.field_mapping_edits.items():
-            current_mapping = (
-                self.settings.field_mapping[
-                    mapping_name
-                ]
-            )
-
+            controls,
+        ) in self.mapping_controls.items():
             field_mapping[
                 mapping_name
             ] = {
-                "text": mapping_edits[
+                "text": controls[
                     "text"
                 ].text().strip(),
-                "audio": mapping_edits[
+                "audio": controls[
                     "audio"
                 ].text().strip(),
-                "voice_mode": current_mapping[
+                "voice_mode": controls[
                     "voice_mode"
-                ],
+                ].currentData(),
             }
 
         return field_mapping
