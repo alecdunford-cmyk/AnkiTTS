@@ -4,9 +4,12 @@ from aqt.qt import (
     QDialog,
     QDialogButtonBox,
     QFormLayout,
+    QHBoxLayout,
     QLabel,
     QLineEdit,
     QPushButton,
+    QSlider,
+    Qt,
     QVBoxLayout,
 )
 from aqt.utils import qconnect, showInfo
@@ -38,6 +41,15 @@ VOICE_MODES = {
     "Automatic detection": "auto",
 }
 
+RATE_MINIMUM = -50
+RATE_MAXIMUM = 100
+
+PITCH_MINIMUM = -50
+PITCH_MAXIMUM = 50
+
+VOLUME_MINIMUM = -50
+VOLUME_MAXIMUM = 50
+
 
 class SettingsDialog(QDialog):
     """Graphical settings window for AnkiTTS."""
@@ -55,7 +67,7 @@ class SettingsDialog(QDialog):
         )
 
         self.setMinimumWidth(
-            480
+            560
         )
 
         config = (
@@ -92,8 +104,8 @@ class SettingsDialog(QDialog):
         description = QLabel(
             "Choose the fixed language used by configured "
             "target-language fields, the preferred voice for "
-            "each supported language, and the Anki note fields "
-            "AnkiTTS should use."
+            "each supported language, the speech adjustments, "
+            "and the Anki note fields AnkiTTS should use."
         )
 
         description.setWordWrap(
@@ -127,6 +139,71 @@ class SettingsDialog(QDialog):
                 f"{display_name} voice:",
                 combo,
             )
+
+        speech_settings_label = QLabel(
+            "<b>Speech adjustments</b>"
+        )
+
+        self.form_layout.addRow(
+            speech_settings_label
+        )
+
+        (
+            self.rate_slider,
+            self.rate_value_label,
+            rate_layout,
+        ) = self.create_adjustment_slider(
+            minimum=RATE_MINIMUM,
+            maximum=RATE_MAXIMUM,
+            current_value=self.parse_adjustment_value(
+                self.settings.rate,
+                suffix="%",
+            ),
+            suffix="%",
+        )
+
+        (
+            self.pitch_slider,
+            self.pitch_value_label,
+            pitch_layout,
+        ) = self.create_adjustment_slider(
+            minimum=PITCH_MINIMUM,
+            maximum=PITCH_MAXIMUM,
+            current_value=self.parse_adjustment_value(
+                self.settings.pitch,
+                suffix="Hz",
+            ),
+            suffix="Hz",
+        )
+
+        (
+            self.volume_slider,
+            self.volume_value_label,
+            volume_layout,
+        ) = self.create_adjustment_slider(
+            minimum=VOLUME_MINIMUM,
+            maximum=VOLUME_MAXIMUM,
+            current_value=self.parse_adjustment_value(
+                self.settings.volume,
+                suffix="%",
+            ),
+            suffix="%",
+        )
+
+        self.form_layout.addRow(
+            "Speech rate:",
+            rate_layout,
+        )
+
+        self.form_layout.addRow(
+            "Pitch:",
+            pitch_layout,
+        )
+
+        self.form_layout.addRow(
+            "Volume:",
+            volume_layout,
+        )
 
         field_mapping_label = QLabel(
             "<b>Field mapping</b>"
@@ -288,6 +365,126 @@ class SettingsDialog(QDialog):
             combo.setCurrentIndex(
                 current_index
             )
+
+    def parse_adjustment_value(
+        self,
+        value,
+        suffix,
+    ):
+        """Convert a stored Edge TTS adjustment string to an integer."""
+
+        if not isinstance(
+            value,
+            str,
+        ):
+            return 0
+
+        normalized_value = (
+            value.strip()
+        )
+
+        if normalized_value.endswith(
+            suffix
+        ):
+            normalized_value = normalized_value[
+                :-len(
+                    suffix
+                )
+            ]
+
+        try:
+            return int(
+                normalized_value
+            )
+
+        except ValueError:
+            return 0
+
+    def format_adjustment_value(
+        self,
+        value,
+        suffix,
+    ):
+        """Format an integer as an Edge TTS adjustment string."""
+
+        return (
+            f"{value:+d}{suffix}"
+        )
+
+    def create_adjustment_slider(
+        self,
+        minimum,
+        maximum,
+        current_value,
+        suffix,
+    ):
+        """Create a horizontal slider with a live value label."""
+
+        slider = QSlider(
+            Qt.Orientation.Horizontal
+        )
+
+        slider.setRange(
+            minimum,
+            maximum,
+        )
+
+        slider.setValue(
+            max(
+                minimum,
+                min(
+                    maximum,
+                    current_value,
+                ),
+            )
+        )
+
+        slider.setTickPosition(
+            QSlider.TickPosition.TicksBelow
+        )
+
+        slider.setTickInterval(
+            10
+        )
+
+        value_label = QLabel(
+            self.format_adjustment_value(
+                slider.value(),
+                suffix,
+            )
+        )
+
+        value_label.setMinimumWidth(
+            55
+        )
+
+        qconnect(
+            slider.valueChanged,
+            lambda value, label=value_label, unit=suffix: (
+                label.setText(
+                    self.format_adjustment_value(
+                        value,
+                        unit,
+                    )
+                )
+            ),
+        )
+
+        slider_layout = QHBoxLayout()
+
+        slider_layout.addWidget(
+            slider
+        )
+
+        slider_layout.addWidget(
+            value_label
+        )
+
+        return (
+            slider,
+            value_label,
+            slider_layout,
+        )
 
     def add_mapping_controls(
         self,
@@ -538,6 +735,27 @@ class SettingsDialog(QDialog):
         config[
             "voices"
         ] = voices
+
+        config[
+            "rate"
+        ] = self.format_adjustment_value(
+            self.rate_slider.value(),
+            "%",
+        )
+
+        config[
+            "pitch"
+        ] = self.format_adjustment_value(
+            self.pitch_slider.value(),
+            "Hz",
+        )
+
+        config[
+            "volume"
+        ] = self.format_adjustment_value(
+            self.volume_slider.value(),
+            "%",
+        )
 
         try:
             config[
