@@ -6,6 +6,7 @@ from aqt.qt import (
     QFormLayout,
     QLabel,
     QLineEdit,
+    QPushButton,
     QVBoxLayout,
 )
 from aqt.utils import qconnect, showInfo
@@ -99,9 +100,9 @@ class SettingsDialog(QDialog):
             True
         )
 
-        form_layout = QFormLayout()
+        self.form_layout = QFormLayout()
 
-        form_layout.addRow(
+        self.form_layout.addRow(
             "Fixed language:",
             self.front_language_combo,
         )
@@ -122,7 +123,7 @@ class SettingsDialog(QDialog):
                 language_code
             ] = combo
 
-            form_layout.addRow(
+            self.form_layout.addRow(
                 f"{display_name} voice:",
                 combo,
             )
@@ -131,7 +132,7 @@ class SettingsDialog(QDialog):
             "<b>Field mapping</b>"
         )
 
-        form_layout.addRow(
+        self.form_layout.addRow(
             field_mapping_label
         )
 
@@ -139,58 +140,19 @@ class SettingsDialog(QDialog):
             mapping_name,
             mapping_definition,
         ) in self.settings.field_mapping.items():
-            display_name = (
-                mapping_name
-                .replace(
-                    "_",
-                    " ",
-                )
-                .title()
+            self.add_mapping_controls(
+                mapping_name=mapping_name,
+                mapping_definition=mapping_definition,
             )
 
-            text_field_edit = QLineEdit(
-                mapping_definition[
-                    "text"
-                ]
-            )
+        self.add_mapping_button = QPushButton(
+            "Add Mapping"
+        )
 
-            audio_field_edit = QLineEdit(
-                mapping_definition[
-                    "audio"
-                ]
-            )
-
-            voice_mode_combo = QComboBox()
-
-            self.populate_voice_mode_combo(
-                combo=voice_mode_combo,
-                current_voice_mode=mapping_definition[
-                    "voice_mode"
-                ],
-            )
-
-            self.mapping_controls[
-                mapping_name
-            ] = {
-                "text": text_field_edit,
-                "audio": audio_field_edit,
-                "voice_mode": voice_mode_combo,
-            }
-
-            form_layout.addRow(
-                f"{display_name} text field:",
-                text_field_edit,
-            )
-
-            form_layout.addRow(
-                f"{display_name} audio field:",
-                audio_field_edit,
-            )
-
-            form_layout.addRow(
-                f"{display_name} voice strategy:",
-                voice_mode_combo,
-            )
+        qconnect(
+            self.add_mapping_button.clicked,
+            self.add_mapping,
+        )
 
         self.button_box = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Save
@@ -214,7 +176,11 @@ class SettingsDialog(QDialog):
         )
 
         main_layout.addLayout(
-            form_layout
+            self.form_layout
+        )
+
+        main_layout.addWidget(
+            self.add_mapping_button
         )
 
         main_layout.addWidget(
@@ -322,6 +288,109 @@ class SettingsDialog(QDialog):
             combo.setCurrentIndex(
                 current_index
             )
+
+    def add_mapping_controls(
+        self,
+        mapping_name,
+        mapping_definition,
+    ):
+        """Add controls for one configured field mapping."""
+
+        display_name = (
+            mapping_name
+            .replace(
+                "_",
+                " ",
+            )
+            .title()
+        )
+
+        text_field_edit = QLineEdit(
+            mapping_definition[
+                "text"
+            ]
+        )
+
+        audio_field_edit = QLineEdit(
+            mapping_definition[
+                "audio"
+            ]
+        )
+
+        voice_mode_combo = QComboBox()
+
+        self.populate_voice_mode_combo(
+            combo=voice_mode_combo,
+            current_voice_mode=mapping_definition[
+                "voice_mode"
+            ],
+        )
+
+        self.mapping_controls[
+            mapping_name
+        ] = {
+            "text": text_field_edit,
+            "audio": audio_field_edit,
+            "voice_mode": voice_mode_combo,
+        }
+
+        self.form_layout.addRow(
+            f"{display_name} text field:",
+            text_field_edit,
+        )
+
+        self.form_layout.addRow(
+            f"{display_name} audio field:",
+            audio_field_edit,
+        )
+
+        self.form_layout.addRow(
+            f"{display_name} voice strategy:",
+            voice_mode_combo,
+        )
+
+    def create_unique_mapping_name(
+        self,
+    ):
+        """Create an unused internal name for a new mapping."""
+
+        mapping_number = (
+            len(
+                self.mapping_controls
+            )
+            + 1
+        )
+
+        while True:
+            mapping_name = (
+                f"mapping_{mapping_number}"
+            )
+
+            if (
+                mapping_name
+                not in self.mapping_controls
+            ):
+                return mapping_name
+
+            mapping_number += 1
+
+    def add_mapping(
+        self,
+    ):
+        """Add a new empty field mapping to the dialog."""
+
+        mapping_name = (
+            self.create_unique_mapping_name()
+        )
+
+        self.add_mapping_controls(
+            mapping_name=mapping_name,
+            mapping_definition={
+                "text": "",
+                "audio": "",
+                "voice_mode": "auto",
+            },
+        )
 
     def build_field_mapping(
         self,
