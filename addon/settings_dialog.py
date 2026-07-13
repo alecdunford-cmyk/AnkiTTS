@@ -67,7 +67,7 @@ class SettingsDialog(QDialog):
         )
 
         self.setMinimumWidth(
-            560
+            620
         )
 
         config = (
@@ -84,7 +84,7 @@ class SettingsDialog(QDialog):
         self.voice_manager = VoiceManager()
 
         self.front_language_combo = QComboBox()
-        self.voice_combos = {}
+        self.speech_profile_controls = {}
         self.mapping_controls = {}
 
         self.populate_language_combo()
@@ -103,9 +103,9 @@ class SettingsDialog(QDialog):
 
         description = QLabel(
             "Choose the fixed language used by configured "
-            "target-language fields, the preferred voice for "
-            "each supported language, the speech adjustments, "
-            "and the Anki note fields AnkiTTS should use."
+            "target-language fields, customize the speech "
+            "profile for each supported language, and select "
+            "the Anki note fields AnkiTTS should use."
         )
 
         description.setWordWrap(
@@ -119,91 +119,23 @@ class SettingsDialog(QDialog):
             self.front_language_combo,
         )
 
+        speech_profiles_label = QLabel(
+            "<b>Speech profiles</b>"
+        )
+
+        self.form_layout.addRow(
+            speech_profiles_label
+        )
+
         for (
             language_code,
             display_name,
         ) in VOICE_LANGUAGES.items():
-            combo = QComboBox()
-
-            self.populate_voice_combo(
-                combo=combo,
+            self.add_speech_profile_controls(
                 language_code=language_code,
+                display_name=display_name,
                 voices_available=voices_available,
             )
-
-            self.voice_combos[
-                language_code
-            ] = combo
-
-            self.form_layout.addRow(
-                f"{display_name} voice:",
-                combo,
-            )
-
-        speech_settings_label = QLabel(
-            "<b>Speech adjustments</b>"
-        )
-
-        self.form_layout.addRow(
-            speech_settings_label
-        )
-
-        (
-            self.rate_slider,
-            self.rate_value_label,
-            rate_layout,
-        ) = self.create_adjustment_slider(
-            minimum=RATE_MINIMUM,
-            maximum=RATE_MAXIMUM,
-            current_value=self.parse_adjustment_value(
-                self.settings.rate,
-                suffix="%",
-            ),
-            suffix="%",
-        )
-
-        (
-            self.pitch_slider,
-            self.pitch_value_label,
-            pitch_layout,
-        ) = self.create_adjustment_slider(
-            minimum=PITCH_MINIMUM,
-            maximum=PITCH_MAXIMUM,
-            current_value=self.parse_adjustment_value(
-                self.settings.pitch,
-                suffix="Hz",
-            ),
-            suffix="Hz",
-        )
-
-        (
-            self.volume_slider,
-            self.volume_value_label,
-            volume_layout,
-        ) = self.create_adjustment_slider(
-            minimum=VOLUME_MINIMUM,
-            maximum=VOLUME_MAXIMUM,
-            current_value=self.parse_adjustment_value(
-                self.settings.volume,
-                suffix="%",
-            ),
-            suffix="%",
-        )
-
-        self.form_layout.addRow(
-            "Speech rate:",
-            rate_layout,
-        )
-
-        self.form_layout.addRow(
-            "Pitch:",
-            pitch_layout,
-        )
-
-        self.form_layout.addRow(
-            "Volume:",
-            volume_layout,
-        )
 
         field_mapping_label = QLabel(
             "<b>Field mapping</b>"
@@ -295,17 +227,9 @@ class SettingsDialog(QDialog):
         self,
         combo,
         language_code,
+        current_voice,
         voices_available,
     ):
-        current_voice = (
-            self.settings.voices.get(
-                language_code,
-                DEFAULT_VOICES[
-                    language_code
-                ],
-            )
-        )
-
         if voices_available:
             matching_voices = (
                 self.voice_manager.get_voices(
@@ -379,9 +303,7 @@ class SettingsDialog(QDialog):
         ):
             return 0
 
-        normalized_value = (
-            value.strip()
-        )
+        normalized_value = value.strip()
 
         if normalized_value.endswith(
             suffix
@@ -407,9 +329,7 @@ class SettingsDialog(QDialog):
     ):
         """Format an integer as an Edge TTS adjustment string."""
 
-        return (
-            f"{value:+d}{suffix}"
-        )
+        return f"{value:+d}{suffix}"
 
     def create_adjustment_slider(
         self,
@@ -484,6 +404,126 @@ class SettingsDialog(QDialog):
             slider,
             value_label,
             slider_layout,
+        )
+
+    def add_speech_profile_controls(
+        self,
+        language_code,
+        display_name,
+        voices_available,
+    ):
+        """Add controls for one language-specific speech profile."""
+
+        speech_profile = (
+            self.settings.get_speech_profile(
+                language_code
+            )
+        )
+
+        if speech_profile is None:
+            current_voice = DEFAULT_VOICES[
+                language_code
+            ]
+
+            current_rate = self.settings.rate
+            current_volume = self.settings.volume
+            current_pitch = self.settings.pitch
+
+        else:
+            current_voice = speech_profile.voice
+            current_rate = speech_profile.rate
+            current_volume = speech_profile.volume
+            current_pitch = speech_profile.pitch
+
+        profile_label = QLabel(
+            f"<b>{display_name}</b>"
+        )
+
+        self.form_layout.addRow(
+            profile_label
+        )
+
+        voice_combo = QComboBox()
+
+        self.populate_voice_combo(
+            combo=voice_combo,
+            language_code=language_code,
+            current_voice=current_voice,
+            voices_available=voices_available,
+        )
+
+        (
+            rate_slider,
+            rate_value_label,
+            rate_layout,
+        ) = self.create_adjustment_slider(
+            minimum=RATE_MINIMUM,
+            maximum=RATE_MAXIMUM,
+            current_value=self.parse_adjustment_value(
+                current_rate,
+                suffix="%",
+            ),
+            suffix="%",
+        )
+
+        (
+            pitch_slider,
+            pitch_value_label,
+            pitch_layout,
+        ) = self.create_adjustment_slider(
+            minimum=PITCH_MINIMUM,
+            maximum=PITCH_MAXIMUM,
+            current_value=self.parse_adjustment_value(
+                current_pitch,
+                suffix="Hz",
+            ),
+            suffix="Hz",
+        )
+
+        (
+            volume_slider,
+            volume_value_label,
+            volume_layout,
+        ) = self.create_adjustment_slider(
+            minimum=VOLUME_MINIMUM,
+            maximum=VOLUME_MAXIMUM,
+            current_value=self.parse_adjustment_value(
+                current_volume,
+                suffix="%",
+            ),
+            suffix="%",
+        )
+
+        self.speech_profile_controls[
+            language_code
+        ] = {
+            "voice": voice_combo,
+            "rate": rate_slider,
+            "rate_label": rate_value_label,
+            "pitch": pitch_slider,
+            "pitch_label": pitch_value_label,
+            "volume": volume_slider,
+            "volume_label": volume_value_label,
+        }
+
+        self.form_layout.addRow(
+            f"{display_name} voice:",
+            voice_combo,
+        )
+
+        self.form_layout.addRow(
+            f"{display_name} rate:",
+            rate_layout,
+        )
+
+        self.form_layout.addRow(
+            f"{display_name} pitch:",
+            pitch_layout,
+        )
+
+        self.form_layout.addRow(
+            f"{display_name} volume:",
+            volume_layout,
         )
 
     def add_mapping_controls(
@@ -599,10 +639,7 @@ class SettingsDialog(QDialog):
                 f"mapping_{mapping_number}"
             )
 
-            if (
-                mapping_name
-                not in existing_names
-            ):
+            if mapping_name not in existing_names:
                 return mapping_name
 
             mapping_number += 1
@@ -661,6 +698,45 @@ class SettingsDialog(QDialog):
                 ]
             )
 
+    def build_speech_profiles(
+        self,
+    ):
+        """Build serializable language-specific speech profiles."""
+
+        speech_profiles = {}
+
+        for (
+            language_code,
+            controls,
+        ) in self.speech_profile_controls.items():
+            speech_profiles[
+                language_code
+            ] = {
+                "voice": controls[
+                    "voice"
+                ].currentData(),
+                "rate": self.format_adjustment_value(
+                    controls[
+                        "rate"
+                    ].value(),
+                    "%",
+                ),
+                "volume": self.format_adjustment_value(
+                    controls[
+                        "volume"
+                    ].value(),
+                    "%",
+                ),
+                "pitch": self.format_adjustment_value(
+                    controls[
+                        "pitch"
+                    ].value(),
+                    "Hz",
+                ),
+            }
+
+        return speech_profiles
+
     def build_field_mapping(
         self,
     ):
@@ -713,49 +789,29 @@ class SettingsDialog(QDialog):
             or {}
         )
 
-        voices = dict(
-            config.get(
-                "voices",
-                self.settings.voices,
-            )
-        )
-
-        for (
-            language_code,
-            combo,
-        ) in self.voice_combos.items():
-            voices[
-                language_code
-            ] = combo.currentData()
-
         config[
             "front_language"
         ] = self.front_language_combo.currentData()
 
+        speech_profiles = (
+            self.build_speech_profiles()
+        )
+
+        config[
+            "speech_profiles"
+        ] = speech_profiles
+
         config[
             "voices"
-        ] = voices
-
-        config[
-            "rate"
-        ] = self.format_adjustment_value(
-            self.rate_slider.value(),
-            "%",
-        )
-
-        config[
-            "pitch"
-        ] = self.format_adjustment_value(
-            self.pitch_slider.value(),
-            "Hz",
-        )
-
-        config[
-            "volume"
-        ] = self.format_adjustment_value(
-            self.volume_slider.value(),
-            "%",
-        )
+        ] = {
+            language_code: profile[
+                "voice"
+            ]
+            for (
+                language_code,
+                profile,
+            ) in speech_profiles.items()
+        }
 
         try:
             config[
@@ -784,6 +840,22 @@ class SettingsDialog(QDialog):
                 "voices": (
                     validated_settings.voices
                 ),
+                "speech_profiles": {
+                    language_code: {
+                        "voice": profile.voice,
+                        "rate": profile.rate,
+                        "volume": profile.volume,
+                        "pitch": profile.pitch,
+                    }
+                    for (
+                        language_code,
+                        profile,
+                    ) in (
+                        validated_settings
+                        .speech_profiles
+                        .items()
+                    )
+                },
                 "field_mapping": (
                     validated_settings.field_mapping
                 ),

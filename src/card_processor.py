@@ -137,6 +137,7 @@ def process_chunks(
 
     return filename, statistics
 
+
 def process_field(
     text,
     filename_suffix,

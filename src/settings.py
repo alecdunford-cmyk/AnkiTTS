@@ -47,6 +47,10 @@ class AppSettings:
         default_factory=lambda: DEFAULT_VOICES.copy()
     )
 
+    speech_profiles: dict[str, SpeechProfile] = field(
+        default_factory=dict
+    )
+
     field_mapping: dict[str, dict[str, str]] = field(
         default_factory=lambda: deepcopy(
             DEFAULT_FIELD_MAPPING
@@ -61,13 +65,14 @@ class AppSettings:
         self,
         language: str,
     ) -> SpeechProfile | None:
-        """
-        Resolve the current speech settings for one language.
+        """Resolve the speech profile for one language."""
 
-        The existing global rate, volume, and pitch settings are
-        deliberately preserved until language-specific profiles
-        are introduced.
-        """
+        speech_profile = self.speech_profiles.get(
+            language
+        )
+
+        if speech_profile is not None:
+            return speech_profile
 
         voice = self.voices.get(
             language
@@ -83,7 +88,6 @@ class AppSettings:
             volume=self.volume,
             pitch=self.pitch,
         )
-
 
     def validate(self) -> None:
         """Raise ValueError when a setting has an invalid structure."""
@@ -245,6 +249,72 @@ class AppSettings:
                     f"{attribute_name} must be a string."
                 )
 
+        if not isinstance(
+            self.speech_profiles,
+            dict,
+        ):
+            raise ValueError(
+                "speech_profiles must be a dictionary."
+            )
+
+        for (
+            language,
+            speech_profile,
+        ) in self.speech_profiles.items():
+            if (
+                not isinstance(
+                    language,
+                    str,
+                )
+                or not language.strip()
+            ):
+                raise ValueError(
+                    "Every speech profile language must "
+                    "be a non-empty string."
+                )
+
+            if not isinstance(
+                speech_profile,
+                SpeechProfile,
+            ):
+                raise ValueError(
+                    f'speech_profiles["{language}"] must '
+                    "be a SpeechProfile."
+                )
+
+            if (
+                speech_profile.language
+                != language
+            ):
+                raise ValueError(
+                    f'speech_profiles["{language}"] has '
+                    "a mismatched language."
+                )
+
+            for attribute_name in (
+                "voice",
+                "rate",
+                "volume",
+                "pitch",
+            ):
+                value = getattr(
+                    speech_profile,
+                    attribute_name,
+                )
+
+                if (
+                    not isinstance(
+                        value,
+                        str,
+                    )
+                    or not value.strip()
+                ):
+                    raise ValueError(
+                        f'speech_profiles["{language}"].'
+                        f"{attribute_name} must be a "
+                        "non-empty string."
+                    )
+
     @classmethod
     def from_dict(
         cls,
@@ -392,6 +462,102 @@ class AppSettings:
             settings.pitch = data[
                 "pitch"
             ]
+
+        loaded_speech_profiles = data.get(
+            "speech_profiles"
+        )
+
+        if loaded_speech_profiles is not None:
+            if not isinstance(
+                loaded_speech_profiles,
+                dict,
+            ):
+                raise ValueError(
+                    "speech_profiles must be a dictionary."
+                )
+
+            for (
+                language,
+                profile_data,
+            ) in loaded_speech_profiles.items():
+                if (
+                    not isinstance(
+                        language,
+                        str,
+                    )
+                    or not isinstance(
+                        profile_data,
+                        dict,
+                    )
+                ):
+                    raise ValueError(
+                        "Every speech profile must use "
+                        "a string language key and a "
+                        "dictionary value."
+                    )
+
+                fallback_voice = settings.voices.get(
+                    language
+                )
+
+                voice = profile_data.get(
+                    "voice",
+                    fallback_voice,
+                )
+
+                if voice is None:
+                    raise ValueError(
+                        f'No voice is configured for speech '
+                        f'profile "{language}".'
+                    )
+
+                speech_profile = SpeechProfile(
+                    language=language,
+                    voice=str(
+                        voice
+                    ),
+                    rate=str(
+                        profile_data.get(
+                            "rate",
+                            settings.rate,
+                        )
+                    ),
+                    volume=str(
+                        profile_data.get(
+                            "volume",
+                            settings.volume,
+                        )
+                    ),
+                    pitch=str(
+                        profile_data.get(
+                            "pitch",
+                            settings.pitch,
+                        )
+                    ),
+                )
+
+                settings.speech_profiles[
+                    language
+                ] = speech_profile
+
+                settings.voices[
+                    language
+                ] = speech_profile.voice
+
+        else:
+            for (
+                language,
+                voice,
+            ) in settings.voices.items():
+                settings.speech_profiles[
+                    language
+                ] = SpeechProfile(
+                    language=language,
+                    voice=voice,
+                    rate=settings.rate,
+                    volume=settings.volume,
+                    pitch=settings.pitch,
+                )
 
         settings.validate()
 
