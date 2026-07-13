@@ -8,9 +8,12 @@ from aqt.qt import (
     QLabel,
     QLineEdit,
     QPushButton,
+    QScrollArea,
     QSlider,
+    QTabWidget,
     Qt,
     QVBoxLayout,
+    QWidget,
 )
 from aqt.utils import qconnect, showInfo
 
@@ -70,6 +73,11 @@ class SettingsDialog(QDialog):
             620
         )
 
+        self.resize(
+            720,
+            650,
+        )
+
         config = (
             mw.addonManager.getConfig(
                 __package__
@@ -101,30 +109,113 @@ class SettingsDialog(QDialog):
 
             voices_available = False
 
+        self.tab_widget = QTabWidget()
+
+        self.create_general_tab()
+
+        self.create_speech_profiles_tab(
+            voices_available=voices_available
+        )
+
+        self.create_field_mappings_tab()
+
+        self.button_box = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Save
+            | QDialogButtonBox.StandardButton.Cancel
+        )
+
+        qconnect(
+            self.button_box.accepted,
+            self.save_settings,
+        )
+
+        qconnect(
+            self.button_box.rejected,
+            self.reject,
+        )
+
+        main_layout = QVBoxLayout()
+
+        main_layout.addWidget(
+            self.tab_widget
+        )
+
+        main_layout.addWidget(
+            self.button_box
+        )
+
+        self.setLayout(
+            main_layout
+        )
+
+    def create_general_tab(
+        self,
+    ):
+        """Create the general settings tab."""
+
+        general_tab = QWidget()
+        general_layout = QVBoxLayout()
+
         description = QLabel(
-            "Choose the fixed language used by configured "
-            "target-language fields, customize the speech "
-            "profile for each supported language, and select "
-            "the Anki note fields AnkiTTS should use."
+            "Choose the fixed language used by mappings whose "
+            "voice strategy is set to Fixed language. Other "
+            "mappings can automatically detect the language of "
+            "each text segment."
         )
 
         description.setWordWrap(
             True
         )
 
-        self.form_layout = QFormLayout()
+        general_form_layout = QFormLayout()
 
-        self.form_layout.addRow(
+        general_form_layout.addRow(
             "Fixed language:",
             self.front_language_combo,
         )
 
-        speech_profiles_label = QLabel(
-            "<b>Speech profiles</b>"
+        general_layout.addWidget(
+            description
         )
 
-        self.form_layout.addRow(
-            speech_profiles_label
+        general_layout.addLayout(
+            general_form_layout
+        )
+
+        general_layout.addStretch()
+
+        general_tab.setLayout(
+            general_layout
+        )
+
+        self.tab_widget.addTab(
+            general_tab,
+            "General",
+        )
+
+    def create_speech_profiles_tab(
+        self,
+        voices_available,
+    ):
+        """Create the scrollable speech-profile settings tab."""
+
+        speech_profiles_content = QWidget()
+
+        self.speech_profiles_layout = QFormLayout()
+
+        description = QLabel(
+            "Configure the voice, speech rate, pitch, and volume "
+            "used for each supported language. Reset buttons "
+            "restore only the three modifiers and do not change "
+            "the selected voice."
+        )
+
+        description.setWordWrap(
+            True
+        )
+
+        self.speech_profiles_layout.addRow(
+            description
         )
 
         for (
@@ -146,18 +237,50 @@ class SettingsDialog(QDialog):
             self.reset_all_speech_profile_modifiers,
         )
 
-        self.form_layout.addRow(
+        self.speech_profiles_layout.addRow(
             "",
             self.reset_all_profiles_button,
         )
 
-        field_mapping_label = QLabel(
-            "<b>Field mapping</b>"
+        speech_profiles_content.setLayout(
+            self.speech_profiles_layout
         )
 
-        self.form_layout.addRow(
-            field_mapping_label
+        scroll_area = QScrollArea()
+
+        scroll_area.setWidgetResizable(
+            True
         )
+
+        scroll_area.setWidget(
+            speech_profiles_content
+        )
+
+        self.tab_widget.addTab(
+            scroll_area,
+            "Speech Profiles",
+        )
+
+    def create_field_mappings_tab(
+        self,
+    ):
+        """Create the scrollable field-mapping settings tab."""
+
+        field_mappings_content = QWidget()
+
+        field_mappings_outer_layout = QVBoxLayout()
+
+        description = QLabel(
+            "Each mapping connects one Anki text field to one "
+            "Anki audio field. Mapping names may be customized "
+            "and are used internally to identify generated audio."
+        )
+
+        description.setWordWrap(
+            True
+        )
+
+        self.field_mapping_layout = QFormLayout()
 
         for (
             mapping_name,
@@ -177,41 +300,37 @@ class SettingsDialog(QDialog):
             self.add_mapping,
         )
 
-        self.button_box = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Save
-            | QDialogButtonBox.StandardButton.Cancel
-        )
-
-        qconnect(
-            self.button_box.accepted,
-            self.save_settings,
-        )
-
-        qconnect(
-            self.button_box.rejected,
-            self.reject,
-        )
-
-        main_layout = QVBoxLayout()
-
-        main_layout.addWidget(
+        field_mappings_outer_layout.addWidget(
             description
         )
 
-        main_layout.addLayout(
-            self.form_layout
+        field_mappings_outer_layout.addLayout(
+            self.field_mapping_layout
         )
 
-        main_layout.addWidget(
+        field_mappings_outer_layout.addWidget(
             self.add_mapping_button
         )
 
-        main_layout.addWidget(
-            self.button_box
+        field_mappings_outer_layout.addStretch()
+
+        field_mappings_content.setLayout(
+            field_mappings_outer_layout
         )
 
-        self.setLayout(
-            main_layout
+        scroll_area = QScrollArea()
+
+        scroll_area.setWidgetResizable(
+            True
+        )
+
+        scroll_area.setWidget(
+            field_mappings_content
+        )
+
+        self.tab_widget.addTab(
+            scroll_area,
+            "Field Mappings",
         )
 
     def populate_language_combo(
@@ -453,7 +572,7 @@ class SettingsDialog(QDialog):
             f"<b>{display_name}</b>"
         )
 
-        self.form_layout.addRow(
+        self.speech_profiles_layout.addRow(
             profile_label
         )
 
@@ -534,27 +653,27 @@ class SettingsDialog(QDialog):
             "reset": reset_button,
         }
 
-        self.form_layout.addRow(
+        self.speech_profiles_layout.addRow(
             f"{display_name} voice:",
             voice_combo,
         )
 
-        self.form_layout.addRow(
+        self.speech_profiles_layout.addRow(
             f"{display_name} rate:",
             rate_layout,
         )
 
-        self.form_layout.addRow(
+        self.speech_profiles_layout.addRow(
             f"{display_name} pitch:",
             pitch_layout,
         )
 
-        self.form_layout.addRow(
+        self.speech_profiles_layout.addRow(
             f"{display_name} volume:",
             volume_layout,
         )
 
-        self.form_layout.addRow(
+        self.speech_profiles_layout.addRow(
             "",
             reset_button,
         )
@@ -661,27 +780,27 @@ class SettingsDialog(QDialog):
             "remove": remove_button,
         }
 
-        self.form_layout.addRow(
+        self.field_mapping_layout.addRow(
             f"{display_name} mapping name:",
             mapping_name_edit,
         )
 
-        self.form_layout.addRow(
+        self.field_mapping_layout.addRow(
             f"{display_name} text field:",
             text_field_edit,
         )
 
-        self.form_layout.addRow(
+        self.field_mapping_layout.addRow(
             f"{display_name} audio field:",
             audio_field_edit,
         )
 
-        self.form_layout.addRow(
+        self.field_mapping_layout.addRow(
             f"{display_name} voice strategy:",
             voice_mode_combo,
         )
 
-        self.form_layout.addRow(
+        self.field_mapping_layout.addRow(
             "",
             remove_button,
         )
@@ -763,7 +882,7 @@ class SettingsDialog(QDialog):
             "voice_mode",
             "remove",
         ):
-            self.form_layout.removeRow(
+            self.field_mapping_layout.removeRow(
                 controls[
                     control_name
                 ]
