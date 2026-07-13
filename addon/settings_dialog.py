@@ -36,35 +36,38 @@ DEFAULT_VOICES = {
 class SettingsDialog(QDialog):
     """Graphical settings window for AnkiTTS."""
 
-    def __init__(self, parent=None):
-        super().__init__(parent)
+    def __init__(
+        self,
+        parent=None,
+    ):
+        super().__init__(
+            parent
+        )
 
-        self.setWindowTitle("AnkiTTS Settings")
-        self.setMinimumWidth(480)
+        self.setWindowTitle(
+            "AnkiTTS Settings"
+        )
 
-        config = mw.addonManager.getConfig(__package__) or {}
-        self.settings = AppSettings.from_dict(config)
+        self.setMinimumWidth(
+            480
+        )
+
+        config = (
+            mw.addonManager.getConfig(
+                __package__
+            )
+            or {}
+        )
+
+        self.settings = AppSettings.from_dict(
+            config
+        )
 
         self.voice_manager = VoiceManager()
 
         self.front_language_combo = QComboBox()
         self.voice_combos = {}
-
-        self.front_text_field_edit = QLineEdit(
-            self.settings.front_text_field
-        )
-
-        self.back_text_field_edit = QLineEdit(
-            self.settings.back_text_field
-        )
-
-        self.front_audio_field_edit = QLineEdit(
-            self.settings.front_audio_field
-        )
-
-        self.back_audio_field_edit = QLineEdit(
-            self.settings.back_audio_field
-        )
+        self.field_mapping_edits = {}
 
         self.populate_language_combo()
 
@@ -81,20 +84,27 @@ class SettingsDialog(QDialog):
             voices_available = False
 
         description = QLabel(
-            "Choose the language used for the front of each card, "
-            "the preferred voice for each supported language, and "
-            "the note fields AnkiTTS should use."
+            "Choose the fixed language used by configured "
+            "target-language fields, the preferred voice for "
+            "each supported language, and the Anki note fields "
+            "AnkiTTS should use."
         )
-        description.setWordWrap(True)
+
+        description.setWordWrap(
+            True
+        )
 
         form_layout = QFormLayout()
 
         form_layout.addRow(
-            "Front language:",
+            "Fixed language:",
             self.front_language_combo,
         )
 
-        for language_code, display_name in VOICE_LANGUAGES.items():
+        for (
+            language_code,
+            display_name,
+        ) in VOICE_LANGUAGES.items():
             combo = QComboBox()
 
             self.populate_voice_combo(
@@ -103,7 +113,9 @@ class SettingsDialog(QDialog):
                 voices_available=voices_available,
             )
 
-            self.voice_combos[language_code] = combo
+            self.voice_combos[
+                language_code
+            ] = combo
 
             form_layout.addRow(
                 f"{display_name} voice:",
@@ -118,25 +130,47 @@ class SettingsDialog(QDialog):
             field_mapping_label
         )
 
-        form_layout.addRow(
-            "Front text field:",
-            self.front_text_field_edit,
-        )
+        for (
+            mapping_name,
+            mapping_definition,
+        ) in self.settings.field_mapping.items():
+            display_name = (
+                mapping_name
+                .replace(
+                    "_",
+                    " ",
+                )
+                .title()
+            )
 
-        form_layout.addRow(
-            "Back text field:",
-            self.back_text_field_edit,
-        )
+            text_field_edit = QLineEdit(
+                mapping_definition[
+                    "text"
+                ]
+            )
 
-        form_layout.addRow(
-            "Front audio field:",
-            self.front_audio_field_edit,
-        )
+            audio_field_edit = QLineEdit(
+                mapping_definition[
+                    "audio"
+                ]
+            )
 
-        form_layout.addRow(
-            "Back audio field:",
-            self.back_audio_field_edit,
-        )
+            self.field_mapping_edits[
+                mapping_name
+            ] = {
+                "text": text_field_edit,
+                "audio": audio_field_edit,
+            }
+
+            form_layout.addRow(
+                f"{display_name} text field:",
+                text_field_edit,
+            )
+
+            form_layout.addRow(
+                f"{display_name} audio field:",
+                audio_field_edit,
+            )
 
         self.button_box = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Save
@@ -154,21 +188,39 @@ class SettingsDialog(QDialog):
         )
 
         main_layout = QVBoxLayout()
-        main_layout.addWidget(description)
-        main_layout.addLayout(form_layout)
-        main_layout.addWidget(self.button_box)
 
-        self.setLayout(main_layout)
+        main_layout.addWidget(
+            description
+        )
 
-    def populate_language_combo(self):
-        for display_name, language_code in LANGUAGES.items():
+        main_layout.addLayout(
+            form_layout
+        )
+
+        main_layout.addWidget(
+            self.button_box
+        )
+
+        self.setLayout(
+            main_layout
+        )
+
+    def populate_language_combo(
+        self,
+    ):
+        for (
+            display_name,
+            language_code,
+        ) in LANGUAGES.items():
             self.front_language_combo.addItem(
                 display_name,
                 language_code,
             )
 
-        current_index = self.front_language_combo.findData(
-            self.settings.front_language
+        current_index = (
+            self.front_language_combo.findData(
+                self.settings.front_language
+            )
         )
 
         if current_index >= 0:
@@ -182,14 +234,20 @@ class SettingsDialog(QDialog):
         language_code,
         voices_available,
     ):
-        current_voice = self.settings.voices.get(
-            language_code,
-            DEFAULT_VOICES[language_code],
+        current_voice = (
+            self.settings.voices.get(
+                language_code,
+                DEFAULT_VOICES[
+                    language_code
+                ],
+            )
         )
 
         if voices_available:
-            matching_voices = self.voice_manager.get_voices(
-                language_code
+            matching_voices = (
+                self.voice_manager.get_voices(
+                    language_code
+                )
             )
 
             for voice in matching_voices:
@@ -197,7 +255,9 @@ class SettingsDialog(QDialog):
                     self.voice_manager.get_display_name(
                         voice
                     ),
-                    voice["ShortName"],
+                    voice[
+                        "ShortName"
+                    ],
                 )
 
         current_index = combo.findData(
@@ -218,8 +278,48 @@ class SettingsDialog(QDialog):
             current_index
         )
 
-    def save_settings(self):
-        config = mw.addonManager.getConfig(__package__) or {}
+    def build_field_mapping(
+        self,
+    ):
+        """Build field_mapping from the current dialog controls."""
+
+        field_mapping = {}
+
+        for (
+            mapping_name,
+            mapping_edits,
+        ) in self.field_mapping_edits.items():
+            current_mapping = (
+                self.settings.field_mapping[
+                    mapping_name
+                ]
+            )
+
+            field_mapping[
+                mapping_name
+            ] = {
+                "text": mapping_edits[
+                    "text"
+                ].text().strip(),
+                "audio": mapping_edits[
+                    "audio"
+                ].text().strip(),
+                "voice_mode": current_mapping[
+                    "voice_mode"
+                ],
+            }
+
+        return field_mapping
+
+    def save_settings(
+        self,
+    ):
+        config = (
+            mw.addonManager.getConfig(
+                __package__
+            )
+            or {}
+        )
 
         voices = dict(
             config.get(
@@ -228,55 +328,61 @@ class SettingsDialog(QDialog):
             )
         )
 
-        for language_code, combo in self.voice_combos.items():
-            voices[language_code] = combo.currentData()
+        for (
+            language_code,
+            combo,
+        ) in self.voice_combos.items():
+            voices[
+                language_code
+            ] = combo.currentData()
 
-        config["front_language"] = (
-            self.front_language_combo.currentData()
-        )
+        config[
+            "front_language"
+        ] = self.front_language_combo.currentData()
 
-        config["voices"] = voices
+        config[
+            "voices"
+        ] = voices
 
-        config["field_mapping"] = {
-            "front": {
-                "text": self.front_text_field_edit.text().strip(),
-                "audio": self.front_audio_field_edit.text().strip(),
-                "voice_mode": self.settings.field_mapping[
-                    "front"
-                ]["voice_mode"],
-            },
-            "back": {
-                "text": self.back_text_field_edit.text().strip(),
-                "audio": self.back_audio_field_edit.text().strip(),
-                "voice_mode": self.settings.field_mapping[
-                    "back"
-                ]["voice_mode"],
-            },
-        }
+        config[
+            "field_mapping"
+        ] = self.build_field_mapping()
 
         try:
-            validated_settings = AppSettings.from_dict(
-                config
+            validated_settings = (
+                AppSettings.from_dict(
+                    config
+                )
             )
 
         except ValueError as error:
             showInfo(
-                f"Could not save AnkiTTS settings:\n\n{error}"
+                "Could not save AnkiTTS settings:"
+                f"\n\n{error}"
             )
+
             return
 
         config.update(
             {
                 "front_language": (
-            validated_settings.front_language
+                    validated_settings.front_language
                 ),
-                "voices": validated_settings.voices,
+                "voices": (
+                    validated_settings.voices
+                ),
                 "field_mapping": (
-            validated_settings.field_mapping
+                    validated_settings.field_mapping
                 ),
-                "rate": validated_settings.rate,
-                "volume": validated_settings.volume,
-                "pitch": validated_settings.pitch,
+                "rate": (
+                    validated_settings.rate
+                ),
+                "volume": (
+                    validated_settings.volume
+                ),
+                "pitch": (
+                    validated_settings.pitch
+                ),
             }
         )
 
@@ -285,10 +391,16 @@ class SettingsDialog(QDialog):
             config,
         )
 
-        showInfo("AnkiTTS settings saved.")
+        showInfo(
+            "AnkiTTS settings saved."
+        )
+
         self.accept()
 
 
 def show_settings_dialog():
-    dialog = SettingsDialog(mw)
+    dialog = SettingsDialog(
+        mw
+    )
+
     dialog.exec()
