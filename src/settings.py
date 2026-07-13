@@ -47,49 +47,6 @@ class AppSettings:
     volume: str = "+0%"
     pitch: str = "+0Hz"
 
-    @property
-    def front_text_field(self) -> str:
-        return self.field_mapping["front"]["text"]
-
-    @front_text_field.setter
-    def front_text_field(
-        self,
-        value: str,
-    ) -> None:
-        self.field_mapping["front"]["text"] = value
-
-    @property
-    def back_text_field(self) -> str:
-        return self.field_mapping["back"]["text"]
-
-    @back_text_field.setter
-    def back_text_field(
-        self,
-        value: str,
-    ) -> None:
-        self.field_mapping["back"]["text"] = value
-
-    @property
-    def front_audio_field(self) -> str:
-        return self.field_mapping["front"]["audio"]
-
-    @front_audio_field.setter
-    def front_audio_field(
-        self,
-        value: str,
-    ) -> None:
-        self.field_mapping["front"]["audio"] = value
-
-    @property
-    def back_audio_field(self) -> str:
-        return self.field_mapping["back"]["audio"]
-
-    @back_audio_field.setter
-    def back_audio_field(
-        self,
-        value: str,
-    ) -> None:
-        self.field_mapping["back"]["audio"] = value
 
     def validate(self) -> None:
         """Raise ValueError when a setting has an invalid structure."""
