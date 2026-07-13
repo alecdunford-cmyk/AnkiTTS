@@ -137,6 +137,20 @@ class SettingsDialog(QDialog):
                 voices_available=voices_available,
             )
 
+        self.reset_all_profiles_button = QPushButton(
+            "Reset All Speech Modifiers"
+        )
+
+        qconnect(
+            self.reset_all_profiles_button.clicked,
+            self.reset_all_speech_profile_modifiers,
+        )
+
+        self.form_layout.addRow(
+            "",
+            self.reset_all_profiles_button,
+        )
+
         field_mapping_label = QLabel(
             "<b>Field mapping</b>"
         )
@@ -494,6 +508,19 @@ class SettingsDialog(QDialog):
             suffix="%",
         )
 
+        reset_button = QPushButton(
+            f"Reset {display_name} Modifiers"
+        )
+
+        qconnect(
+            reset_button.clicked,
+            lambda _checked=False, code=language_code: (
+                self.reset_speech_profile_modifiers(
+                    code
+                )
+            ),
+        )
+
         self.speech_profile_controls[
             language_code
         ] = {
@@ -504,6 +531,7 @@ class SettingsDialog(QDialog):
             "pitch_label": pitch_value_label,
             "volume": volume_slider,
             "volume_label": volume_value_label,
+            "reset": reset_button,
         }
 
         self.form_layout.addRow(
@@ -525,6 +553,49 @@ class SettingsDialog(QDialog):
             f"{display_name} volume:",
             volume_layout,
         )
+
+        self.form_layout.addRow(
+            "",
+            reset_button,
+        )
+
+    def reset_speech_profile_modifiers(
+        self,
+        language_code,
+    ):
+        """Reset one language's rate, pitch, and volume."""
+
+        controls = self.speech_profile_controls[
+            language_code
+        ]
+
+        controls[
+            "rate"
+        ].setValue(
+            0
+        )
+
+        controls[
+            "pitch"
+        ].setValue(
+            0
+        )
+
+        controls[
+            "volume"
+        ].setValue(
+            0
+        )
+
+    def reset_all_speech_profile_modifiers(
+        self,
+    ):
+        """Reset rate, pitch, and volume for every language."""
+
+        for language_code in self.speech_profile_controls:
+            self.reset_speech_profile_modifiers(
+                language_code
+            )
 
     def add_mapping_controls(
         self,
