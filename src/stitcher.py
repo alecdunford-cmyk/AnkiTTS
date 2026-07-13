@@ -5,6 +5,23 @@ import subprocess
 from pydub import AudioSegment
 import pydub.utils
 
+PAUSE_DURATIONS = {
+    ";": 325,
+    ":": 375,
+    ".": 500,
+    "!": 550,
+    "?": 575,
+    "。": 500,
+    "！": 550,
+    "？": 575,
+}
+
+PARENTHETICAL_PAUSE = 250
+DEFAULT_PAUSE = 225
+
+SILENCE_THRESHOLD_DB = -45
+TRAILING_SILENCE_CHUNK_MS = 10
+MINIMUM_AUDIO_LENGTH_MS = 50
 
 @contextmanager
 def hide_subprocess_windows():
@@ -86,20 +103,67 @@ def hide_subprocess_windows():
         )
 
 def get_pause(segment):
-    """
-    Determine pause length based on context.
-    """
+    """Determine pause length from context and final punctuation."""
 
     if segment["parenthetical"]:
-        return 350
+        return PARENTHETICAL_PAUSE
 
-    if segment["text"].endswith((".", "!", "?")):
-        return 700
+    text = segment["text"].rstrip()
 
-    return 300
+    if not text:
+        return DEFAULT_PAUSE
+
+    return PAUSE_DURATIONS.get(
+        text[-1],
+        DEFAULT_PAUSE,
+    )
 
 
-def stitch_audio(segments, output_file):
+def trim_trailing_silence(
+    audio,
+    silence_threshold_db=SILENCE_THRESHOLD_DB,
+    chunk_size_ms=TRAILING_SILENCE_CHUNK_MS,
+):
+    """
+    Remove trailing silence already included in a generated clip.
+
+    This allows AnkiTTS to control the final pause duration instead
+    of stacking custom silence on top of Edge TTS trailing silence.
+    """
+
+    trim_position = len(
+        audio
+    )
+
+    while (
+        trim_position > MINIMUM_AUDIO_LENGTH_MS
+    ):
+        chunk_start = max(
+            0,
+            trim_position - chunk_size_ms,
+        )
+
+        chunk = audio[
+            chunk_start:trim_position
+        ]
+
+        if (
+            chunk.dBFS
+            > silence_threshold_db
+        ):
+            break
+
+        trim_position = chunk_start
+
+    return audio[
+        :trim_position
+    ]
+
+
+def stitch_audio(
+    segments,
+    output_file,
+):
     combined = AudioSegment.empty()
 
     with hide_subprocess_windows():
@@ -108,18 +172,26 @@ def stitch_audio(segments, output_file):
                 segment["file"]
             )
 
+            audio = trim_trailing_silence(
+                audio
+            )
+
             combined += audio
 
             combined += AudioSegment.silent(
-                duration=get_pause(segment)
+                duration=get_pause(
+                    segment
+                )
             )
 
-        Path(output_file).parent.mkdir(
+        Path(
+            output_file
+        ).parent.mkdir(
             parents=True,
-            exist_ok=True
+            exist_ok=True,
         )
 
         combined.export(
             output_file,
-            format="mp3"
+            format="mp3",
         )
