@@ -50,14 +50,9 @@ def has_mapped_fields(
 def create_field_definitions_from_note(
     note,
     settings,
-    generate_front=True,
-    generate_back=True,
 ):
     """
     Build engine field definitions from configured Anki fields.
-
-    This introduces the configuration-driven representation while
-    preserving the existing front/back job interface.
     """
 
     missing_fields = get_missing_mapped_fields(
@@ -75,55 +70,28 @@ def create_field_definitions_from_note(
             f"configured AnkiTTS fields:\n\n{formatted_fields}"
         )
 
-    generation_settings = {
-        "front": generate_front,
-        "back": generate_back,
-    }
-
     field_definitions = {}
 
     for (
-        side,
-        side_mapping,
+        field_name,
+        field_mapping,
     ) in settings.field_mapping.items():
-        field_definitions[side] = {
+        field_definitions[field_name] = {
             "text": note[
-                side_mapping["text"]
+                field_mapping["text"]
             ],
-            "voice_mode": side_mapping[
+            "voice_mode": field_mapping[
                 "voice_mode"
             ],
-            "enabled": generation_settings[
-                side
-            ],
+            "enabled": True,
         }
 
     return field_definitions
 
 
-def create_note_job(
-    front,
-    back,
-    front_language=None,
-    generate_front=True,
-    generate_back=True,
-):
-    """Create the engine's current front/back audio job."""
-
-    return {
-        "front": front,
-        "back": back,
-        "front_language": front_language,
-        "generate_front": generate_front,
-        "generate_back": generate_back,
-    }
-
-
 def create_job_from_note(
     note,
     settings,
-    generate_front=True,
-    generate_back=True,
 ):
     """Create a fields-based engine job from an Anki note."""
 
@@ -131,8 +99,6 @@ def create_job_from_note(
         "fields": create_field_definitions_from_note(
             note,
             settings,
-            generate_front=generate_front,
-            generate_back=generate_back,
         )
     }
 

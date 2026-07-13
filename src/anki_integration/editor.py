@@ -66,8 +66,6 @@ def process_editor_note(
     job = create_job_from_note(
         note,
         settings,
-        generate_front=True,
-        generate_back=True,
     )
 
     with hide_subprocess_windows():
