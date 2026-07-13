@@ -27,6 +27,16 @@ DEFAULT_FIELD_MAPPING = {
 }
 
 
+@dataclass(frozen=True)
+class SpeechProfile:
+    """Resolved TTS settings for one language."""
+
+    language: str
+    voice: str
+    rate: str = "+0%"
+    volume: str = "+0%"
+    pitch: str = "+0Hz"
+
 @dataclass
 class AppSettings:
     """User-configurable AnkiTTS settings."""
@@ -46,6 +56,33 @@ class AppSettings:
     rate: str = "+0%"
     volume: str = "+0%"
     pitch: str = "+0Hz"
+
+    def get_speech_profile(
+        self,
+        language: str,
+    ) -> SpeechProfile | None:
+        """
+        Resolve the current speech settings for one language.
+
+        The existing global rate, volume, and pitch settings are
+        deliberately preserved until language-specific profiles
+        are introduced.
+        """
+
+        voice = self.voices.get(
+            language
+        )
+
+        if voice is None:
+            return None
+
+        return SpeechProfile(
+            language=language,
+            voice=voice,
+            rate=self.rate,
+            volume=self.volume,
+            pitch=self.pitch,
+        )
 
 
     def validate(self) -> None:

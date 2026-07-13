@@ -56,13 +56,16 @@ def process_chunks(
             statistics["skipped"] += 1
             continue
 
-        voice = settings.voices.get(
-            language
+        speech_profile = (
+            settings.get_speech_profile(
+                language
+            )
         )
 
-        if voice is None:
+        if speech_profile is None:
             print(
-                f"No voice configured for language: {language}"
+                f"No speech profile configured for language: "
+                f"{language}"
             )
 
             statistics["skipped"] += 1
@@ -70,11 +73,11 @@ def process_chunks(
 
         audio_path = get_audio_path(
             text=chunk["text"],
-            language=language,
-            voice=voice,
-            rate=settings.rate,
-            volume=settings.volume,
-            pitch=settings.pitch,
+            language=speech_profile.language,
+            voice=speech_profile.voice,
+            rate=speech_profile.rate,
+            volume=speech_profile.volume,
+            pitch=speech_profile.pitch,
         )
 
         if not audio_path.exists():
@@ -84,13 +87,13 @@ def process_chunks(
 
             create_audio(
                 text=chunk["text"],
-                voice=voice,
+                voice=speech_profile.voice,
                 output_file=str(
                     audio_path
                 ),
-                rate=settings.rate,
-                volume=settings.volume,
-                pitch=settings.pitch,
+                rate=speech_profile.rate,
+                volume=speech_profile.volume,
+                pitch=speech_profile.pitch,
             )
 
             statistics["generated"] += 1
@@ -133,7 +136,6 @@ def process_chunks(
     )
 
     return filename, statistics
-
 
 def process_field(
     text,
