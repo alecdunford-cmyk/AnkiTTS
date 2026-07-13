@@ -27,12 +27,10 @@ def get_mapped_field_names(
 
     field_names = {}
 
-    for side in SUPPORTED_SIDES:
-        side_mapping = get_side_mapping(
-            settings,
-            side,
-        )
-
+    for (
+        side,
+        side_mapping,
+    ) in settings.field_mapping.items():
         field_names[
             f"{side}_text"
         ] = side_mapping["text"]
@@ -209,20 +207,18 @@ def write_audio_fields(
 ):
     """Write sound tags into the configured audio fields."""
 
-    for side in SUPPORTED_SIDES:
+    for (
+        field_name,
+        field_mapping,
+    ) in settings.field_mapping.items():
         if not audio_files.get(
-            f"{side}_processed",
+            f"{field_name}_processed",
             True,
         ):
             continue
 
-        side_mapping = get_side_mapping(
-            settings,
-            side,
-        )
-
         filename = audio_files.get(
-            side
+            field_name
         )
 
         if filename:
@@ -233,5 +229,5 @@ def write_audio_fields(
             field_value = ""
 
         note[
-            side_mapping["audio"]
+            field_mapping["audio"]
         ] = field_value
