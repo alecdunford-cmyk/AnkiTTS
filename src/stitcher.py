@@ -3,46 +3,87 @@ from pathlib import Path
 import subprocess
 
 from pydub import AudioSegment
+import pydub.utils
 
 
 @contextmanager
 def hide_subprocess_windows():
     """
-    Temporarily prevent subprocesses such as FFmpeg from opening
-    visible console windows on Windows.
+    Temporarily prevent subprocesses such as FFmpeg and FFprobe
+    from opening visible console windows on Windows.
     """
-    if not hasattr(subprocess, "CREATE_NO_WINDOW"):
+
+    if not hasattr(
+        subprocess,
+        "CREATE_NO_WINDOW",
+    ):
         yield
         return
 
-    original_popen = subprocess.Popen
+    original_subprocess_popen = (
+        subprocess.Popen
+    )
 
-    def hidden_popen(*args, **kwargs):
-        existing_flags = kwargs.get("creationflags", 0)
+    original_pydub_popen = (
+        pydub.utils.Popen
+    )
 
-        kwargs["creationflags"] = (
-            existing_flags | subprocess.CREATE_NO_WINDOW
+    def hidden_popen(
+        *args,
+        **kwargs,
+    ):
+        existing_flags = kwargs.get(
+            "creationflags",
+            0,
         )
 
-        startupinfo = kwargs.get("startupinfo")
+        kwargs[
+            "creationflags"
+        ] = (
+            existing_flags
+            | subprocess.CREATE_NO_WINDOW
+        )
+
+        startupinfo = kwargs.get(
+            "startupinfo"
+        )
 
         if startupinfo is None:
-            startupinfo = subprocess.STARTUPINFO()
+            startupinfo = (
+                subprocess.STARTUPINFO()
+            )
 
-        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-        startupinfo.wShowWindow = subprocess.SW_HIDE
+        startupinfo.dwFlags |= (
+            subprocess.STARTF_USESHOWWINDOW
+        )
 
-        kwargs["startupinfo"] = startupinfo
+        startupinfo.wShowWindow = (
+            subprocess.SW_HIDE
+        )
 
-        return original_popen(*args, **kwargs)
+        kwargs[
+            "startupinfo"
+        ] = startupinfo
+
+        return original_subprocess_popen(
+            *args,
+            **kwargs,
+        )
 
     subprocess.Popen = hidden_popen
+    pydub.utils.Popen = hidden_popen
 
     try:
         yield
-    finally:
-        subprocess.Popen = original_popen
 
+    finally:
+        subprocess.Popen = (
+            original_subprocess_popen
+        )
+
+        pydub.utils.Popen = (
+            original_pydub_popen
+        )
 
 def get_pause(segment):
     """
