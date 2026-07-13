@@ -326,12 +326,26 @@ class SettingsDialog(QDialog):
             ],
         )
 
+        remove_button = QPushButton(
+            f"Remove {display_name}"
+        )
+
+        qconnect(
+            remove_button.clicked,
+            lambda _checked=False, name=mapping_name: (
+                self.remove_mapping(
+                    name
+                )
+            ),
+        )
+
         self.mapping_controls[
             mapping_name
         ] = {
             "text": text_field_edit,
             "audio": audio_field_edit,
             "voice_mode": voice_mode_combo,
+            "remove": remove_button,
         }
 
         self.form_layout.addRow(
@@ -347,6 +361,11 @@ class SettingsDialog(QDialog):
         self.form_layout.addRow(
             f"{display_name} voice strategy:",
             voice_mode_combo,
+        )
+
+        self.form_layout.addRow(
+            "",
+            remove_button,
         )
 
     def create_unique_mapping_name(
@@ -391,6 +410,41 @@ class SettingsDialog(QDialog):
                 "voice_mode": "auto",
             },
         )
+
+    def remove_mapping(
+        self,
+        mapping_name,
+    ):
+        """Remove one field mapping from the dialog."""
+
+        if (
+            len(
+                self.mapping_controls
+            )
+            <= 1
+        ):
+            showInfo(
+                "AnkiTTS must contain at least one "
+                "field mapping."
+            )
+
+            return
+
+        controls = self.mapping_controls.pop(
+            mapping_name
+        )
+
+        for control_name in (
+            "text",
+            "audio",
+            "voice_mode",
+            "remove",
+        ):
+            self.form_layout.removeRow(
+                controls[
+                    control_name
+                ]
+            )
 
     def build_field_mapping(
         self,
