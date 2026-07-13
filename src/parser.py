@@ -3,65 +3,133 @@ import re
 from detector import detect_language
 
 
-def split_segments(text):
+PARENTHETICAL_PATTERN = re.compile(
+    r"(\([^)]*\))"
+)
+
+SENTENCE_BOUNDARY_PATTERN = re.compile(
+    r"""
+    (?<=[.!?。！？])
+    \s+
+    |
+    (?<=[。！？])
+    """,
+    flags=re.VERBOSE,
+)
+
+
+def split_sentences(
+    text,
+):
     """
-    Split text while preserving parenthetical groups.
+    Split one text section into independently detectable chunks.
+
+    Sentence-ending punctuation is retained so that pause handling
+    can still distinguish complete sentences.
     """
 
-    segments = re.split(
-        r'(\([^)]*\))',
-        text
+    sentences = re.split(
+        SENTENCE_BOUNDARY_PATTERN,
+        text,
     )
 
     results = []
 
-    for segment in segments:
-        segment = segment.strip()
+    for sentence in sentences:
+        sentence = sentence.strip()
 
-        if not segment:
+        if not sentence:
             continue
 
-        # Remove parentheses but keep the contents
-        is_parenthetical = False
-        
-        if segment.startswith("(") and segment.endswith(")"):
-            segment = segment[1:-1].strip()
-            is_parenthetical = True
-
-        # Further split long segments at semicolons
-        parts = segment.split(";")
-
-        for part in parts:
+        for part in sentence.split(
+            ";"
+        ):
             part = part.strip()
-
-            # Remove punctuation accidentally left at the beginning
-            part = part.lstrip(", ")
+            part = part.lstrip(
+                ", "
+            )
 
             if part:
-                results.append(part)
+                results.append(
+                    part
+                )
 
     return results
 
 
-def parse_text(text):
-    segments = split_segments(text)
+def split_segments(
+    text,
+):
+    """
+    Split text into sentence-level segments while preserving
+    whether text originally appeared inside parentheses.
+    """
+
+    sections = re.split(
+        PARENTHETICAL_PATTERN,
+        text,
+    )
+
+    results = []
+
+    for section in sections:
+        section = section.strip()
+
+        if not section:
+            continue
+
+        is_parenthetical = (
+            section.startswith(
+                "("
+            )
+            and section.endswith(
+                ")"
+            )
+        )
+
+        if is_parenthetical:
+            section = section[
+                1:-1
+            ].strip()
+
+        for sentence in split_sentences(
+            section
+        ):
+            results.append(
+                {
+                    "text": sentence,
+                    "parenthetical": is_parenthetical,
+                }
+            )
+
+    return results
+
+
+def parse_text(
+    text,
+):
+    segments = split_segments(
+        text
+    )
 
     chunks = []
 
     for segment in segments:
-        is_parenthetical = False
+        segment_text = segment[
+            "text"
+        ]
 
-        if segment.startswith("(") and segment.endswith(")"):
-            segment = segment [1:-1].strip()
-            is_parenthetical = True
-
-        language = detect_language(segment)
+        language = detect_language(
+            segment_text
+        )
 
         chunks.append(
             {
                 "language": language,
-                "text": segment,
-                "parenthetical": is_parenthetical
+                "text": segment_text,
+                "parenthetical": segment[
+                    "parenthetical"
+                ],
             }
         )
 
