@@ -305,6 +305,10 @@ class SettingsDialog(QDialog):
             .title()
         )
 
+        mapping_name_edit = QLineEdit(
+            mapping_name
+        )
+
         text_field_edit = QLineEdit(
             mapping_definition[
                 "text"
@@ -332,9 +336,9 @@ class SettingsDialog(QDialog):
 
         qconnect(
             remove_button.clicked,
-            lambda _checked=False, name=mapping_name: (
+            lambda _checked=False, identifier=mapping_name: (
                 self.remove_mapping(
-                    name
+                    identifier
                 )
             ),
         )
@@ -342,11 +346,17 @@ class SettingsDialog(QDialog):
         self.mapping_controls[
             mapping_name
         ] = {
+            "name": mapping_name_edit,
             "text": text_field_edit,
             "audio": audio_field_edit,
             "voice_mode": voice_mode_combo,
             "remove": remove_button,
         }
+
+        self.form_layout.addRow(
+            f"{display_name} mapping name:",
+            mapping_name_edit,
+        )
 
         self.form_layout.addRow(
             f"{display_name} text field:",
@@ -371,7 +381,14 @@ class SettingsDialog(QDialog):
     def create_unique_mapping_name(
         self,
     ):
-        """Create an unused internal name for a new mapping."""
+        """Create an unused temporary name for a new mapping."""
+
+        existing_names = {
+            controls[
+                "name"
+            ].text().strip()
+            for controls in self.mapping_controls.values()
+        }
 
         mapping_number = (
             len(
@@ -387,7 +404,7 @@ class SettingsDialog(QDialog):
 
             if (
                 mapping_name
-                not in self.mapping_controls
+                not in existing_names
             ):
                 return mapping_name
 
@@ -413,7 +430,7 @@ class SettingsDialog(QDialog):
 
     def remove_mapping(
         self,
-        mapping_name,
+        mapping_identifier,
     ):
         """Remove one field mapping from the dialog."""
 
@@ -431,10 +448,11 @@ class SettingsDialog(QDialog):
             return
 
         controls = self.mapping_controls.pop(
-            mapping_name
+            mapping_identifier
         )
 
         for control_name in (
+            "name",
             "text",
             "audio",
             "voice_mode",
@@ -453,10 +471,25 @@ class SettingsDialog(QDialog):
 
         field_mapping = {}
 
-        for (
-            mapping_name,
-            controls,
-        ) in self.mapping_controls.items():
+        for controls in self.mapping_controls.values():
+            mapping_name = (
+                controls[
+                    "name"
+                ].text().strip()
+            )
+
+            if not mapping_name:
+                raise ValueError(
+                    "Every mapping name must be "
+                    "a non-empty string."
+                )
+
+            if mapping_name in field_mapping:
+                raise ValueError(
+                    f'The mapping name "{mapping_name}" '
+                    "is used more than once."
+                )
+
             field_mapping[
                 mapping_name
             ] = {
@@ -506,11 +539,11 @@ class SettingsDialog(QDialog):
             "voices"
         ] = voices
 
-        config[
-            "field_mapping"
-        ] = self.build_field_mapping()
-
         try:
+            config[
+                "field_mapping"
+            ] = self.build_field_mapping()
+
             validated_settings = (
                 AppSettings.from_dict(
                     config
