@@ -14,6 +14,34 @@ AnkiTTS is an Anki add-on designed to make audio generation effortless. It suppo
 
 
 
+\## Screenshots
+
+
+
+\### Settings
+
+
+
+!\[AnkiTTS Settings](docs/images/settings.png)
+
+
+
+The Settings dialog provides configurable Speech Profiles, Field Mappings, cache management, and language preferences.
+
+
+
+\### Browser Batch Generation
+
+
+
+!\[Browser Batch Generation](docs/images/browser\_batch.png)
+
+
+
+Generate audio for one note or hundreds of selected notes directly from the Anki Browser.
+
+
+
 \## Features
 
 
