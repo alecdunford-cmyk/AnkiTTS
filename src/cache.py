@@ -1,4 +1,5 @@
 from pathlib import Path
+from shutil import rmtree
 import hashlib
 import json
 
@@ -10,6 +11,55 @@ CACHE_DIR.mkdir(
     parents=True,
     exist_ok=True,
 )
+
+
+def get_cache_statistics():
+    """
+    Return the number and total size of cached audio files.
+    """
+
+    file_count = 0
+    total_size = 0
+
+    if not CACHE_DIR.exists():
+        return {
+            "file_count": 0,
+            "total_size": 0,
+        }
+
+    for cache_file in CACHE_DIR.iterdir():
+        if not cache_file.is_file():
+            continue
+
+        file_count += 1
+        total_size += cache_file.stat().st_size
+
+    return {
+        "file_count": file_count,
+        "total_size": total_size,
+    }
+
+
+def clear_audio_cache():
+    """
+    Delete every cached audio file and recreate the cache directory.
+
+    Return statistics describing what was removed.
+    """
+
+    statistics = get_cache_statistics()
+
+    if CACHE_DIR.exists():
+        rmtree(
+            CACHE_DIR
+        )
+
+    CACHE_DIR.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    return statistics
 
 
 def get_audio_path(
