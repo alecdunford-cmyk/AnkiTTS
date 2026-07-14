@@ -657,28 +657,32 @@ class SettingsDialog(QDialog):
         }
 
         self.speech_profiles_layout.addRow(
-            f"{display_name} voice:",
+            "Voice:",
             voice_combo,
         )
 
         self.speech_profiles_layout.addRow(
-            f"{display_name} rate:",
+            "Rate:",
             rate_layout,
         )
 
         self.speech_profiles_layout.addRow(
-            f"{display_name} pitch:",
+            "Pitch:",
             pitch_layout,
         )
 
         self.speech_profiles_layout.addRow(
-            f"{display_name} volume:",
+            "Volume:",
             volume_layout,
         )
 
         self.speech_profiles_layout.addRow(
             "",
             reset_button,
+        )
+
+        self.speech_profiles_layout.addRow(
+            QLabel("")
         )
 
     def reset_speech_profile_modifiers(
@@ -735,6 +739,10 @@ class SettingsDialog(QDialog):
             .title()
         )
 
+        mapping_heading = QLabel(
+            f"<b>{display_name}</b>"
+        )
+
         mapping_name_edit = QLineEdit(
             mapping_name
         )
@@ -760,6 +768,8 @@ class SettingsDialog(QDialog):
             ],
         )
 
+        mapping_spacer = QLabel("")
+
         remove_button = QPushButton(
             f"Remove {display_name}"
         )
@@ -776,36 +786,46 @@ class SettingsDialog(QDialog):
         self.mapping_controls[
             mapping_name
         ] = {
+            "heading": mapping_heading,
             "name": mapping_name_edit,
             "text": text_field_edit,
             "audio": audio_field_edit,
             "speech_profile": speech_profile_combo,
             "remove": remove_button,
+            "spacer": mapping_spacer,
         }
 
         self.field_mapping_layout.addRow(
-            f"{display_name} mapping name:",
+            mapping_heading
+        )
+
+        self.field_mapping_layout.addRow(
+            "Mapping name:",
             mapping_name_edit,
         )
 
         self.field_mapping_layout.addRow(
-            f"{display_name} text field:",
+            "Text field:",
             text_field_edit,
         )
 
         self.field_mapping_layout.addRow(
-            f"{display_name} audio field:",
+            "Audio field:",
             audio_field_edit,
         )
 
         self.field_mapping_layout.addRow(
-            f"{display_name} Speech Profile:",
+            "Speech Profile:",
             speech_profile_combo,
         )
 
         self.field_mapping_layout.addRow(
             "",
             remove_button,
+        )
+
+        self.field_mapping_layout.addRow(
+            mapping_spacer
         )
 
     def create_unique_mapping_name(
@@ -879,11 +899,13 @@ class SettingsDialog(QDialog):
         )
 
         for control_name in (
+            "heading",
             "name",
             "text",
             "audio",
             "speech_profile",
             "remove",
+            "spacer",
         ):
             self.field_mapping_layout.removeRow(
                 controls[
