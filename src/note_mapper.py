@@ -80,8 +80,8 @@ def create_field_definitions_from_note(
             "text": note[
                 field_mapping["text"]
             ],
-            "voice_mode": field_mapping[
-                "voice_mode"
+            "speech_profile": field_mapping[
+                "speech_profile"
             ],
             "enabled": True,
         }

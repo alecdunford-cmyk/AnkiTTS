@@ -39,9 +39,12 @@ DEFAULT_VOICES = {
     "ja": "ja-JP-NanamiNeural",
 }
 
-VOICE_MODES = {
-    "Fixed language": "front",
+SPEECH_PROFILE_OPTIONS = {
     "Automatic detection": "auto",
+    "Front language": "front",
+    "French": "fr",
+    "English": "en",
+    "Japanese": "ja",
 }
 
 RATE_MINIMUM = -50
@@ -398,24 +401,24 @@ class SettingsDialog(QDialog):
             current_index
         )
 
-    def populate_voice_mode_combo(
+    def populate_speech_profile_combo(
         self,
         combo,
-        current_voice_mode,
+        current_speech_profile,
     ):
-        """Populate a field mapping's voice strategy selector."""
+        """Populate a field mapping's speech profile selector."""
 
         for (
             display_name,
-            voice_mode,
-        ) in VOICE_MODES.items():
+            speech_profile,
+        ) in SPEECH_PROFILE_OPTIONS.items():
             combo.addItem(
                 display_name,
-                voice_mode,
+                speech_profile,
             )
 
         current_index = combo.findData(
-            current_voice_mode
+            current_speech_profile
         )
 
         if current_index >= 0:
@@ -748,12 +751,12 @@ class SettingsDialog(QDialog):
             ]
         )
 
-        voice_mode_combo = QComboBox()
+        speech_profile_combo = QComboBox()
 
-        self.populate_voice_mode_combo(
-            combo=voice_mode_combo,
-            current_voice_mode=mapping_definition[
-                "voice_mode"
+        self.populate_speech_profile_combo(
+            combo=speech_profile_combo,
+            current_speech_profile=mapping_definition[
+                "speech_profile"
             ],
         )
 
@@ -776,7 +779,7 @@ class SettingsDialog(QDialog):
             "name": mapping_name_edit,
             "text": text_field_edit,
             "audio": audio_field_edit,
-            "voice_mode": voice_mode_combo,
+            "speech_profile": speech_profile_combo,
             "remove": remove_button,
         }
 
@@ -796,8 +799,8 @@ class SettingsDialog(QDialog):
         )
 
         self.field_mapping_layout.addRow(
-            f"{display_name} voice strategy:",
-            voice_mode_combo,
+            f"{display_name} speech profile:",
+            speech_profile_combo,
         )
 
         self.field_mapping_layout.addRow(
@@ -848,7 +851,7 @@ class SettingsDialog(QDialog):
             mapping_definition={
                 "text": "",
                 "audio": "",
-                "voice_mode": "auto",
+                "speech_profile": "auto",
             },
         )
 
@@ -879,7 +882,7 @@ class SettingsDialog(QDialog):
             "name",
             "text",
             "audio",
-            "voice_mode",
+            "speech_profile",
             "remove",
         ):
             self.field_mapping_layout.removeRow(
@@ -962,8 +965,8 @@ class SettingsDialog(QDialog):
                 "audio": controls[
                     "audio"
                 ].text().strip(),
-                "voice_mode": controls[
-                    "voice_mode"
+                "speech_profile": controls[
+                    "speech_profile"
                 ].currentData(),
             }
 

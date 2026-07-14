@@ -17,12 +17,12 @@ DEFAULT_FIELD_MAPPING = {
     "front": {
         "text": "Front",
         "audio": "Front Audio",
-        "voice_mode": "front",
+        "speech_profile": "front",
     },
     "back": {
         "text": "Back",
         "audio": "Back Audio",
-        "voice_mode": "auto",
+        "speech_profile": "auto",
     },
 }
 
@@ -202,18 +202,21 @@ class AppSettings:
                     mapping_definition[role]
                 )
 
-            voice_mode = mapping_definition.get(
-                "voice_mode"
+            speech_profile = mapping_definition.get(
+                "speech_profile"
             )
 
-            if voice_mode not in (
-                "front",
+            if speech_profile not in (
                 "auto",
+                "front",
+                "fr",
+                "en",
+                "ja",
             ):
                 raise ValueError(
                     f'field_mapping["{mapping_name}"]'
-                    '["voice_mode"] must be either '
-                    '"front" or "auto".'
+                    '["speech_profile"] must be one of '
+                    '"auto", "front", "fr", "en", or "ja".'
                 )
 
         if (
@@ -373,24 +376,29 @@ class AppSettings:
 
             for (
                 mapping_name,
-                default_mapping,
-            ) in DEFAULT_FIELD_MAPPING.items():
-                mapping_definition = (
-                    settings.field_mapping.get(
-                        mapping_name
-                    )
-                )
-
-                if isinstance(
+                mapping_definition,
+            ) in settings.field_mapping.items():
+                if not isinstance(
                     mapping_definition,
                     dict,
                 ):
-                    mapping_definition.setdefault(
+                    continue
+
+                legacy_voice_mode = (
+                    mapping_definition.pop(
                         "voice_mode",
-                        default_mapping[
-                            "voice_mode"
-                        ],
+                        None,
                     )
+                )
+
+                mapping_definition.setdefault(
+                    "speech_profile",
+                    (
+                        legacy_voice_mode
+                        if legacy_voice_mode is not None
+                        else "auto"
+                    ),
+                )
 
         else:
             legacy_field_settings = {

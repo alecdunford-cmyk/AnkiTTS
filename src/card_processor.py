@@ -191,29 +191,33 @@ def resolve_field_language(
     settings,
 ):
     """
-    Resolve a field definition to a concrete language.
+    Resolve a field definition's speech profile to a concrete language.
 
-    Existing language-based definitions remain supported while
-    voice-mode definitions are introduced.
+    Legacy language-based definitions remain supported.
     """
 
-    if "voice_mode" not in field_definition:
+    if "speech_profile" not in field_definition:
         return field_definition.get(
             "language"
         )
 
-    voice_mode = field_definition[
-        "voice_mode"
+    speech_profile = field_definition[
+        "speech_profile"
     ]
 
-    if voice_mode == "auto":
+    if speech_profile == "auto":
         return None
 
-    if voice_mode == "front":
+    if speech_profile == "front":
         return settings.front_language
 
+    if settings.get_speech_profile(
+        speech_profile
+    ) is not None:
+        return speech_profile
+
     raise ValueError(
-        f'Unsupported voice mode: "{voice_mode}".'
+        f'Unsupported speech profile: "{speech_profile}".'
     )
 
 
@@ -283,12 +287,12 @@ if __name__ == "__main__":
         {
             "front": {
                 "text": sample,
-                "voice_mode": "front",
+                "speech_profile": "front",
                 "enabled": True,
             },
             "back": {
                 "text": "",
-                "voice_mode": "auto",
+                "speech_profile": "auto",
                 "enabled": True,
             },
         },
