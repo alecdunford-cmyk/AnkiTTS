@@ -1,14 +1,13 @@
-from cache import (
-    CACHE_DIR,
-    clear_audio_cache,
-    get_cache_statistics,
-)
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
+import cache
 
 
 def check_empty_cache_statistics():
-    clear_audio_cache()
+    cache.clear_audio_cache()
 
-    statistics = get_cache_statistics()
+    statistics = cache.get_cache_statistics()
 
     assert statistics == {
         "file_count": 0,
@@ -17,10 +16,10 @@ def check_empty_cache_statistics():
 
 
 def check_cache_statistics():
-    clear_audio_cache()
+    cache.clear_audio_cache()
 
-    first_file = CACHE_DIR / "first.mp3"
-    second_file = CACHE_DIR / "second.mp3"
+    first_file = cache.CACHE_DIR / "first.mp3"
+    second_file = cache.CACHE_DIR / "second.mp3"
 
     first_file.write_bytes(
         b"12345"
@@ -30,7 +29,7 @@ def check_cache_statistics():
         b"1234567890"
     )
 
-    statistics = get_cache_statistics()
+    statistics = cache.get_cache_statistics()
 
     assert statistics == {
         "file_count": 2,
@@ -39,17 +38,17 @@ def check_cache_statistics():
 
 
 def check_clear_audio_cache():
-    clear_audio_cache()
+    cache.clear_audio_cache()
 
     nested_directory = (
-        CACHE_DIR
+        cache.CACHE_DIR
         / "temporary"
     )
 
     nested_directory.mkdir()
 
     (
-        CACHE_DIR
+        cache.CACHE_DIR
         / "cached.mp3"
     ).write_bytes(
         b"cached audio"
@@ -62,32 +61,51 @@ def check_clear_audio_cache():
         b"temporary"
     )
 
-    removed_statistics = clear_audio_cache()
+    removed_statistics = cache.clear_audio_cache()
 
     assert removed_statistics == {
         "file_count": 1,
         "total_size": 12,
     }
 
-    assert CACHE_DIR.exists()
+    assert cache.CACHE_DIR.exists()
     assert list(
-        CACHE_DIR.iterdir()
+        cache.CACHE_DIR.iterdir()
     ) == []
 
 
 def run():
-    checks = [
-        check_empty_cache_statistics,
-        check_cache_statistics,
-        check_clear_audio_cache,
-    ]
+    original_cache_dir = cache.CACHE_DIR
 
-    for check in checks:
-        print(
-            f"    {check.__name__}...",
-            end=" ",
-        )
+    try:
+        with TemporaryDirectory() as temporary_directory:
+            cache.CACHE_DIR = (
+                Path(
+                    temporary_directory
+                )
+                / "audio"
+            )
 
-        check()
+            cache.CACHE_DIR.mkdir(
+                parents=True,
+                exist_ok=True,
+            )
 
-        print("✓")
+            checks = [
+                check_empty_cache_statistics,
+                check_cache_statistics,
+                check_clear_audio_cache,
+            ]
+
+            for check in checks:
+                print(
+                    f"    {check.__name__}...",
+                    end=" ",
+                )
+
+                check()
+
+                print("✓")
+
+    finally:
+        cache.CACHE_DIR = original_cache_dir
