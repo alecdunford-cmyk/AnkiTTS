@@ -85,7 +85,7 @@ def process_chunks(
                 f"Generating: {chunk['text']}"
             )
 
-            create_audio(
+            audio_created = create_audio(
                 text=chunk["text"],
                 voice=speech_profile.voice,
                 output_file=str(
@@ -95,6 +95,16 @@ def process_chunks(
                 volume=speech_profile.volume,
                 pitch=speech_profile.pitch,
             )
+
+            if not audio_created:
+                print(
+                    "Skipping chunk because Edge TTS "
+                    f"returned no audio: {chunk['text']}"
+                )
+
+                statistics["skipped"] += 1
+
+                continue
 
             statistics["generated"] += 1
         else:
