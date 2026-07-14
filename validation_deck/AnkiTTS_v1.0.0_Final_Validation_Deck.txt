@@ -1,0 +1,86 @@
+#separator:Tab
+#html:true
+#deck:AnkiTTS v1.0.0 Validation
+#columns:Front	Back	Tags
+#tags column:3
+bonjour	hello; good morning	AnkiTTS::Validation AnkiTTS::Category::Baseline AnkiTTS::Case::A01
+こんにちは	hello; good afternoon	AnkiTTS::Validation AnkiTTS::Category::Baseline AnkiTTS::Case::A02
+a careful explanation	une explication soignée	AnkiTTS::Validation AnkiTTS::Category::Baseline AnkiTTS::Case::A03
+日本語	Japanese language	AnkiTTS::Validation AnkiTTS::Category::Baseline AnkiTTS::Case::A04
+Tu vois un peu le topo ?	Do you get the picture?	AnkiTTS::Validation AnkiTTS::Category::Baseline AnkiTTS::Case::A05
+私は日本語を勉強しています。	I am studying Japanese.	AnkiTTS::Validation AnkiTTS::Category::Baseline AnkiTTS::Case::A06
+This French sentence must use the English profile.	Cette phrase sert à vérifier un profil imposé.	AnkiTTS::Validation AnkiTTS::Category::Explicit_profile AnkiTTS::Case::A07
+Cette phrase anglaise doit utiliser le profil français.	This sentence tests a forced profile.	AnkiTTS::Validation AnkiTTS::Category::Explicit_profile AnkiTTS::Case::A08
+日本語ではない文字列	This front must use the Japanese profile.	AnkiTTS::Validation AnkiTTS::Category::Explicit_profile AnkiTTS::Case::A09
+Front-language profile check	The selected Front language controls this field.	AnkiTTS::Validation AnkiTTS::Category::Front_language AnkiTTS::Case::A10
+Bonjour. こんにちは。 Hello.	Three greetings in three languages.	AnkiTTS::Validation AnkiTTS::Category::Mixed_language AnkiTTS::Case::B01
+Merci beaucoup. 本当にありがとうございます。 Thank you very much.	One message expressed three ways.	AnkiTTS::Validation AnkiTTS::Category::Mixed_language AnkiTTS::Case::B02
+I finally understand. Je comprends enfin. やっと分かりました。	Three equivalent statements.	AnkiTTS::Validation AnkiTTS::Category::Mixed_language AnkiTTS::Case::B03
+faire un topo sur le projet	to give a rundown on the project<br>Ex. Il nous a fait un topo rapide. (He gave us a quick rundown.)	AnkiTTS::Validation AnkiTTS::Category::Dictionary_style AnkiTTS::Case::B04
+le dedans d'une maison	the inside of a house<br>Ex. Le dedans est plus spacieux qu'il n'en a l'air. (The inside is roomier than it looks.)	AnkiTTS::Validation AnkiTTS::Category::Dictionary_style AnkiTTS::Case::B05
+気がつく	to notice; to realize<br>Ex. 何かに気がつきましたか。 (Did you notice anything?)	AnkiTTS::Validation AnkiTTS::Category::Dictionary_style AnkiTTS::Case::B06
+読む（よむ）	to read<br>Ex. 私は毎晩本を読んでいます。 (I read a book every evening.)	AnkiTTS::Validation AnkiTTS::Category::Dictionary_style AnkiTTS::Case::B07
+un bâtiment	a building<br>日本語: 建物（たてもの）	AnkiTTS::Validation AnkiTTS::Category::Mixed_language AnkiTTS::Case::B08
+注意してください。	Please pay attention.<br>French: Faites attention.	AnkiTTS::Validation AnkiTTS::Category::Mixed_language AnkiTTS::Case::B09
+C'est la vie.	That's life.<br>日本語では「それが人生だ」に近い。	AnkiTTS::Validation AnkiTTS::Category::Mixed_language AnkiTTS::Case::B10
+The word « intérieur » differs from « dedans ».	Le mot « intérieur » se distingue de « dedans ».	AnkiTTS::Validation AnkiTTS::Category::Mixed_language AnkiTTS::Case::B11
+日本語 English Français 日本語 English Français	Alternating language names.	AnkiTTS::Validation AnkiTTS::Category::Mixed_language AnkiTTS::Case::B12
+faire un topo sur (give a rundown on)	Standard bilingual parenthetical construction.	AnkiTTS::Validation AnkiTTS::Category::Parentheses AnkiTTS::Case::C01
+Tu vois un peu le topo ? (Get the picture?)	Question plus parenthetical translation.	AnkiTTS::Validation AnkiTTS::Category::Parentheses AnkiTTS::Case::C02
+日本語（にほんご）という言葉	the word Japanese language	AnkiTTS::Validation AnkiTTS::Category::Parentheses AnkiTTS::Case::C03
+読む（よむ）— to read	kanji, reading, and gloss	AnkiTTS::Validation AnkiTTS::Category::Parentheses AnkiTTS::Case::C04
+A sentence with ((nested parentheses)) should remain stable.	Une phrase avec ((des parenthèses imbriquées)) doit rester stable.	AnkiTTS::Validation AnkiTTS::Category::Parentheses AnkiTTS::Case::C05
+bonjour / hello / こんにちは	Three greetings separated by slashes.	AnkiTTS::Validation AnkiTTS::Category::Slashes AnkiTTS::Case::C06
+A/B/C	letters separated by unspaced slashes	AnkiTTS::Validation AnkiTTS::Category::Slashes AnkiTTS::Case::C07
+oui/non; yes/no; はい/いいえ	paired alternatives	AnkiTTS::Validation AnkiTTS::Category::Slashes AnkiTTS::Case::C08
+Ex. faire un topo; Ex. expliquer la situation.	two examples introduced by Ex.	AnkiTTS::Validation AnkiTTS::Category::Punctuation AnkiTTS::Case::C09
+Dr. Smith lives in the U.S.	Le Dr Smith habite aux États-Unis.	AnkiTTS::Validation AnkiTTS::Category::Punctuation AnkiTTS::Case::C10
+« Bonjour », dit-elle. “Hello,” she replied.	Japanese: 「こんにちは」と彼女は答えた。	AnkiTTS::Validation AnkiTTS::Category::Punctuation AnkiTTS::Case::C11
+co-operate — re-enter — twenty-one	hyphens and em dashes	AnkiTTS::Validation AnkiTTS::Category::Punctuation AnkiTTS::Case::C12
+<b>Bonjour</b>	Hello	AnkiTTS::Validation AnkiTTS::Category::HTML AnkiTTS::Case::D01
+C'est <b>très</b> important.	It is very important.	AnkiTTS::Validation AnkiTTS::Category::HTML AnkiTTS::Case::D02
+<i>こんにちは</i>	Hello	AnkiTTS::Validation AnkiTTS::Category::HTML AnkiTTS::Case::D03
+"<span style=""color:red"">日本語</span>"	Japanese language	AnkiTTS::Validation AnkiTTS::Category::HTML AnkiTTS::Case::D04
+First line<br>Second line<br>Third line	Première ligne<br>Deuxième ligne<br>Troisième ligne	AnkiTTS::Validation AnkiTTS::Category::HTML AnkiTTS::Case::D05
+<div>Bonjour</div><div>Hello</div><div>こんにちは</div>	three block elements	AnkiTTS::Validation AnkiTTS::Category::HTML AnkiTTS::Case::D06
+Tom &amp; Marie	Tom and Marie	AnkiTTS::Validation AnkiTTS::Category::Entities AnkiTTS::Case::D07
+5 &lt; 10 and 10 &gt; 5	Five is less than ten, and ten is greater than five.	AnkiTTS::Validation AnkiTTS::Category::Entities AnkiTTS::Case::D08
+L&apos;intérieur d&apos;une maison	the inside of a house	AnkiTTS::Validation AnkiTTS::Category::Entities AnkiTTS::Case::D09
+<p><b>Merci</b> beaucoup.</p><p>ありがとうございます。</p><p>Thank you.</p>	The same message in three languages.	AnkiTTS::Validation AnkiTTS::Category::HTML AnkiTTS::Case::D10
+<b><i>Bonjour</b></i>	Hello	AnkiTTS::Validation AnkiTTS::Category::Malformed_HTML AnkiTTS::Case::D11
+<div>Bonjour<span> hello</div>	Mixed malformed HTML	AnkiTTS::Validation AnkiTTS::Category::Malformed_HTML AnkiTTS::Case::D12
+l'été; aujourd'hui; quelqu'un	summer; today; someone	AnkiTTS::Validation AnkiTTS::Category::Unicode AnkiTTS::Case::E01
+café; naïve; façade; cœur	accented French words	AnkiTTS::Validation AnkiTTS::Category::Unicode AnkiTTS::Case::E02
+がくせい / がくせい	Both forms represent gakusei.	AnkiTTS::Validation AnkiTTS::Category::Unicode AnkiTTS::Case::E03
+😀 Bonjour! 😄 こんにちは! 🙂 Hello!	emoji around multilingual text	AnkiTTS::Validation AnkiTTS::Category::Emoji AnkiTTS::Case::E04
+😀😀😀😀😀	emoji-only front	AnkiTTS::Validation AnkiTTS::Category::Emoji AnkiTTS::Case::E05
+&lt;div&gt; is an HTML tag; &amp; is an ampersand.	literal markup symbols displayed with entities	AnkiTTS::Validation AnkiTTS::Category::Symbols AnkiTTS::Case::E06
+…	an ellipsis by itself	AnkiTTS::Validation AnkiTTS::Category::Punctuation_only AnkiTTS::Case::E07
+!!!???	repeated terminal punctuation	AnkiTTS::Validation AnkiTTS::Category::Punctuation_only AnkiTTS::Case::E08
+(((((())))))	nested punctuation without words	AnkiTTS::Validation AnkiTTS::Category::Punctuation_only AnkiTTS::Case::E09
+;;;;;,,,,,:::::	separators without words	AnkiTTS::Validation AnkiTTS::Category::Punctuation_only AnkiTTS::Case::E10
+The temperature is 21.5°C.	La température est de 21,5 °C.	AnkiTTS::Validation AnkiTTS::Category::Numbers AnkiTTS::Case::F01
+It costs $12.50.	Cela coûte 12,50 €.	AnkiTTS::Validation AnkiTTS::Category::Numbers AnkiTTS::Case::F02
+500円です。	It costs 500 yen.	AnkiTTS::Validation AnkiTTS::Category::Numbers AnkiTTS::Case::F03
+The meeting is on July 13, 2026, at 10:30 a.m.	La réunion a lieu le 13 juillet 2026 à 10 h 30.	AnkiTTS::Validation AnkiTTS::Category::Numbers AnkiTTS::Case::F04
+3.14159	pi, approximately three point one four one five nine	AnkiTTS::Validation AnkiTTS::Category::Numbers AnkiTTS::Case::F05
+第3章を読んでください。	Please read chapter three.	AnkiTTS::Validation AnkiTTS::Category::Numbers AnkiTTS::Case::F06
+10 km / 6.2 miles	dix kilomètres / six virgule deux miles	AnkiTTS::Validation AnkiTTS::Category::Numbers AnkiTTS::Case::F07
+Room 101 is on floor 2.	La chambre 101 se trouve au 2e étage.	AnkiTTS::Validation AnkiTTS::Category::Numbers AnkiTTS::Case::F08
+This card has an empty back field.		AnkiTTS::Validation AnkiTTS::Category::Empty_field AnkiTTS::Case::G01
+This card has a spaces-only back field.	     	AnkiTTS::Validation AnkiTTS::Category::Whitespace AnkiTTS::Case::G02
+This card has a break-only back field.	<br><br><br>	AnkiTTS::Validation AnkiTTS::Category::Whitespace AnkiTTS::Case::G03
+This card has non-breaking spaces on the back.	&nbsp;&nbsp;&nbsp;	AnkiTTS::Validation AnkiTTS::Category::Whitespace AnkiTTS::Case::G04
+This card has an empty paragraph on the back.	<p></p><div></div>	AnkiTTS::Validation AnkiTTS::Category::Whitespace AnkiTTS::Case::G05
+This deliberately long English paragraph tests sustained generation, sentence boundaries, commas, quotations, and cache behavior. It contains several sentences. The audio should remain intelligible. No subprocess window should appear. Generating it a second time without changing the text should reuse the cached result, while changing one word should cause only the affected audio to regenerate.	Voici un paragraphe français volontairement long destiné à vérifier la génération prolongée, les limites de phrase, les virgules, les guillemets et le comportement du cache. Il contient plusieurs phrases. L'audio doit rester intelligible. Aucune fenêtre de console ne doit apparaître. Une deuxième génération sans modification doit réutiliser le cache, tandis qu'un seul mot modifié doit provoquer une régénération ciblée.	AnkiTTS::Validation AnkiTTS::Category::Performance AnkiTTS::Case::H01
+これは長い日本語の文章です。長い入力でも音声生成が安定して動作するか、文の区切りが自然か、同じ内容をもう一度生成したときにキャッシュが正しく利用されるかを確認します。処理中に余計なコンソールウィンドウが表示されず、最後まで正常に完了することも重要です。	This deliberately long English paragraph tests sustained generation, sentence boundaries, commas, quotations, and cache behavior. It contains several sentences. The audio should remain intelligible. No subprocess window should appear. Generating it a second time without changing the text should reuse the cached result, while changing one word should cause only the affected audio to regenerate.	AnkiTTS::Validation AnkiTTS::Category::Performance AnkiTTS::Case::H02
+Bonjour. こんにちは。 Hello. Merci beaucoup. 本当にありがとうございます。 Thank you very much. Je comprends enfin. やっと分かりました。 I finally understand.	A long field alternating among all three supported languages.	AnkiTTS::Validation AnkiTTS::Category::Performance AnkiTTS::Case::H03
+<p>Bonjour.</p><p>こんにちは。</p><p>Hello.</p><p>Bonjour.</p><p>こんにちは。</p><p>Hello.</p><p>Bonjour.</p><p>こんにちは。</p><p>Hello.</p><p>Bonjour.</p><p>こんにちは。</p><p>Hello.</p><p>Bonjour.</p><p>こんにちは。</p><p>Hello.</p><p>Bonjour.</p><p>こんにちは。</p><p>Hello.</p><p>Bonjour.</p><p>こんにちは。</p><p>Hello.</p><p>Bonjour.</p><p>こんにちは。</p><p>Hello.</p><p>Bonjour.</p><p>こんにちは。</p><p>Hello.</p><p>Bonjour.</p><p>こんにちは。</p><p>Hello.</p><p>Bonjour.</p><p>こんにちは。</p><p>Hello.</p><p>Bonjour.</p><p>こんにちは。</p><p>Hello.</p>	Repeated HTML blocks in three languages.	AnkiTTS::Validation AnkiTTS::Category::Performance AnkiTTS::Case::H04
+faire un topo; prendre en compte; mettre au point; se rendre compte; avoir beau; 気がつく; 読んでみる; 勉強しています; to take into account; to figure out; to give it a try	A dense list of French, Japanese, and English expressions.	AnkiTTS::Validation AnkiTTS::Category::Performance AnkiTTS::Case::H05
+Cache control sentence: version one.	Phrase de contrôle du cache : version un.	AnkiTTS::Validation AnkiTTS::Category::Cache AnkiTTS::Case::H06
+Editor and Browser should agree.	L'éditeur et le navigateur doivent produire le même résultat.	AnkiTTS::Validation AnkiTTS::Category::Parity AnkiTTS::Case::H07
+Batch card one.	Carte de lot numéro un.	AnkiTTS::Validation AnkiTTS::Category::Batch AnkiTTS::Case::H08
+Batch card two.	Carte de lot numéro deux.	AnkiTTS::Validation AnkiTTS::Category::Batch AnkiTTS::Case::H09
+Batch card three.	Carte de lot numéro trois.	AnkiTTS::Validation AnkiTTS::Category::Batch AnkiTTS::Case::H10
+Batch card four.	Carte de lot numéro quatre.	AnkiTTS::Validation AnkiTTS::Category::Batch AnkiTTS::Case::H11
+Batch card five.	Carte de lot numéro cinq.	AnkiTTS::Validation AnkiTTS::Category::Batch AnkiTTS::Case::H12
