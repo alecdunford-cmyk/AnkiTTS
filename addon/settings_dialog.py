@@ -160,10 +160,10 @@ class SettingsDialog(QDialog):
         general_layout = QVBoxLayout()
 
         description = QLabel(
-            "Choose the fixed language used by mappings whose "
-            "voice strategy is set to Fixed language. Other "
-            "mappings can automatically detect the language of "
-            "each text segment."
+            "Choose the language used by mappings whose Speech "
+            "Profile is set to Front language. Mappings configured "
+            "for Automatic detection identify the language of each "
+            "text segment automatically."
         )
 
         description.setWordWrap(
@@ -173,7 +173,7 @@ class SettingsDialog(QDialog):
         general_form_layout = QFormLayout()
 
         general_form_layout.addRow(
-            "Fixed language:",
+            "Front language:",
             self.front_language_combo,
         )
 
@@ -232,7 +232,7 @@ class SettingsDialog(QDialog):
             )
 
         self.reset_all_profiles_button = QPushButton(
-            "Reset All Speech Modifiers"
+            "Reset All Modifiers"
         )
 
         qconnect(
@@ -799,7 +799,7 @@ class SettingsDialog(QDialog):
         )
 
         self.field_mapping_layout.addRow(
-            f"{display_name} speech profile:",
+            f"{display_name} Speech Profile:",
             speech_profile_combo,
         )
 
