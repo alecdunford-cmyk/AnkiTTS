@@ -15,7 +15,12 @@ from aqt.qt import (
     QVBoxLayout,
     QWidget,
 )
-from aqt.utils import qconnect, showInfo
+from aqt.utils import askUser, qconnect, showInfo
+
+from cache import (
+    clear_audio_cache,
+    get_cache_statistics,
+)
 
 from settings import AppSettings
 from voice_manager import VoiceManager
@@ -177,12 +182,59 @@ class SettingsDialog(QDialog):
             self.front_language_combo,
         )
 
+        cache_heading = QLabel(
+            "<b>Audio Cache</b>"
+        )
+
+        cache_description = QLabel(
+            "Cached audio speeds up repeated generation. Clearing "
+            "the cache does not remove audio already copied into "
+            "Anki's media collection."
+        )
+
+        cache_description.setWordWrap(
+            True
+        )
+
+        self.cache_statistics_label = QLabel()
+
+        self.clear_cache_button = QPushButton(
+            "Clear Entire Audio Cache"
+        )
+
+        qconnect(
+            self.clear_cache_button.clicked,
+            self.clear_entire_audio_cache,
+        )
+
+        self.update_cache_statistics()
+
         general_layout.addWidget(
             description
         )
 
         general_layout.addLayout(
             general_form_layout
+        )
+
+        general_layout.addSpacing(
+            18
+        )
+
+        general_layout.addWidget(
+            cache_heading
+        )
+
+        general_layout.addWidget(
+            cache_description
+        )
+
+        general_layout.addWidget(
+            self.cache_statistics_label
+        )
+
+        general_layout.addWidget(
+            self.clear_cache_button
         )
 
         general_layout.addStretch()
@@ -194,6 +246,128 @@ class SettingsDialog(QDialog):
         self.tab_widget.addTab(
             general_tab,
             "General",
+        )
+
+    def format_file_size(
+        self,
+        size_bytes,
+    ):
+        """Format a byte count for display."""
+
+        size = float(
+            size_bytes
+        )
+
+        for unit in (
+            "bytes",
+            "KB",
+            "MB",
+            "GB",
+        ):
+            if (
+                size < 1024
+                or unit == "GB"
+            ):
+                if unit == "bytes":
+                    return (
+                        f"{int(size):,} {unit}"
+                    )
+
+                return (
+                    f"{size:,.1f} {unit}"
+                )
+
+            size /= 1024
+
+    def update_cache_statistics(
+        self,
+    ):
+        """Refresh the displayed audio-cache statistics."""
+
+        statistics = get_cache_statistics()
+
+        file_count = statistics[
+            "file_count"
+        ]
+
+        total_size = self.format_file_size(
+            statistics[
+                "total_size"
+            ]
+        )
+
+        file_word = (
+            "file"
+            if file_count == 1
+            else "files"
+        )
+
+        self.cache_statistics_label.setText(
+            f"{file_count:,} cached {file_word} "
+            f"({total_size})"
+        )
+
+        self.clear_cache_button.setEnabled(
+            file_count > 0
+        )
+
+    def clear_entire_audio_cache(
+        self,
+    ):
+        """Confirm and clear every cached audio file."""
+
+        statistics = get_cache_statistics()
+
+        if statistics[
+            "file_count"
+        ] == 0:
+            showInfo(
+                "The AnkiTTS audio cache is already empty."
+            )
+
+            self.update_cache_statistics()
+
+            return
+
+        file_count = statistics[
+            "file_count"
+        ]
+
+        total_size = self.format_file_size(
+            statistics[
+                "total_size"
+            ]
+        )
+
+        confirmed = askUser(
+            "Delete the entire AnkiTTS audio cache?\n\n"
+            f"This will remove {file_count:,} cached "
+            f"files ({total_size}).\n\n"
+            "Audio already copied into Anki's media "
+            "collection will not be affected."
+        )
+
+        if not confirmed:
+            return
+
+        removed = clear_audio_cache()
+
+        removed_count = removed[
+            "file_count"
+        ]
+
+        removed_size = self.format_file_size(
+            removed[
+                "total_size"
+            ]
+        )
+
+        self.update_cache_statistics()
+
+        showInfo(
+            "The AnkiTTS audio cache was cleared.\n\n"
+            f"Removed {removed_count:,} files "
+            f"({removed_size})."
         )
 
     def create_speech_profiles_tab(
