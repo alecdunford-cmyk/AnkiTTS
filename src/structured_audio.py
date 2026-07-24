@@ -350,8 +350,12 @@ def _prepare_track(
                     audio_path.unlink()
 
                 raise StructuredAudioProcessingError(
-                    "Edge returned no usable audio for RCE segment "
-                    f'"{segment.segment_id}".'
+                    "Edge returned no usable audio after retries for "
+                    f'RCE card "{rce_card_id}", segment '
+                    f'"{segment.segment_id}", text '
+                    f"{_format_text_preview(segment.text)}, language "
+                    f'"{segment.language}", voice "{segment.voice}", '
+                    f'rate "{segment.edge_rate}".'
                 )
 
             statistics[
@@ -400,6 +404,28 @@ def _prepare_track(
             "segments": audio_segments,
         },
         statistics,
+    )
+
+
+def _format_text_preview(
+    text,
+    limit=160,
+):
+    preview = text
+
+    if len(
+        preview
+    ) > limit:
+        preview = (
+            preview[
+                : limit - 3
+            ]
+            + "..."
+        )
+
+    return json.dumps(
+        preview,
+        ensure_ascii=False,
     )
 
 

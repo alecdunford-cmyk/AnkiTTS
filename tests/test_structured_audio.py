@@ -127,8 +127,8 @@ def expect_audio_error(
     try:
         action()
 
-    except StructuredAudioProcessingError:
-        return
+    except StructuredAudioProcessingError as error:
+        return error
 
     raise AssertionError(
         "Invalid structured audio operation succeeded."
@@ -730,11 +730,44 @@ def check_synthesis_failure_creates_no_final_track():
                 )
             )
 
-            expect_audio_error(
+            error = expect_audio_error(
                 lambda: process_structured_job(
                     job,
                     AppSettings(),
                 )
+            )
+
+            message = str(
+                error
+            )
+
+            assert (
+                "after retries"
+                in message
+            )
+            assert (
+                '"rce-card-123"'
+                in message
+            )
+            assert (
+                '"second"'
+                in message
+            )
+            assert (
+                'text "second"'
+                in message
+            )
+            assert (
+                'language "fr-FR"'
+                in message
+            )
+            assert (
+                'voice "fr-FR-DeniseNeural"'
+                in message
+            )
+            assert (
+                'rate "+0%"'
+                in message
             )
 
             assert list(
