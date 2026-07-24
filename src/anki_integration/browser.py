@@ -13,7 +13,8 @@ from card_processor import OUTPUT_DIR
 from note_mapper import (
     create_job_from_note,
     get_mapped_field_names,
-    has_mapped_fields,
+    is_processable_note,
+    iter_processed_audio_outputs,
     write_audio_fields,
 )
 from settings import AppSettings
@@ -56,21 +57,14 @@ def copy_generated_audio_to_media(
 ):
     """Copy processed audio files into Anki media."""
 
-    for field_name in settings.field_mapping:
-        processed_key = (
-            f"{field_name}_processed"
-        )
-
-        if not audio_files.get(
-            processed_key,
-            True,
-        ):
-            continue
-
-        filename = audio_files.get(
-            field_name
-        )
-
+    for (
+        _field_name,
+        _audio_field,
+        filename,
+    ) in iter_processed_audio_outputs(
+        audio_files,
+        settings,
+    ):
         if not filename:
             continue
 
@@ -109,16 +103,25 @@ def process_selected_notes(
         )
         return
 
-    config = (
-        mw.addonManager.getConfig(
-            addon_name
+    try:
+        config = (
+            mw.addonManager.getConfig(
+                addon_name
+            )
+            or {}
         )
-        or {}
-    )
 
-    settings = AppSettings.from_dict(
-        config
-    )
+        settings = AppSettings.from_dict(
+            config
+        )
+
+    except Exception as error:
+        showWarning(
+            "AnkiTTS settings are invalid:\n\n"
+            f"{error}"
+        )
+
+        return
 
     media_folder = Path(
         mw.col.media.dir()
@@ -134,22 +137,34 @@ def process_selected_notes(
             note_id
         )
 
-        if not has_mapped_fields(
+        if not is_processable_note(
             note,
             settings,
         ):
             skipped_note_types += 1
             continue
 
+        try:
+            job = create_job_from_note(
+                note,
+                settings,
+            )
+
+        except Exception as error:
+            showWarning(
+                "AnkiTTS cannot process selected note "
+                f"{note_id}:\n\n{error}\n\n"
+                "No selected notes were changed."
+            )
+
+            return
+
         compatible_notes.append(
             note
         )
 
         jobs.append(
-            create_job_from_note(
-                note,
-                settings,
-            )
+            job
         )
 
     if not jobs:
@@ -167,31 +182,64 @@ def process_selected_notes(
 
         return
 
-    with hide_subprocess_windows():
-        batch_result = process_notes(
-            jobs,
-            settings=settings,
+    try:
+        with hide_subprocess_windows():
+            batch_result = process_notes(
+                jobs,
+                settings=settings,
+            )
+
+    except Exception as error:
+        showWarning(
+            "AnkiTTS audio generation failed:\n\n"
+            f"{error}\n\n"
+            "No selected notes were changed."
         )
 
-    for note, audio_files in zip(
-        compatible_notes,
-        batch_result["results"],
-    ):
-        copy_generated_audio_to_media(
-            audio_files,
-            media_folder,
-            settings,
+        return
+
+    try:
+        for audio_files in batch_result[
+            "results"
+        ]:
+            copy_generated_audio_to_media(
+                audio_files,
+                media_folder,
+                settings,
+            )
+
+    except Exception as error:
+        showWarning(
+            "AnkiTTS generated audio but could not copy it "
+            f"into Anki media:\n\n{error}\n\n"
+            "No selected note fields were changed."
         )
 
-        write_audio_fields(
-            note,
-            audio_files,
-            settings,
+        return
+
+    try:
+        for note, audio_files in zip(
+            compatible_notes,
+            batch_result["results"],
+        ):
+            write_audio_fields(
+                note,
+                audio_files,
+                settings,
+            )
+
+        for note in compatible_notes:
+            mw.col.update_note(
+                note
+            )
+
+    except Exception as error:
+        showWarning(
+            "AnkiTTS could not update all selected notes:\n\n"
+            f"{error}"
         )
 
-        mw.col.update_note(
-            note
-        )
+        return
 
     browser.model.reset()
 

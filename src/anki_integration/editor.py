@@ -1,10 +1,13 @@
 import shutil
 from pathlib import Path
 
+from aqt.utils import showWarning
+
 from batch_processor import process_notes
 from card_processor import OUTPUT_DIR
 from note_mapper import (
     create_job_from_note,
+    iter_processed_audio_outputs,
     write_audio_fields,
 )
 from settings import AppSettings
@@ -18,11 +21,14 @@ def copy_generated_audio_to_media(
 ):
     """Copy generated audio files into Anki media."""
 
-    for field_name in settings.field_mapping:
-        filename = audio_files.get(
-            field_name
-        )
-
+    for (
+        _field_name,
+        _audio_field,
+        filename,
+    ) in iter_processed_audio_outputs(
+        audio_files,
+        settings,
+    ):
         if not filename:
             continue
 
@@ -50,56 +56,75 @@ def process_editor_note(
             note.id
         )
 
-    config = (
-        mw.addonManager.getConfig(
-            addon_name
-        )
-        or {}
-    )
-
-    settings = AppSettings.from_dict(
-        config
-    )
-
-    job = create_job_from_note(
-        note,
-        settings,
-    )
-
-    with hide_subprocess_windows():
-        batch_result = process_notes(
-            [
-                job
-            ],
-            settings=settings,
+    try:
+        config = (
+            mw.addonManager.getConfig(
+                addon_name
+            )
+            or {}
         )
 
-    audio_files = batch_result[
-        "results"
-    ][0]
-
-    media_folder = Path(
-        mw.col.media.dir()
-    )
-
-    copy_generated_audio_to_media(
-        audio_files,
-        media_folder,
-        settings,
-    )
-
-    write_audio_fields(
-        note,
-        audio_files,
-        settings,
-    )
-
-    if note.id:
-        mw.col.update_note(
-            note
+        settings = AppSettings.from_dict(
+            config
         )
 
-    editor.note = note
-    editor.loadNoteKeepingFocus()
+        job = create_job_from_note(
+            note,
+            settings,
+        )
+
+        with hide_subprocess_windows():
+            batch_result = process_notes(
+                [
+                    job
+                ],
+                settings=settings,
+            )
+
+        audio_files = batch_result[
+            "results"
+        ][0]
+
+    except Exception as error:
+        showWarning(
+            "AnkiTTS could not generate audio for this note:\n\n"
+            f"{error}\n\n"
+            "The note was not changed."
+        )
+
+        return None
+
+    try:
+        media_folder = Path(
+            mw.col.media.dir()
+        )
+
+        copy_generated_audio_to_media(
+            audio_files,
+            media_folder,
+            settings,
+        )
+
+        write_audio_fields(
+            note,
+            audio_files,
+            settings,
+        )
+
+        if note.id:
+            mw.col.update_note(
+                note
+            )
+
+        editor.note = note
+        editor.loadNoteKeepingFocus()
+
+    except Exception as error:
+        showWarning(
+            "AnkiTTS generated audio but could not publish it "
+            f"to this note:\n\n{error}"
+        )
+
+        return None
 
     return audio_files

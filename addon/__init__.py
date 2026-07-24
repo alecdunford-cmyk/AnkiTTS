@@ -39,6 +39,9 @@ def tts_button(editor):
         __name__,
     )
 
+    if audio_files is None:
+        return
+
     statistics = audio_files.get(
         "statistics",
         {},

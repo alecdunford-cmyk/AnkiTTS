@@ -4,6 +4,7 @@ from card_processor import (
     process_field_definitions,
 )
 from rce_contract import RCE_JOB_TYPE
+from structured_audio import process_structured_job
 
 
 def process_notes(
@@ -11,10 +12,7 @@ def process_notes(
     settings,
 ):
     """
-    Process one or more field-definition audio jobs.
-
-    Each job must contain:
-        fields
+    Process one or more generic or structured audio jobs.
     """
 
     results = []
@@ -27,15 +25,16 @@ def process_notes(
             )
             == RCE_JOB_TYPE
         ):
-            raise ValueError(
-                "Structured RCE speech-plan processing is not "
-                "available until AnkiTTS Phase 1G."
+            result = process_structured_job(
+                job,
+                settings,
             )
 
-        result = process_field_definitions(
-            job["fields"],
-            settings,
-        )
+        else:
+            result = process_field_definitions(
+                job["fields"],
+                settings,
+            )
 
         statistics = combine_statistics(
             statistics,

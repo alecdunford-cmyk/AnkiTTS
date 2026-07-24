@@ -3,8 +3,14 @@ from __future__ import annotations
 from copy import deepcopy
 import json
 
+import batch_processor
 from batch_processor import process_notes
-from note_mapper import create_job_from_note
+from note_mapper import (
+    create_job_from_note,
+    is_processable_note,
+    iter_processed_audio_outputs,
+    write_audio_fields,
+)
 from rce_contract import (
     RCE_CARD_ID_FIELD,
     RCE_FIELD_NAMES,
@@ -216,6 +222,30 @@ def check_structured_precedence():
     assert "fields" not in job
 
 
+def check_structured_compatibility_ignores_generic_mapping():
+    settings = AppSettings()
+    settings.field_mapping = {
+        "question": {
+            "text": "Question",
+            "audio": "Question Audio",
+            "speech_profile": "fr",
+        }
+    }
+
+    assert is_processable_note(
+        create_rce_note(),
+        settings,
+    )
+
+    assert not is_processable_note(
+        {
+            "Front": "generic",
+            "Back": "note",
+        },
+        settings,
+    )
+
+
 def check_generic_job_is_unchanged():
     settings = AppSettings()
     note = {
@@ -323,29 +353,192 @@ def check_note_is_not_mutated():
     assert note == original
 
 
-def check_batch_safety_gate():
+def check_batch_structured_dispatch():
     job = create_rce_speech_plan_job(
         create_rce_note()
     )
 
+    original_processor = (
+        batch_processor.process_structured_job
+    )
+
+    calls = []
+
+    def fake_process_structured_job(
+        received_job,
+        settings,
+    ):
+        calls.append(
+            (
+                received_job,
+                settings,
+            )
+        )
+
+        return {
+            "job_type": RCE_JOB_TYPE,
+            "rce_card_id": "card-123",
+            "audio_fields": {
+                "front": "Front Audio",
+                "back": "Back Audio",
+            },
+            "front": "front.mp3",
+            "front_processed": True,
+            "back": "back.mp3",
+            "back_processed": True,
+            "statistics": {
+                "generated": 2,
+                "cached": 0,
+                "skipped": 0,
+            },
+        }
+
     try:
-        process_notes(
+        batch_processor.process_structured_job = (
+            fake_process_structured_job
+        )
+
+        settings = AppSettings()
+
+        result = process_notes(
             [
                 job
             ],
-            AppSettings(),
+            settings,
         )
 
-    except ValueError as error:
-        assert "Phase 1G" in str(
-            error
+        assert calls == [
+            (
+                job,
+                settings,
+            )
+        ]
+
+        assert result[
+            "processed"
+        ] == 1
+
+        assert result[
+            "statistics"
+        ] == {
+            "generated": 2,
+            "cached": 0,
+            "skipped": 0,
+        }
+
+        assert result[
+            "results"
+        ][0][
+            "job_type"
+        ] == RCE_JOB_TYPE
+
+    finally:
+        batch_processor.process_structured_job = (
+            original_processor
         )
 
-        return
 
-    raise AssertionError(
-        "Structured job bypassed the Phase 1C safety gate."
+def check_structured_audio_publication():
+    settings = AppSettings()
+    settings.field_mapping = {
+        "question": {
+            "text": "Question",
+            "audio": "Question Audio",
+            "speech_profile": "fr",
+        }
+    }
+
+    note = create_rce_note()
+
+    audio_files = {
+        "job_type": RCE_JOB_TYPE,
+        "audio_fields": {
+            "front": "Front Audio",
+            "back": "Back Audio",
+        },
+        "front": "rce-front.mp3",
+        "front_processed": True,
+        "back": None,
+        "back_processed": True,
+    }
+
+    outputs = list(
+        iter_processed_audio_outputs(
+            audio_files,
+            settings,
+        )
     )
+
+    assert outputs == [
+        (
+            "front",
+            "Front Audio",
+            "rce-front.mp3",
+        ),
+        (
+            "back",
+            "Back Audio",
+            None,
+        ),
+    ]
+
+    write_audio_fields(
+        note,
+        audio_files,
+        settings,
+    )
+
+    assert note[
+        "Front Audio"
+    ] == "[sound:rce-front.mp3]"
+
+    assert note[
+        "Back Audio"
+    ] == ""
+
+
+def check_generic_audio_publication_is_unchanged():
+    settings = AppSettings()
+    settings.field_mapping = {
+        "question": {
+            "text": "Question",
+            "audio": "Question Audio",
+            "speech_profile": "fr",
+        },
+        "answer": {
+            "text": "Answer",
+            "audio": "Answer Audio",
+            "speech_profile": "en",
+        },
+    }
+
+    note = {
+        "Question": "bonjour",
+        "Question Audio": "",
+        "Answer": "hello",
+        "Answer Audio": "[sound:existing.mp3]",
+    }
+
+    audio_files = {
+        "question": "question.mp3",
+        "question_processed": True,
+        "answer": None,
+        "answer_processed": False,
+    }
+
+    write_audio_fields(
+        note,
+        audio_files,
+        settings,
+    )
+
+    assert note[
+        "Question Audio"
+    ] == "[sound:question.mp3]"
+
+    assert note[
+        "Answer Audio"
+    ] == "[sound:existing.mp3]"
 
 
 def check_generic_batch_dispatch_is_unchanged():
@@ -388,12 +581,15 @@ def run():
         check_complete_contract_detection,
         check_structured_job_contract,
         check_structured_precedence,
+        check_structured_compatibility_ignores_generic_mapping,
         check_generic_job_is_unchanged,
         check_incomplete_apparent_contract_fails,
         check_invalid_card_id,
         check_invalid_speech_plans,
         check_note_is_not_mutated,
-        check_batch_safety_gate,
+        check_batch_structured_dispatch,
+        check_structured_audio_publication,
+        check_generic_audio_publication_is_unchanged,
         check_generic_batch_dispatch_is_unchanged,
     ]
 
