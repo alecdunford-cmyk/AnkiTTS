@@ -337,7 +337,7 @@ def check_batch_safety_gate():
         )
 
     except ValueError as error:
-        assert "Phase 1C" in str(
+        assert "Phase 1G" in str(
             error
         )
 

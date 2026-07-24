@@ -29,7 +29,7 @@ def process_notes(
         ):
             raise ValueError(
                 "Structured RCE speech-plan processing is not "
-                "available until AnkiTTS Phase 1C."
+                "available until AnkiTTS Phase 1G."
             )
 
         result = process_field_definitions(

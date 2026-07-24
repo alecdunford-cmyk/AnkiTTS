@@ -195,3 +195,81 @@ def stitch_audio(
             output_file,
             format="mp3",
         )
+
+
+def stitch_structured_audio(
+    segments,
+    output_file,
+):
+    """
+    Stitch authoritative segments with exact surrounding pauses.
+
+    Unlike generic stitching, this path never infers silence from text.
+    Export is published atomically only after the complete track succeeds.
+    """
+
+    output_path = Path(
+        output_file
+    )
+
+    temporary_path = output_path.with_name(
+        f".{output_path.name}.tmp"
+    )
+
+    if temporary_path.exists():
+        temporary_path.unlink()
+
+    combined = AudioSegment.empty()
+
+    try:
+        with hide_subprocess_windows():
+            for segment in segments:
+                pause_before = segment[
+                    "pause_before_milliseconds"
+                ]
+
+                pause_after = segment[
+                    "pause_after_milliseconds"
+                ]
+
+                if pause_before:
+                    combined += AudioSegment.silent(
+                        duration=pause_before
+                    )
+
+                audio = AudioSegment.from_file(
+                    segment[
+                        "file"
+                    ]
+                )
+
+                audio = trim_trailing_silence(
+                    audio
+                )
+
+                combined += audio
+
+                if pause_after:
+                    combined += AudioSegment.silent(
+                        duration=pause_after
+                    )
+
+            output_path.parent.mkdir(
+                parents=True,
+                exist_ok=True,
+            )
+
+            combined.export(
+                temporary_path,
+                format="mp3",
+            )
+
+        temporary_path.replace(
+            output_path
+        )
+
+    except Exception:
+        if temporary_path.exists():
+            temporary_path.unlink()
+
+        raise
