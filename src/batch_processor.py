@@ -3,6 +3,7 @@ from card_processor import (
     empty_statistics,
     process_field_definitions,
 )
+from rce_contract import RCE_JOB_TYPE
 
 
 def process_notes(
@@ -20,6 +21,17 @@ def process_notes(
     statistics = empty_statistics()
 
     for job in notes:
+        if (
+            job.get(
+                "job_type"
+            )
+            == RCE_JOB_TYPE
+        ):
+            raise ValueError(
+                "Structured RCE speech-plan processing is not "
+                "available until AnkiTTS Phase 1C."
+            )
+
         result = process_field_definitions(
             job["fields"],
             settings,

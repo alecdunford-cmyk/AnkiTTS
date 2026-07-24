@@ -1,3 +1,9 @@
+from rce_contract import (
+    create_rce_speech_plan_job,
+    is_apparent_rce_note,
+)
+
+
 def get_mapped_field_names(
     settings,
 ):
@@ -93,7 +99,19 @@ def create_job_from_note(
     note,
     settings,
 ):
-    """Create a fields-based engine job from an Anki note."""
+    """
+    Create a structured RCE job or a generic fields-based engine job.
+
+    An apparent RCE Card always takes precedence over generic field
+    mappings so its semantic speech plans cannot be mistaken for HTML.
+    """
+
+    if is_apparent_rce_note(
+        note
+    ):
+        return create_rce_speech_plan_job(
+            note
+        )
 
     return {
         "fields": create_field_definitions_from_note(
