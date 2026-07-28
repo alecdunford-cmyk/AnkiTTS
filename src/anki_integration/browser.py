@@ -17,6 +17,9 @@ from note_mapper import (
     iter_processed_audio_outputs,
     write_audio_fields,
 )
+from anki_integration.rce_audio_status import (
+    mark_ready_if_managed,
+)
 from settings import AppSettings
 from stitcher import hide_subprocess_windows
 
@@ -101,7 +104,43 @@ def process_selected_notes(
         showWarning(
             "Select one or more notes in the Browse window first."
         )
-        return
+        return {
+            "success": False,
+            "message": (
+                "No notes were selected."
+            ),
+        }
+
+    return process_note_ids(
+        note_ids,
+        mw,
+        addon_name,
+        reset_callback=(
+            browser.model.reset
+        ),
+        show_messages=True,
+    )
+
+
+def process_note_ids(
+    note_ids,
+    mw,
+    addon_name,
+    reset_callback=None,
+    show_messages=True,
+):
+    """
+    Process an explicit ordered set of Anki note IDs.
+
+    Browser selection, queued RCE generation, and immediate RCE automation
+    all enter this single transactional publication path.
+    """
+
+    if not note_ids:
+        return _failure(
+            "No notes were supplied for AnkiTTS processing.",
+            show_messages,
+        )
 
     try:
         config = (
@@ -116,12 +155,11 @@ def process_selected_notes(
         )
 
     except Exception as error:
-        showWarning(
+        return _failure(
             "AnkiTTS settings are invalid:\n\n"
-            f"{error}"
+            f"{error}",
+            show_messages,
         )
-
-        return
 
     media_folder = Path(
         mw.col.media.dir()
@@ -151,13 +189,12 @@ def process_selected_notes(
             )
 
         except Exception as error:
-            showWarning(
+            return _failure(
                 "AnkiTTS cannot process selected note "
                 f"{note_id}:\n\n{error}\n\n"
-                "No selected notes were changed."
+                "No selected notes were changed.",
+                show_messages,
             )
-
-            return
 
         compatible_notes.append(
             note
@@ -174,13 +211,12 @@ def process_selected_notes(
             )
         )
 
-        showWarning(
+        return _failure(
             "None of the selected notes contain all "
             "configured AnkiTTS fields:\n\n"
-            f"{required_fields}"
+            f"{required_fields}",
+            show_messages,
         )
-
-        return
 
     try:
         with hide_subprocess_windows():
@@ -190,13 +226,12 @@ def process_selected_notes(
             )
 
     except Exception as error:
-        showWarning(
+        return _failure(
             "AnkiTTS audio generation failed:\n\n"
             f"{error}\n\n"
-            "No selected notes were changed."
+            "No selected notes were changed.",
+            show_messages,
         )
-
-        return
 
     try:
         for audio_files in batch_result[
@@ -209,13 +244,12 @@ def process_selected_notes(
             )
 
     except Exception as error:
-        showWarning(
+        return _failure(
             "AnkiTTS generated audio but could not copy it "
             f"into Anki media:\n\n{error}\n\n"
-            "No selected note fields were changed."
+            "No selected note fields were changed.",
+            show_messages,
         )
-
-        return
 
     try:
         for note, audio_files in zip(
@@ -229,19 +263,23 @@ def process_selected_notes(
             )
 
         for note in compatible_notes:
+            mark_ready_if_managed(
+                note
+            )
+
             mw.col.update_note(
                 note
             )
 
     except Exception as error:
-        showWarning(
+        return _failure(
             "AnkiTTS could not update all selected notes:\n\n"
-            f"{error}"
+            f"{error}",
+            show_messages,
         )
 
-        return
-
-    browser.model.reset()
+    if reset_callback is not None:
+        reset_callback()
 
     statistics = batch_result.get(
         "statistics",
@@ -281,11 +319,41 @@ def process_selected_notes(
             f"Incompatible notes skipped: {skipped_note_types}"
         )
 
-    showInfo(
-        "\n".join(
-            message_lines
-        )
+    message = "\n".join(
+        message_lines
     )
+
+    if show_messages:
+        showInfo(
+            message
+        )
+
+    return {
+        "success": True,
+        "message": message,
+        "processed": len(
+            compatible_notes
+        ),
+        "skipped_note_types": (
+            skipped_note_types
+        ),
+        "statistics": statistics,
+    }
+
+
+def _failure(
+    message,
+    show_messages,
+):
+    if show_messages:
+        showWarning(
+            message
+        )
+
+    return {
+        "success": False,
+        "message": message,
+    }
 
 
 def add_browser_menu_action(

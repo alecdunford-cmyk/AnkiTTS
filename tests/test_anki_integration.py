@@ -54,6 +54,10 @@ install_aqt_stubs()
 
 from anki_integration import browser as browser_integration
 from anki_integration import editor as editor_integration
+from anki_integration.rce_audio_status import (
+    RCE_AUDIO_PENDING_TAG,
+    RCE_AUDIO_READY_TAG,
+)
 from rce_contract import RCE_JOB_TYPE
 
 
@@ -70,6 +74,7 @@ class FakeNote(
         )
 
         self.id = note_id
+        self.tags = []
 
 
 class FakeAddonManager:
@@ -403,6 +408,11 @@ def check_browser_mixed_batch_publication():
                 1
             )
 
+            rce_note.tags = [
+                "personal",
+                RCE_AUDIO_PENDING_TAG,
+            ]
+
             generic_note = FakeNote(
                 2,
                 {
@@ -470,6 +480,11 @@ def check_browser_mixed_batch_publication():
             assert rce_note[
                 "Back Audio"
             ] == ""
+
+            assert rce_note.tags == [
+                "personal",
+                RCE_AUDIO_READY_TAG,
+            ]
 
             assert generic_note[
                 "Question Audio"
