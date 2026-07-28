@@ -3,6 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from threading import Barrier, Lock
 import json
 
 import cache
@@ -580,6 +581,176 @@ def check_repetitions_reuse_cache_and_preserve_schedule():
         )
 
 
+def check_missing_segments_synthesize_in_bounded_parallel_order():
+    original_create_audio = (
+        structured_audio.create_audio
+    )
+
+    original_stitch = (
+        structured_audio.stitch_structured_audio
+    )
+
+    original_identity = (
+        structured_audio.get_edge_provider_identity
+    )
+
+    lock = Lock()
+    barrier = Barrier(
+        structured_audio.MAX_PARALLEL_SYNTHESIS
+    )
+    active = 0
+    maximum_active = 0
+    call_count = 0
+    generated_by_path = {}
+    stitched_text = []
+
+    def fake_create_audio(
+        text,
+        voice,
+        output_file,
+        rate,
+        volume,
+        pitch,
+    ):
+        nonlocal active
+        nonlocal maximum_active
+        nonlocal call_count
+
+        with lock:
+            call_count += 1
+            call_number = call_count
+            active += 1
+            maximum_active = max(
+                maximum_active,
+                active,
+            )
+
+        try:
+            if (
+                call_number
+                <= structured_audio.MAX_PARALLEL_SYNTHESIS
+            ):
+                barrier.wait(
+                    timeout=2
+                )
+
+            Path(
+                output_file
+            ).write_bytes(
+                text.encode(
+                    "utf-8"
+                )
+            )
+
+            with lock:
+                generated_by_path[
+                    output_file
+                ] = text
+
+            return True
+
+        finally:
+            with lock:
+                active -= 1
+
+    def fake_stitch(
+        segments,
+        output_file,
+    ):
+        stitched_text.extend(
+            generated_by_path[
+                segment[
+                    "file"
+                ]
+            ]
+            for segment in segments
+        )
+
+        Path(
+            output_file
+        ).write_bytes(
+            b"track"
+        )
+
+    try:
+        structured_audio.create_audio = (
+            fake_create_audio
+        )
+
+        structured_audio.stitch_structured_audio = (
+            fake_stitch
+        )
+
+        structured_audio.get_edge_provider_identity = (
+            lambda: dict(
+                PROVIDER_IDENTITY
+            )
+        )
+
+        def check(
+            root,
+        ):
+            expected_text = [
+                "first",
+                "second",
+                "third",
+                "fourth",
+            ]
+
+            result = process_structured_job(
+                create_rce_speech_plan_job(
+                    create_note(
+                        front_segments=[
+                            create_segment(
+                                "front",
+                                sequence=index,
+                                segmentId=(
+                                    f"segment-{index}"
+                                ),
+                                text=text,
+                            )
+                            for index, text in enumerate(
+                                expected_text,
+                                start=1,
+                            )
+                        ],
+                        back_segments=[],
+                    )
+                ),
+                AppSettings(),
+            )
+
+            assert call_count == 4
+            assert maximum_active == (
+                structured_audio.MAX_PARALLEL_SYNTHESIS
+            )
+            assert stitched_text == expected_text
+            assert result[
+                "statistics"
+            ] == {
+                "generated": 4,
+                "cached": 0,
+                "skipped": 0,
+            }
+
+        with_temporary_audio_directories(
+            check
+        )
+
+    finally:
+        structured_audio.create_audio = (
+            original_create_audio
+        )
+
+        structured_audio.stitch_structured_audio = (
+            original_stitch
+        )
+
+        structured_audio.get_edge_provider_identity = (
+            original_identity
+        )
+
+
 def check_valid_empty_card():
     original_identity = (
         structured_audio.get_edge_provider_identity
@@ -665,9 +836,7 @@ def check_synthesis_failure_creates_no_final_track():
             text
         )
 
-        if len(
-            calls
-        ) == 1:
+        if text == "first":
             Path(
                 output_file
             ).write_bytes(
@@ -1316,6 +1485,7 @@ def run():
         check_structured_cache_identity,
         check_final_filename_identity,
         check_repetitions_reuse_cache_and_preserve_schedule,
+        check_missing_segments_synthesize_in_bounded_parallel_order,
         check_valid_empty_card,
         check_synthesis_failure_creates_no_final_track,
         check_synthesis_exception_removes_partial_cache,

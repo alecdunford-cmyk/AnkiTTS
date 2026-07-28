@@ -1,3 +1,5 @@
+from time import perf_counter
+
 from card_processor import (
     combine_statistics,
     empty_statistics,
@@ -17,6 +19,7 @@ def process_notes(
 
     results = []
     statistics = empty_statistics()
+    started_at = perf_counter()
 
     for job in notes:
         if (
@@ -49,4 +52,9 @@ def process_notes(
         "processed": len(notes),
         "statistics": statistics,
         "results": results,
+        "elapsed_seconds": max(
+            0.0,
+            perf_counter()
+            - started_at,
+        ),
     }

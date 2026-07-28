@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import json
 from pathlib import Path
@@ -28,6 +29,8 @@ OUTPUT_DIR.mkdir(
     parents=True,
     exist_ok=True,
 )
+
+MAX_PARALLEL_SYNTHESIS = 3
 
 
 class StructuredAudioProcessingError(
@@ -289,75 +292,64 @@ def _prepare_track(
             statistics,
         )
 
-    audio_segments = []
-
-    for segment in track.segments:
-        audio_path = get_structured_audio_path(
-            provider=provider_identity[
-                "provider"
-            ],
-            provider_model=provider_identity[
-                "provider_model"
-            ],
-            provider_version=provider_identity[
-                "provider_version"
-            ],
-            text=segment.text,
-            language=segment.language,
-            profile_key=(
-                segment.resolved_profile_key
-            ),
-            voice=segment.voice,
-            rate=segment.edge_rate,
-            volume=segment.volume,
-            pitch=segment.pitch,
+    segment_requests = [
+        _create_segment_request(
+            segment,
+            provider_identity,
         )
+        for segment in track.segments
+    ]
 
-        if not _is_nonempty_file(
+    missing_by_path = {}
+
+    for request in segment_requests:
+        audio_path = request[
+            "audio_path"
+        ]
+
+        if _is_nonempty_file(
             audio_path
         ):
-            if audio_path.exists():
-                audio_path.unlink()
+            continue
 
-            try:
-                audio_created = create_audio(
-                    text=segment.text,
-                    voice=segment.voice,
-                    output_file=str(
-                        audio_path
-                    ),
-                    rate=segment.edge_rate,
-                    volume=segment.volume,
-                    pitch=segment.pitch,
-                )
+        if audio_path in missing_by_path:
+            continue
 
-            except Exception as error:
-                if audio_path.exists():
-                    audio_path.unlink()
+        if audio_path.exists():
+            audio_path.unlink()
 
-                raise StructuredAudioProcessingError(
-                    "Edge synthesis failed for RCE segment "
-                    f'"{segment.segment_id}": {error}'
-                ) from error
+        missing_by_path[
+            audio_path
+        ] = request
 
-            if (
-                not audio_created
-                or not _is_nonempty_file(
-                    audio_path
-                )
-            ):
-                if audio_path.exists():
-                    audio_path.unlink()
+    _synthesize_missing_segments(
+        rce_card_id,
+        list(
+            missing_by_path.values()
+        ),
+    )
 
-                raise StructuredAudioProcessingError(
-                    "Edge returned no usable audio after retries for "
-                    f'RCE card "{rce_card_id}", segment '
-                    f'"{segment.segment_id}", text '
-                    f"{_format_text_preview(segment.text)}, language "
-                    f'"{segment.language}", voice "{segment.voice}", '
-                    f'rate "{segment.edge_rate}".'
-                )
+    generated_paths = set(
+        missing_by_path
+    )
 
+    counted_generated_paths = set()
+    audio_segments = []
+
+    for request in segment_requests:
+        segment = request[
+            "segment"
+        ]
+
+        audio_path = request[
+            "audio_path"
+        ]
+
+        if (
+            audio_path in generated_paths
+            and audio_path
+            not in counted_generated_paths
+        ):
             statistics[
                 "generated"
             ] += 1
@@ -366,6 +358,10 @@ def _prepare_track(
             statistics[
                 "cached"
             ] += 1
+
+        counted_generated_paths.add(
+            audio_path
+        )
 
         audio_segments.append(
             {
@@ -405,6 +401,118 @@ def _prepare_track(
         },
         statistics,
     )
+
+
+def _create_segment_request(
+    segment,
+    provider_identity,
+):
+    return {
+        "segment": segment,
+        "audio_path": get_structured_audio_path(
+            provider=provider_identity[
+                "provider"
+            ],
+            provider_model=provider_identity[
+                "provider_model"
+            ],
+            provider_version=provider_identity[
+                "provider_version"
+            ],
+            text=segment.text,
+            language=segment.language,
+            profile_key=(
+                segment.resolved_profile_key
+            ),
+            voice=segment.voice,
+            rate=segment.edge_rate,
+            volume=segment.volume,
+            pitch=segment.pitch,
+        ),
+    }
+
+
+def _synthesize_missing_segments(
+    rce_card_id,
+    requests,
+):
+    if not requests:
+        return
+
+    worker_count = min(
+        MAX_PARALLEL_SYNTHESIS,
+        len(
+            requests
+        ),
+    )
+
+    with ThreadPoolExecutor(
+        max_workers=worker_count,
+        thread_name_prefix="ankitts-rce",
+    ) as executor:
+        futures = [
+            executor.submit(
+                _synthesize_segment,
+                rce_card_id,
+                request,
+            )
+            for request in requests
+        ]
+
+        for future in futures:
+            future.result()
+
+
+def _synthesize_segment(
+    rce_card_id,
+    request,
+):
+    segment = request[
+        "segment"
+    ]
+
+    audio_path = request[
+        "audio_path"
+    ]
+
+    try:
+        audio_created = create_audio(
+            text=segment.text,
+            voice=segment.voice,
+            output_file=str(
+                audio_path
+            ),
+            rate=segment.edge_rate,
+            volume=segment.volume,
+            pitch=segment.pitch,
+        )
+
+    except Exception as error:
+        if audio_path.exists():
+            audio_path.unlink()
+
+        raise StructuredAudioProcessingError(
+            "Edge synthesis failed for RCE segment "
+            f'"{segment.segment_id}": {error}'
+        ) from error
+
+    if (
+        not audio_created
+        or not _is_nonempty_file(
+            audio_path
+        )
+    ):
+        if audio_path.exists():
+            audio_path.unlink()
+
+        raise StructuredAudioProcessingError(
+            "Edge returned no usable audio after retries for "
+            f'RCE card "{rce_card_id}", segment '
+            f'"{segment.segment_id}", text '
+            f"{_format_text_preview(segment.text)}, language "
+            f'"{segment.language}", voice "{segment.voice}", '
+            f'rate "{segment.edge_rate}".'
+        )
 
 
 def _format_text_preview(

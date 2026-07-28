@@ -91,6 +91,48 @@ def format_required_fields_message(
     )
 
 
+def format_elapsed_time(
+    elapsed_seconds,
+):
+    """Format measured batch duration for the completion message."""
+
+    if (
+        isinstance(
+            elapsed_seconds,
+            bool,
+        )
+        or not isinstance(
+            elapsed_seconds,
+            (
+                int,
+                float,
+            ),
+        )
+        or elapsed_seconds < 0
+    ):
+        return None
+
+    if elapsed_seconds < 60:
+        return (
+            f"{elapsed_seconds:.1f} seconds"
+        )
+
+    rounded_seconds = int(
+        round(
+            elapsed_seconds
+        )
+    )
+
+    minutes, seconds = divmod(
+        rounded_seconds,
+        60,
+    )
+
+    return (
+        f"{minutes}m {seconds}s"
+    )
+
+
 def process_selected_notes(
     browser,
     mw,
@@ -308,6 +350,17 @@ def process_note_ids(
         f"Generated segments: {generated_count}",
         f"Reused from cache: {cached_count}",
     ]
+
+    elapsed_time = format_elapsed_time(
+        batch_result.get(
+            "elapsed_seconds"
+        )
+    )
+
+    if elapsed_time is not None:
+        message_lines.append(
+            f"Elapsed time: {elapsed_time}"
+        )
 
     if skipped_segments:
         message_lines.append(

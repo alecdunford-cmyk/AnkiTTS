@@ -352,6 +352,7 @@ def check_browser_mixed_batch_publication():
 
         return {
             "processed": 2,
+            "elapsed_seconds": 65.4,
             "statistics": {
                 "generated": 2,
                 "cached": 0,
@@ -509,6 +510,10 @@ def check_browser_mixed_batch_publication():
             assert len(
                 information
             ) == 1
+            assert (
+                "Elapsed time: 1m 5s"
+                in information[0]
+            )
             assert not warnings
 
     finally:

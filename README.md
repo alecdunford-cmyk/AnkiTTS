@@ -256,6 +256,13 @@ Successful notes receive `rce-audio::ready`. Failed notes retain
 from the Tools menu. User tags and non-audio RCE organizational tags are
 preserved throughout every transition.
 
+Cold-cache structured RCE jobs synthesize up to three distinct missing speech
+segments concurrently. Repeated segments that share an exact cache identity are
+generated once and reused. Track stitching, final media publication, and Anki
+note updates remain ordered and transactional. The completion message reports
+the measured batch duration alongside generated and cached segment counts so
+cold- and warm-cache performance can be compared directly.
+
 
 
 \---
