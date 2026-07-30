@@ -1,3 +1,5 @@
+from anki.errors import InvalidInput
+
 from aqt.utils import (
     showInfo,
     showWarning,
@@ -26,6 +28,10 @@ PENDING_AUDIO_QUERY = (
     f"tag:{RCE_AUDIO_PENDING_TAG}"
 )
 
+COLLECTION_NOT_OPEN_ERROR = (
+    "CollectionNotOpen"
+)
+
 
 class RceAudioAutomationController:
     """
@@ -43,20 +49,43 @@ class RceAudioAutomationController:
         self.mw = mw
         self.addon_name = addon_name
         self.busy = False
+        self.polling_suspended = (
+            self.mw.col is None
+        )
+
+    def suspend_polling(
+        self,
+    ):
+        self.polling_suspended = True
+
+    def resume_polling(
+        self,
+    ):
+        self.polling_suspended = False
 
     def poll_immediate_requests(
         self,
     ):
         if (
             self.busy
+            or self.polling_suspended
             or self.mw.col is None
         ):
             return
 
-        note_ids = find_note_ids(
-            self.mw.col,
-            IMMEDIATE_AUDIO_QUERY,
-        )
+        try:
+            note_ids = find_note_ids(
+                self.mw.col,
+                IMMEDIATE_AUDIO_QUERY,
+            )
+
+        except InvalidInput as error:
+            if not is_collection_not_open_error(
+                error
+            ):
+                raise
+
+            return
 
         if not note_ids:
             return
@@ -75,7 +104,10 @@ class RceAudioAutomationController:
             )
             return
 
-        if self.mw.col is None:
+        if (
+            self.polling_suspended
+            or self.mw.col is None
+        ):
             showWarning(
                 "Open an Anki collection before generating queued "
                 "RCE audio."
@@ -216,6 +248,20 @@ class RceAudioAutomationController:
 
         finally:
             self.busy = False
+
+
+def is_collection_not_open_error(
+    error,
+):
+    return (
+        isinstance(
+            error,
+            InvalidInput,
+        )
+        and str(
+            error
+        ) == COLLECTION_NOT_OPEN_ERROR
+    )
 
 
 def find_note_ids(

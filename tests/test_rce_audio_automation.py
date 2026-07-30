@@ -47,7 +47,49 @@ def install_aqt_stubs():
     ] = utils_module
 
 
+def install_anki_stubs():
+    try:
+        __import__(
+            "anki.errors"
+        )
+
+    except ImportError:
+        pass
+
+    else:
+        return
+
+    anki_module = sys.modules.get(
+        "anki",
+        ModuleType(
+            "anki"
+        ),
+    )
+
+    errors_module = ModuleType(
+        "anki.errors"
+    )
+
+    class InvalidInput(
+        Exception
+    ):
+        pass
+
+    errors_module.InvalidInput = (
+        InvalidInput
+    )
+
+    sys.modules[
+        "anki"
+    ] = anki_module
+
+    sys.modules[
+        "anki.errors"
+    ] = errors_module
+
+
 install_aqt_stubs()
+install_anki_stubs()
 
 from anki_integration import (
     rce_audio_automation as automation,
@@ -135,6 +177,82 @@ class FakeCollection:
         ]
 
 
+class CountingCollection(
+    FakeCollection
+):
+    def __init__(
+        self,
+        notes,
+    ):
+        super().__init__(
+            notes
+        )
+
+        self.find_calls = 0
+
+    def find_notes(
+        self,
+        query,
+    ):
+        self.find_calls += 1
+
+        return super().find_notes(
+            query
+        )
+
+
+class RecoveringCollection(
+    CountingCollection
+):
+    def __init__(
+        self,
+        notes,
+    ):
+        super().__init__(
+            notes
+        )
+
+        self.collection_available = False
+
+    def find_notes(
+        self,
+        query,
+    ):
+        self.find_calls += 1
+
+        if not self.collection_available:
+            raise automation.InvalidInput(
+                "CollectionNotOpen"
+            )
+
+        return FakeCollection.find_notes(
+            self,
+            query,
+        )
+
+
+class FailingCollection(
+    CountingCollection
+):
+    def __init__(
+        self,
+        error,
+    ):
+        super().__init__(
+            []
+        )
+
+        self.error = error
+
+    def find_notes(
+        self,
+        query,
+    ):
+        self.find_calls += 1
+
+        raise self.error
+
+
 class FakeMainWindow:
     def __init__(
         self,
@@ -143,6 +261,122 @@ class FakeMainWindow:
         self.col = FakeCollection(
             notes
         )
+
+
+def check_poll_does_nothing_without_a_collection():
+    mw = FakeMainWindow(
+        []
+    )
+
+    mw.col = None
+
+    controller = (
+        automation.RceAudioAutomationController(
+            mw,
+            "AnkiTTS",
+        )
+    )
+
+    controller.poll_immediate_requests()
+
+    assert controller.polling_suspended
+    assert not controller.busy
+
+
+def check_lifecycle_suspends_and_resumes_polling():
+    mw = FakeMainWindow(
+        []
+    )
+
+    mw.col = CountingCollection(
+        []
+    )
+
+    controller = (
+        automation.RceAudioAutomationController(
+            mw,
+            "AnkiTTS",
+        )
+    )
+
+    controller.suspend_polling()
+    controller.poll_immediate_requests()
+
+    assert mw.col.find_calls == 0
+
+    controller.resume_polling()
+    controller.poll_immediate_requests()
+
+    assert mw.col.find_calls == 1
+    assert not controller.polling_suspended
+
+
+def check_collection_not_open_is_ignored_and_polling_recovers():
+    mw = FakeMainWindow(
+        []
+    )
+
+    mw.col = RecoveringCollection(
+        []
+    )
+
+    controller = (
+        automation.RceAudioAutomationController(
+            mw,
+            "AnkiTTS",
+        )
+    )
+
+    controller.poll_immediate_requests()
+
+    assert mw.col.find_calls == 1
+    assert not controller.busy
+    assert not controller.polling_suspended
+
+    mw.col.collection_available = True
+
+    controller.poll_immediate_requests()
+
+    assert mw.col.find_calls == 2
+    assert not controller.busy
+
+
+def check_unrelated_search_errors_remain_visible():
+    errors = [
+        automation.InvalidInput(
+            "DifferentInvalidInput"
+        ),
+        RuntimeError(
+            "simulated search failure"
+        ),
+    ]
+
+    for expected_error in errors:
+        mw = FakeMainWindow(
+            []
+        )
+
+        mw.col = FailingCollection(
+            expected_error
+        )
+
+        controller = (
+            automation.RceAudioAutomationController(
+                mw,
+                "AnkiTTS",
+            )
+        )
+
+        try:
+            controller.poll_immediate_requests()
+
+        except Exception as error:
+            assert error is expected_error
+
+        else:
+            raise AssertionError(
+                "An unrelated search error was hidden."
+            )
 
 
 def check_status_replacement_preserves_unrelated_tags():
@@ -446,6 +680,10 @@ def check_manual_pending_action_handles_empty_queue():
 
 def run():
     checks = [
+        check_poll_does_nothing_without_a_collection,
+        check_lifecycle_suspends_and_resumes_polling,
+        check_collection_not_open_is_ignored_and_polling_recovers,
+        check_unrelated_search_errors_remain_visible,
         check_status_replacement_preserves_unrelated_tags,
         check_immediate_request_reuses_batch_path_and_becomes_ready,
         check_failed_immediate_request_remains_pending,

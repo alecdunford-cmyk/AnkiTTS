@@ -172,4 +172,35 @@ qconnect(
     rce_audio_automation.poll_immediate_requests,
 )
 
+
+def suspend_rce_audio_polling(
+    *_args,
+):
+    rce_audio_automation.suspend_polling()
+    rce_audio_timer.stop()
+
+
+def resume_rce_audio_polling(
+    *_args,
+):
+    rce_audio_automation.resume_polling()
+    rce_audio_timer.start()
+
+
+gui_hooks.profile_will_close.append(
+    suspend_rce_audio_polling
+)
+
+gui_hooks.collection_will_temporarily_close.append(
+    suspend_rce_audio_polling
+)
+
+gui_hooks.collection_did_load.append(
+    resume_rce_audio_polling
+)
+
+gui_hooks.collection_did_temporarily_close.append(
+    resume_rce_audio_polling
+)
+
 rce_audio_timer.start()
