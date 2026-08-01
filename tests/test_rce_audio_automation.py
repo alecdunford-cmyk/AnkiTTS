@@ -263,6 +263,61 @@ class FakeMainWindow:
         )
 
 
+class FakeTimer:
+    def __init__(
+        self,
+    ):
+        self.active = False
+        self.start_calls = 0
+        self.stop_calls = 0
+
+    def isActive(
+        self,
+    ):
+        return self.active
+
+    def start(
+        self,
+    ):
+        self.active = True
+        self.start_calls += 1
+
+    def stop(
+        self,
+    ):
+        self.active = False
+        self.stop_calls += 1
+
+
+class SwitchingCollection(
+    CountingCollection
+):
+    def __init__(
+        self,
+        mw,
+        notes,
+        replacement,
+    ):
+        super().__init__(
+            notes
+        )
+
+        self.mw = mw
+        self.replacement = replacement
+
+    def find_notes(
+        self,
+        query,
+    ):
+        note_ids = super().find_notes(
+            query
+        )
+
+        self.mw.col = self.replacement
+
+        return note_ids
+
+
 def check_poll_does_nothing_without_a_collection():
     mw = FakeMainWindow(
         []
@@ -281,6 +336,72 @@ def check_poll_does_nothing_without_a_collection():
 
     assert controller.polling_suspended
     assert not controller.busy
+
+
+def check_resume_requires_an_open_collection():
+    mw = FakeMainWindow(
+        []
+    )
+
+    mw.col = None
+
+    controller = (
+        automation.RceAudioAutomationController(
+            mw,
+            "AnkiTTS",
+        )
+    )
+
+    assert not controller.resume_polling()
+    assert controller.polling_suspended
+
+
+def check_timer_tracks_collection_lifecycle_idempotently():
+    mw = FakeMainWindow(
+        []
+    )
+
+    mw.col = None
+
+    controller = (
+        automation.RceAudioAutomationController(
+            mw,
+            "AnkiTTS",
+        )
+    )
+
+    timer = FakeTimer()
+    lifecycle = automation.RceAudioPollingLifecycle(
+        controller,
+        timer,
+    )
+
+    assert not lifecycle.resume()
+    assert not timer.active
+    assert timer.start_calls == 0
+
+    mw.col = CountingCollection(
+        []
+    )
+
+    assert lifecycle.resume()
+    assert timer.active
+    assert timer.start_calls == 1
+    assert not controller.polling_suspended
+
+    assert lifecycle.resume()
+    assert timer.start_calls == 1
+
+    lifecycle.suspend()
+
+    assert not timer.active
+    assert controller.polling_suspended
+
+    mw.col = None
+
+    assert not lifecycle.resume()
+    assert not timer.active
+    assert controller.polling_suspended
 
 
 def check_lifecycle_suspends_and_resumes_polling():
@@ -309,6 +430,66 @@ def check_lifecycle_suspends_and_resumes_polling():
 
     assert mw.col.find_calls == 1
     assert not controller.polling_suspended
+
+
+def check_collection_switch_after_search_aborts_old_request():
+    note = FakeNote(
+        1,
+        [
+            RCE_AUDIO_PENDING_TAG,
+            RCE_AUDIO_IMMEDIATE_TAG,
+        ],
+    )
+
+    mw = FakeMainWindow(
+        []
+    )
+
+    replacement = CountingCollection(
+        []
+    )
+
+    mw.col = SwitchingCollection(
+        mw,
+        [
+            note,
+        ],
+        replacement,
+    )
+
+    original_process_note_ids = (
+        automation.process_note_ids
+    )
+
+    processed = []
+
+    try:
+        automation.process_note_ids = (
+            lambda *args, **kwargs: processed.append(
+                args[0]
+            )
+        )
+
+        controller = (
+            automation.RceAudioAutomationController(
+                mw,
+                "AnkiTTS",
+            )
+        )
+
+        controller.poll_immediate_requests()
+
+        assert not processed
+        assert mw.col is replacement
+        assert note.tags == [
+            RCE_AUDIO_PENDING_TAG,
+            RCE_AUDIO_IMMEDIATE_TAG,
+        ]
+
+    finally:
+        automation.process_note_ids = (
+            original_process_note_ids
+        )
 
 
 def check_collection_not_open_is_ignored_and_polling_recovers():
@@ -379,6 +560,46 @@ def check_unrelated_search_errors_remain_visible():
             )
 
 
+def check_manual_search_handles_temporarily_closed_collection():
+    mw = FakeMainWindow(
+        []
+    )
+
+    mw.col = RecoveringCollection(
+        []
+    )
+
+    original_show_warning = (
+        automation.showWarning
+    )
+
+    warnings = []
+
+    try:
+        automation.showWarning = (
+            warnings.append
+        )
+
+        controller = (
+            automation.RceAudioAutomationController(
+                mw,
+                "AnkiTTS",
+            )
+        )
+
+        controller.process_pending_requests()
+
+        assert warnings == [
+            automation.COLLECTION_UNAVAILABLE_MESSAGE,
+        ]
+        assert not controller.busy
+
+    finally:
+        automation.showWarning = (
+            original_show_warning
+        )
+
+
 def check_status_replacement_preserves_unrelated_tags():
     note = FakeNote(
         1,
@@ -413,6 +634,49 @@ def check_status_replacement_preserves_unrelated_tags():
         "personal",
         "rce-workflow::contextual-acquisition",
         RCE_AUDIO_READY_TAG,
+    ]
+
+
+def check_processing_preserves_only_existing_immediate_intent():
+    immediate_note = FakeNote(
+        1,
+        [
+            RCE_AUDIO_PENDING_TAG,
+            RCE_AUDIO_IMMEDIATE_TAG,
+        ],
+    )
+
+    queued_note = FakeNote(
+        2,
+        [
+            RCE_AUDIO_PENDING_TAG,
+        ],
+    )
+
+    mw = FakeMainWindow(
+        [
+            immediate_note,
+            queued_note,
+        ]
+    )
+
+    automation.mark_processing(
+        mw,
+        [
+            1,
+            2,
+        ],
+    )
+
+    assert immediate_note.tags == [
+        RCE_AUDIO_PENDING_TAG,
+        RCE_AUDIO_IMMEDIATE_TAG,
+        RCE_AUDIO_PROCESSING_TAG,
+    ]
+
+    assert queued_note.tags == [
+        RCE_AUDIO_PENDING_TAG,
+        RCE_AUDIO_PROCESSING_TAG,
     ]
 
 
@@ -460,6 +724,7 @@ def check_immediate_request_reuses_batch_path_and_becomes_ready():
         assert note.tags == [
             "personal",
             RCE_AUDIO_PENDING_TAG,
+            RCE_AUDIO_IMMEDIATE_TAG,
             RCE_AUDIO_PROCESSING_TAG,
         ]
 
@@ -594,6 +859,77 @@ def check_failed_immediate_request_remains_pending():
         )
 
 
+def check_mid_process_collection_close_stays_queued_without_error_noise():
+    note = FakeNote(
+        1,
+        [
+            "personal",
+            RCE_AUDIO_PENDING_TAG,
+            RCE_AUDIO_IMMEDIATE_TAG,
+        ],
+    )
+
+    mw = FakeMainWindow(
+        [
+            note,
+        ]
+    )
+
+    original_process_note_ids = (
+        automation.process_note_ids
+    )
+
+    original_show_warning = (
+        automation.showWarning
+    )
+
+    warnings = []
+
+    def close_collection(
+        *args,
+        **kwargs,
+    ):
+        raise automation.InvalidInput(
+            "CollectionNotOpen"
+        )
+
+    try:
+        automation.process_note_ids = (
+            close_collection
+        )
+
+        automation.showWarning = (
+            warnings.append
+        )
+
+        controller = (
+            automation.RceAudioAutomationController(
+                mw,
+                "AnkiTTS",
+            )
+        )
+
+        controller.poll_immediate_requests()
+
+        assert note.tags == [
+            "personal",
+            RCE_AUDIO_PENDING_TAG,
+            RCE_AUDIO_IMMEDIATE_TAG,
+            RCE_AUDIO_PROCESSING_TAG,
+        ]
+        assert not warnings
+        assert not controller.busy
+
+    finally:
+        automation.process_note_ids = (
+            original_process_note_ids
+        )
+
+        automation.showWarning = (
+            original_show_warning
+        )
+
+
 def check_unpublished_success_is_converted_to_recoverable_failure():
     note = FakeNote(
         1,
@@ -681,12 +1017,18 @@ def check_manual_pending_action_handles_empty_queue():
 def run():
     checks = [
         check_poll_does_nothing_without_a_collection,
+        check_resume_requires_an_open_collection,
+        check_timer_tracks_collection_lifecycle_idempotently,
         check_lifecycle_suspends_and_resumes_polling,
+        check_collection_switch_after_search_aborts_old_request,
         check_collection_not_open_is_ignored_and_polling_recovers,
         check_unrelated_search_errors_remain_visible,
+        check_manual_search_handles_temporarily_closed_collection,
         check_status_replacement_preserves_unrelated_tags,
+        check_processing_preserves_only_existing_immediate_intent,
         check_immediate_request_reuses_batch_path_and_becomes_ready,
         check_failed_immediate_request_remains_pending,
+        check_mid_process_collection_close_stays_queued_without_error_noise,
         check_unpublished_success_is_converted_to_recoverable_failure,
         check_manual_pending_action_handles_empty_queue,
     ]

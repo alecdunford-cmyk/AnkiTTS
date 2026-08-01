@@ -34,6 +34,7 @@ from anki_integration.browser import add_browser_menu_action
 from anki_integration.editor import process_editor_note
 from anki_integration.rce_audio_automation import (
     RceAudioAutomationController,
+    RceAudioPollingLifecycle,
 )
 from .settings_dialog import show_settings_dialog
 
@@ -172,19 +173,22 @@ qconnect(
     rce_audio_automation.poll_immediate_requests,
 )
 
+rce_audio_lifecycle = RceAudioPollingLifecycle(
+    rce_audio_automation,
+    rce_audio_timer,
+)
+
 
 def suspend_rce_audio_polling(
     *_args,
 ):
-    rce_audio_automation.suspend_polling()
-    rce_audio_timer.stop()
+    rce_audio_lifecycle.suspend()
 
 
 def resume_rce_audio_polling(
     *_args,
 ):
-    rce_audio_automation.resume_polling()
-    rce_audio_timer.start()
+    rce_audio_lifecycle.resume()
 
 
 gui_hooks.profile_will_close.append(
@@ -203,4 +207,4 @@ gui_hooks.collection_did_temporarily_close.append(
     resume_rce_audio_polling
 )
 
-rce_audio_timer.start()
+resume_rce_audio_polling()

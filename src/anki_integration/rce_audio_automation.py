@@ -32,6 +32,53 @@ COLLECTION_NOT_OPEN_ERROR = (
     "CollectionNotOpen"
 )
 
+COLLECTION_UNAVAILABLE_MESSAGE = (
+    "The Anki collection became temporarily unavailable. "
+    "The affected cards remain queued and can be retried after "
+    "the collection is open again."
+)
+
+
+class RceAudioPollingLifecycle:
+    """Keep the polling timer aligned with Anki's collection lifecycle."""
+
+    def __init__(
+        self,
+        controller,
+        timer,
+    ):
+        self.controller = controller
+        self.timer = timer
+
+    def suspend(
+        self,
+        *_args,
+    ):
+        self.controller.suspend_polling()
+        self.timer.stop()
+
+    def resume(
+        self,
+        *_args,
+    ):
+        if not self.controller.resume_polling():
+            self.timer.stop()
+            return False
+
+        is_active = getattr(
+            self.timer,
+            "isActive",
+            None,
+        )
+
+        if (
+            is_active is None
+            or not is_active()
+        ):
+            self.timer.start()
+
+        return True
+
 
 class RceAudioAutomationController:
     """
@@ -61,25 +108,27 @@ class RceAudioAutomationController:
     def resume_polling(
         self,
     ):
-        self.polling_suspended = False
+        self.polling_suspended = (
+            self.mw.col is None
+        )
+
+        return not self.polling_suspended
 
     def poll_immediate_requests(
         self,
     ):
-        if (
-            self.busy
-            or self.polling_suspended
-            or self.mw.col is None
-        ):
+        collection = self._available_collection()
+
+        if collection is None:
             return
 
         try:
             note_ids = find_note_ids(
-                self.mw.col,
+                collection,
                 IMMEDIATE_AUDIO_QUERY,
             )
 
-        except InvalidInput as error:
+        except Exception as error:
             if not is_collection_not_open_error(
                 error
             ):
@@ -87,7 +136,12 @@ class RceAudioAutomationController:
 
             return
 
-        if not note_ids:
+        if (
+            not note_ids
+            or not self._collection_is_current(
+                collection
+            )
+        ):
             return
 
         self._process(
@@ -104,20 +158,39 @@ class RceAudioAutomationController:
             )
             return
 
-        if (
-            self.polling_suspended
-            or self.mw.col is None
-        ):
+        collection = self._available_collection()
+
+        if collection is None:
             showWarning(
                 "Open an Anki collection before generating queued "
                 "RCE audio."
             )
             return
 
-        note_ids = find_note_ids(
-            self.mw.col,
-            PENDING_AUDIO_QUERY,
-        )
+        try:
+            note_ids = find_note_ids(
+                collection,
+                PENDING_AUDIO_QUERY,
+            )
+
+        except Exception as error:
+            if not is_collection_not_open_error(
+                error
+            ):
+                raise
+
+            showWarning(
+                COLLECTION_UNAVAILABLE_MESSAGE
+            )
+            return
+
+        if not self._collection_is_current(
+            collection
+        ):
+            showWarning(
+                COLLECTION_UNAVAILABLE_MESSAGE
+            )
+            return
 
         if not note_ids:
             showInfo(
@@ -128,6 +201,27 @@ class RceAudioAutomationController:
         self._process(
             note_ids,
             show_completion=True,
+        )
+
+    def _available_collection(
+        self,
+    ):
+        if (
+            self.busy
+            or self.polling_suspended
+        ):
+            return None
+
+        return self.mw.col
+
+    def _collection_is_current(
+        self,
+        collection,
+    ):
+        return (
+            not self.polling_suspended
+            and collection is not None
+            and self.mw.col is collection
         )
 
     def _process(
@@ -223,6 +317,21 @@ class RceAudioAutomationController:
             return outcome
 
         except Exception as error:
+            if is_collection_not_open_error(
+                error
+            ):
+                if show_completion:
+                    showWarning(
+                        COLLECTION_UNAVAILABLE_MESSAGE
+                    )
+
+                return {
+                    "success": False,
+                    "message": (
+                        COLLECTION_UNAVAILABLE_MESSAGE
+                    ),
+                }
+
             try:
                 mark_failed(
                     self.mw,
@@ -299,14 +408,34 @@ def mark_processing(
     mw,
     note_ids,
 ):
-    _set_status(
-        mw,
-        note_ids,
-        [
+    for note_id in note_ids:
+        note = mw.col.get_note(
+            note_id
+        )
+
+        status_tags = [
             RCE_AUDIO_PENDING_TAG,
-            RCE_AUDIO_PROCESSING_TAG,
-        ],
-    )
+        ]
+
+        if RCE_AUDIO_IMMEDIATE_TAG in get_note_tags(
+            note
+        ):
+            status_tags.append(
+                RCE_AUDIO_IMMEDIATE_TAG
+            )
+
+        status_tags.append(
+            RCE_AUDIO_PROCESSING_TAG
+        )
+
+        set_audio_status(
+            note,
+            status_tags,
+        )
+
+        mw.col.update_note(
+            note
+        )
 
 
 def mark_failed(
