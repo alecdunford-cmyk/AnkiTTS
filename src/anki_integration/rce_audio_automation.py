@@ -17,6 +17,9 @@ from anki_integration.rce_audio_status import (
     get_note_tags,
     set_audio_status,
 )
+from structured_audio import (
+    cleanup_orphaned_temporary_audio_files,
+)
 
 
 IMMEDIATE_AUDIO_QUERY = (
@@ -26,6 +29,10 @@ IMMEDIATE_AUDIO_QUERY = (
 
 PENDING_AUDIO_QUERY = (
     f"tag:{RCE_AUDIO_PENDING_TAG}"
+)
+
+PROCESSING_AUDIO_QUERY = (
+    f"tag:{RCE_AUDIO_PROCESSING_TAG}"
 )
 
 COLLECTION_NOT_OPEN_ERROR = (
@@ -65,6 +72,10 @@ class RceAudioPollingLifecycle:
             self.timer.stop()
             return False
 
+        if not self.controller.recover_after_restart():
+            self.timer.stop()
+            return False
+
         is_active = getattr(
             self.timer,
             "isActive",
@@ -99,6 +110,7 @@ class RceAudioAutomationController:
         self.polling_suspended = (
             self.mw.col is None
         )
+        self.recovered_collection = None
 
     def suspend_polling(
         self,
@@ -113,6 +125,46 @@ class RceAudioAutomationController:
         )
 
         return not self.polling_suspended
+
+    def recover_after_restart(
+        self,
+    ):
+        collection = self._available_collection()
+
+        if collection is None:
+            return False
+
+        if self.recovered_collection is collection:
+            return True
+
+        try:
+            processing_note_ids = find_note_ids(
+                collection,
+                PROCESSING_AUDIO_QUERY,
+            )
+
+        except Exception as error:
+            if not is_collection_not_open_error(
+                error
+            ):
+                raise
+
+            return False
+
+        if not self._collection_is_current(
+            collection
+        ):
+            return False
+
+        if processing_note_ids:
+            mark_interrupted_processing(
+                self.mw,
+                processing_note_ids,
+            )
+
+        cleanup_orphaned_temporary_audio_files()
+        self.recovered_collection = collection
+        return True
 
     def poll_immediate_requests(
         self,
@@ -450,6 +502,38 @@ def mark_failed(
             RCE_AUDIO_FAILED_TAG,
         ],
     )
+
+
+def mark_interrupted_processing(
+    mw,
+    note_ids,
+):
+    for note_id in note_ids:
+        note = mw.col.get_note(
+            note_id
+        )
+
+        status_tags = [
+            RCE_AUDIO_PENDING_TAG,
+            RCE_AUDIO_FAILED_TAG,
+        ]
+
+        if RCE_AUDIO_IMMEDIATE_TAG in get_note_tags(
+            note
+        ):
+            status_tags.insert(
+                1,
+                RCE_AUDIO_IMMEDIATE_TAG,
+            )
+
+        set_audio_status(
+            note,
+            status_tags,
+        )
+
+        mw.col.update_note(
+            note
+        )
 
 
 def _set_status(

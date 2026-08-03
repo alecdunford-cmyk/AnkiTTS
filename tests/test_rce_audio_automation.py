@@ -404,6 +404,67 @@ def check_timer_tracks_collection_lifecycle_idempotently():
     assert controller.polling_suspended
 
 
+def check_startup_recovers_processing_notes_once():
+    immediate_note = FakeNote(
+        1,
+        [
+            "personal",
+            RCE_AUDIO_IMMEDIATE_TAG,
+            RCE_AUDIO_PROCESSING_TAG,
+        ],
+    )
+
+    queued_note = FakeNote(
+        2,
+        [
+            "personal",
+            RCE_AUDIO_PROCESSING_TAG,
+        ],
+    )
+
+    mw = FakeMainWindow(
+        [
+            immediate_note,
+            queued_note,
+        ]
+    )
+
+    controller = (
+        automation.RceAudioAutomationController(
+            mw,
+            "AnkiTTS",
+        )
+    )
+
+    timer = FakeTimer()
+    lifecycle = automation.RceAudioPollingLifecycle(
+        controller,
+        timer,
+    )
+
+    assert lifecycle.resume()
+    assert timer.active
+    assert immediate_note.tags == [
+        "personal",
+        RCE_AUDIO_PENDING_TAG,
+        RCE_AUDIO_IMMEDIATE_TAG,
+        RCE_AUDIO_FAILED_TAG,
+    ]
+    assert queued_note.tags == [
+        "personal",
+        RCE_AUDIO_PENDING_TAG,
+        RCE_AUDIO_FAILED_TAG,
+    ]
+    assert len(
+        mw.col.updated
+    ) == 2
+
+    assert lifecycle.resume()
+    assert len(
+        mw.col.updated
+    ) == 2
+
+
 def check_lifecycle_suspends_and_resumes_polling():
     mw = FakeMainWindow(
         []
@@ -1019,6 +1080,7 @@ def run():
         check_poll_does_nothing_without_a_collection,
         check_resume_requires_an_open_collection,
         check_timer_tracks_collection_lifecycle_idempotently,
+        check_startup_recovers_processing_notes_once,
         check_lifecycle_suspends_and_resumes_polling,
         check_collection_switch_after_search_aborts_old_request,
         check_collection_not_open_is_ignored_and_polling_recovers,

@@ -1479,6 +1479,63 @@ def check_failed_stitch_export_is_not_published():
         )
 
 
+def check_orphaned_track_temporaries_are_cleaned_safely():
+    with TemporaryDirectory() as directory:
+        output_directory = Path(
+            directory
+        )
+
+        orphaned_pending = (
+            output_directory
+            / ".rce_front_deadbeef.mp3.pending"
+        )
+
+        orphaned_stitch = (
+            output_directory
+            / "..rce_back_deadbeef.mp3.pending.tmp"
+        )
+
+        final_track = (
+            output_directory
+            / "rce_front_valid.mp3"
+        )
+
+        unrelated = (
+            output_directory
+            / "segment-cache.tmp"
+        )
+
+        unrelated_hidden = (
+            output_directory
+            / ".unrelated.tmp"
+        )
+
+        for path in (
+            orphaned_pending,
+            orphaned_stitch,
+            final_track,
+            unrelated,
+            unrelated_hidden,
+        ):
+            path.write_bytes(
+                b"audio"
+            )
+
+        removed = (
+            structured_audio
+            .cleanup_orphaned_temporary_audio_files(
+                output_directory
+            )
+        )
+
+        assert removed == 2
+        assert not orphaned_pending.exists()
+        assert not orphaned_stitch.exists()
+        assert final_track.exists()
+        assert unrelated.exists()
+        assert unrelated_hidden.exists()
+
+
 def run():
     checks = [
         check_provider_identity,
@@ -1494,6 +1551,7 @@ def run():
         check_invalid_job_contract,
         check_exact_pause_stitching_and_atomic_export,
         check_failed_stitch_export_is_not_published,
+        check_orphaned_track_temporaries_are_cleaned_safely,
     ]
 
     for check in checks:

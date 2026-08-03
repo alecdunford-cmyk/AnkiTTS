@@ -39,6 +39,55 @@ class StructuredAudioProcessingError(
     """Raised when a complete structured RCE card cannot be synthesized."""
 
 
+def cleanup_orphaned_temporary_audio_files(
+    output_directory=OUTPUT_DIR,
+):
+    """Remove only unpublished structured-track temporary artifacts."""
+
+    directory = Path(
+        output_directory
+    )
+
+    if not directory.exists():
+        return 0
+
+    removed = 0
+
+    for path in directory.iterdir():
+        is_structured_temporary = (
+            path.name.startswith(
+                ".rce_"
+            )
+            or path.name.startswith(
+                "..rce_"
+            )
+        )
+
+        if (
+            not path.is_file()
+            or not is_structured_temporary
+            or not (
+                path.name.endswith(
+                    ".pending"
+                )
+                or path.name.endswith(
+                    ".tmp"
+                )
+            )
+        ):
+            continue
+
+        try:
+            path.unlink()
+
+        except FileNotFoundError:
+            continue
+
+        removed += 1
+
+    return removed
+
+
 def process_structured_job(
     job,
     settings,
