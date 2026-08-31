@@ -2,7 +2,10 @@ import sys
 from pathlib import Path
 
 from aqt import gui_hooks, mw
-from aqt.qt import QAction
+from aqt.qt import (
+    QAction,
+    QTimer,
+)
 from aqt.utils import qconnect, showInfo
 
 
@@ -29,6 +32,10 @@ if str(ENGINE_PATH) not in sys.path:
 
 from anki_integration.browser import add_browser_menu_action
 from anki_integration.editor import process_editor_note
+from anki_integration.rce_audio_automation import (
+    RceAudioAutomationController,
+    RceAudioPollingLifecycle,
+)
 from .settings_dialog import show_settings_dialog
 
 
@@ -38,6 +45,9 @@ def tts_button(editor):
         mw,
         __name__,
     )
+
+    if audio_files is None:
+        return
 
     statistics = audio_files.get(
         "statistics",
@@ -127,3 +137,74 @@ qconnect(
 mw.form.menuTools.addAction(
     settings_action
 )
+
+
+rce_audio_automation = (
+    RceAudioAutomationController(
+        mw,
+        __name__,
+    )
+)
+
+pending_audio_action = QAction(
+    "Generate Pending RCE Audio",
+    mw,
+)
+
+qconnect(
+    pending_audio_action.triggered,
+    rce_audio_automation.process_pending_requests,
+)
+
+mw.form.menuTools.addAction(
+    pending_audio_action
+)
+
+rce_audio_timer = QTimer(
+    mw
+)
+
+rce_audio_timer.setInterval(
+    1000
+)
+
+qconnect(
+    rce_audio_timer.timeout,
+    rce_audio_automation.poll_immediate_requests,
+)
+
+rce_audio_lifecycle = RceAudioPollingLifecycle(
+    rce_audio_automation,
+    rce_audio_timer,
+)
+
+
+def suspend_rce_audio_polling(
+    *_args,
+):
+    rce_audio_lifecycle.suspend()
+
+
+def resume_rce_audio_polling(
+    *_args,
+):
+    rce_audio_lifecycle.resume()
+
+
+gui_hooks.profile_will_close.append(
+    suspend_rce_audio_polling
+)
+
+gui_hooks.collection_will_temporarily_close.append(
+    suspend_rce_audio_polling
+)
+
+gui_hooks.collection_did_load.append(
+    resume_rce_audio_polling
+)
+
+gui_hooks.collection_did_temporarily_close.append(
+    resume_rce_audio_polling
+)
+
+resume_rce_audio_polling()

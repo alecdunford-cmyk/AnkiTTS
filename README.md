@@ -224,6 +224,51 @@ The batch processor reports:
 
 
 
+\# RCE Audio Automation
+
+
+
+RCE cards can request one of three audio actions without changing their
+deterministic card identity:
+
+
+
+\- Export only: preserve existing audio and do not request synthesis
+
+\- Generate immediately: process the exported notes automatically
+
+\- Queue for batch: wait until **Tools > Generate Pending RCE Audio** is used
+
+
+
+RCE communicates these requests through managed `rce-audio::*` tags. AnkiTTS
+polls only for immediate requests and sends both immediate and queued notes
+through the same transactional batch engine used by Browser generation.
+Immediate requests are activated only after RCE finishes exporting the complete
+batch, so polling cannot split one export into accidental one-note runs.
+Generated files are copied into Anki media and note fields are updated only
+after the complete batch succeeds.
+
+
+
+Successful notes receive `rce-audio::ready`. Failed notes retain
+`rce-audio::pending` and receive `rce-audio::failed`, so they remain recoverable
+from the Tools menu. User tags and non-audio RCE organizational tags are
+preserved throughout every transition.
+
+Cold-cache structured RCE jobs synthesize up to three distinct missing speech
+segments concurrently. Repeated segments that share an exact cache identity are
+generated once and reused. Track stitching, final media publication, and Anki
+note updates remain ordered and transactional. The completion message reports
+the measured batch duration alongside generated and cached segment counts so
+cold- and warm-cache performance can be compared directly.
+
+
+
+\---
+
+
+
 \# Intelligent Audio Cache
 
 

@@ -97,3 +97,52 @@ def get_audio_path(
     filename = f"{cache_hash}.mp3"
 
     return CACHE_DIR / filename
+
+
+def get_structured_audio_path(
+    provider,
+    provider_model,
+    provider_version,
+    text,
+    language,
+    profile_key,
+    voice,
+    rate="+0%",
+    volume="+0%",
+    pitch="+0Hz",
+):
+    """
+    Return a provider-aware cache path for one structured segment.
+
+    RCE scheduling values such as IDs, sequence, repetition, and pauses
+    are intentionally excluded because they do not change synthesis.
+    """
+
+    cache_data = {
+        "provider": provider,
+        "provider_model": provider_model,
+        "provider_version": provider_version,
+        "text": text,
+        "language": language,
+        "profile_key": profile_key,
+        "voice": voice,
+        "rate": rate,
+        "volume": volume,
+        "pitch": pitch,
+    }
+
+    serialized_data = json.dumps(
+        cache_data,
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+
+    cache_hash = hashlib.sha256(
+        serialized_data.encode(
+            "utf-8"
+        )
+    ).hexdigest()
+
+    return CACHE_DIR / (
+        f"{cache_hash}.mp3"
+    )

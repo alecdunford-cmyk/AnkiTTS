@@ -26,3 +26,6 @@ addon/libs/
 
 # Anki-generated metadata
 addon/meta.json
+
+# Generated add-on runtime source mirror
+addon/src/

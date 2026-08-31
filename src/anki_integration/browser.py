@@ -13,8 +13,12 @@ from card_processor import OUTPUT_DIR
 from note_mapper import (
     create_job_from_note,
     get_mapped_field_names,
-    has_mapped_fields,
+    is_processable_note,
+    iter_processed_audio_outputs,
     write_audio_fields,
+)
+from anki_integration.rce_audio_status import (
+    mark_ready_if_managed,
 )
 from settings import AppSettings
 from stitcher import hide_subprocess_windows
@@ -56,21 +60,14 @@ def copy_generated_audio_to_media(
 ):
     """Copy processed audio files into Anki media."""
 
-    for field_name in settings.field_mapping:
-        processed_key = (
-            f"{field_name}_processed"
-        )
-
-        if not audio_files.get(
-            processed_key,
-            True,
-        ):
-            continue
-
-        filename = audio_files.get(
-            field_name
-        )
-
+    for (
+        _field_name,
+        _audio_field,
+        filename,
+    ) in iter_processed_audio_outputs(
+        audio_files,
+        settings,
+    ):
         if not filename:
             continue
 
@@ -94,6 +91,48 @@ def format_required_fields_message(
     )
 
 
+def format_elapsed_time(
+    elapsed_seconds,
+):
+    """Format measured batch duration for the completion message."""
+
+    if (
+        isinstance(
+            elapsed_seconds,
+            bool,
+        )
+        or not isinstance(
+            elapsed_seconds,
+            (
+                int,
+                float,
+            ),
+        )
+        or elapsed_seconds < 0
+    ):
+        return None
+
+    if elapsed_seconds < 60:
+        return (
+            f"{elapsed_seconds:.1f} seconds"
+        )
+
+    rounded_seconds = int(
+        round(
+            elapsed_seconds
+        )
+    )
+
+    minutes, seconds = divmod(
+        rounded_seconds,
+        60,
+    )
+
+    return (
+        f"{minutes}m {seconds}s"
+    )
+
+
 def process_selected_notes(
     browser,
     mw,
@@ -107,18 +146,62 @@ def process_selected_notes(
         showWarning(
             "Select one or more notes in the Browse window first."
         )
-        return
+        return {
+            "success": False,
+            "message": (
+                "No notes were selected."
+            ),
+        }
 
-    config = (
-        mw.addonManager.getConfig(
-            addon_name
+    return process_note_ids(
+        note_ids,
+        mw,
+        addon_name,
+        reset_callback=(
+            browser.model.reset
+        ),
+        show_messages=True,
+    )
+
+
+def process_note_ids(
+    note_ids,
+    mw,
+    addon_name,
+    reset_callback=None,
+    show_messages=True,
+):
+    """
+    Process an explicit ordered set of Anki note IDs.
+
+    Browser selection, queued RCE generation, and immediate RCE automation
+    all enter this single transactional publication path.
+    """
+
+    if not note_ids:
+        return _failure(
+            "No notes were supplied for AnkiTTS processing.",
+            show_messages,
         )
-        or {}
-    )
 
-    settings = AppSettings.from_dict(
-        config
-    )
+    try:
+        config = (
+            mw.addonManager.getConfig(
+                addon_name
+            )
+            or {}
+        )
+
+        settings = AppSettings.from_dict(
+            config
+        )
+
+    except Exception as error:
+        return _failure(
+            "AnkiTTS settings are invalid:\n\n"
+            f"{error}",
+            show_messages,
+        )
 
     media_folder = Path(
         mw.col.media.dir()
@@ -134,22 +217,33 @@ def process_selected_notes(
             note_id
         )
 
-        if not has_mapped_fields(
+        if not is_processable_note(
             note,
             settings,
         ):
             skipped_note_types += 1
             continue
 
+        try:
+            job = create_job_from_note(
+                note,
+                settings,
+            )
+
+        except Exception as error:
+            return _failure(
+                "AnkiTTS cannot process selected note "
+                f"{note_id}:\n\n{error}\n\n"
+                "No selected notes were changed.",
+                show_messages,
+            )
+
         compatible_notes.append(
             note
         )
 
         jobs.append(
-            create_job_from_note(
-                note,
-                settings,
-            )
+            job
         )
 
     if not jobs:
@@ -159,41 +253,75 @@ def process_selected_notes(
             )
         )
 
-        showWarning(
+        return _failure(
             "None of the selected notes contain all "
             "configured AnkiTTS fields:\n\n"
-            f"{required_fields}"
+            f"{required_fields}",
+            show_messages,
         )
 
-        return
+    try:
+        with hide_subprocess_windows():
+            batch_result = process_notes(
+                jobs,
+                settings=settings,
+            )
 
-    with hide_subprocess_windows():
-        batch_result = process_notes(
-            jobs,
-            settings=settings,
+    except Exception as error:
+        return _failure(
+            "AnkiTTS audio generation failed:\n\n"
+            f"{error}\n\n"
+            "No selected notes were changed.",
+            show_messages,
         )
 
-    for note, audio_files in zip(
-        compatible_notes,
-        batch_result["results"],
-    ):
-        copy_generated_audio_to_media(
-            audio_files,
-            media_folder,
-            settings,
+    try:
+        for audio_files in batch_result[
+            "results"
+        ]:
+            copy_generated_audio_to_media(
+                audio_files,
+                media_folder,
+                settings,
+            )
+
+    except Exception as error:
+        return _failure(
+            "AnkiTTS generated audio but could not copy it "
+            f"into Anki media:\n\n{error}\n\n"
+            "No selected note fields were changed.",
+            show_messages,
         )
 
-        write_audio_fields(
-            note,
-            audio_files,
-            settings,
+    try:
+        for note, audio_files in zip(
+            compatible_notes,
+            batch_result["results"],
+        ):
+            write_audio_fields(
+                note,
+                audio_files,
+                settings,
+            )
+
+        for note in compatible_notes:
+            mark_ready_if_managed(
+                note
+            )
+
+            mw.col.update_note(
+                note
+            )
+
+    except Exception as error:
+        return _failure(
+            "AnkiTTS could not update all selected notes:\n\n"
+            f"{error}",
+            show_messages,
         )
 
-        mw.col.update_note(
-            note
-        )
-
-    browser.model.reset()
+    if reset_callback is not None:
+        reset_callback()
 
     statistics = batch_result.get(
         "statistics",
@@ -223,6 +351,17 @@ def process_selected_notes(
         f"Reused from cache: {cached_count}",
     ]
 
+    elapsed_time = format_elapsed_time(
+        batch_result.get(
+            "elapsed_seconds"
+        )
+    )
+
+    if elapsed_time is not None:
+        message_lines.append(
+            f"Elapsed time: {elapsed_time}"
+        )
+
     if skipped_segments:
         message_lines.append(
             f"Skipped segments: {skipped_segments}"
@@ -233,11 +372,41 @@ def process_selected_notes(
             f"Incompatible notes skipped: {skipped_note_types}"
         )
 
-    showInfo(
-        "\n".join(
-            message_lines
-        )
+    message = "\n".join(
+        message_lines
     )
+
+    if show_messages:
+        showInfo(
+            message
+        )
+
+    return {
+        "success": True,
+        "message": message,
+        "processed": len(
+            compatible_notes
+        ),
+        "skipped_note_types": (
+            skipped_note_types
+        ),
+        "statistics": statistics,
+    }
+
+
+def _failure(
+    message,
+    show_messages,
+):
+    if show_messages:
+        showWarning(
+            message
+        )
+
+    return {
+        "success": False,
+        "message": message,
+    }
 
 
 def add_browser_menu_action(
