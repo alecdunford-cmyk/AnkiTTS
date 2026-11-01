@@ -138,7 +138,7 @@ def synthesize(settings, language, cache_dir):
 
 def report(label, language, result, wall, seconds, text, extra=""):
     identity = ", ".join(
-        f"{key}={value if key != 'reference_sha256' else value[:12] + '...'}"
+        f"{key}={value if key not in ('reference_sha256', 'reference_id') else value[:8] + '...'}"
         for key, value in sorted(result.identity.items())
     )
 
