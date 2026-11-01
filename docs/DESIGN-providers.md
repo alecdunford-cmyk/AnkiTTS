@@ -407,7 +407,39 @@ of `run_tests.py` because they need the engine venv, the network or a paid key):
   taken:* keeping the worker for the whole Anki session (about 1.2 GB on an
   8 GB machine).
 
-Later rulings made during the build are appended below.
+Later rulings made during the build:
+
+- **CA-14 Repository src first.** When the add-on is loaded from the
+  repository checkout (the `addons21\AnkiTTS` junction), it runs
+  `C:\AnkiTTS\src` directly. It falls back to `addon\src` only in a packaged
+  copy. *Not taken:* keeping `addon\src` first. That mirror was a hand-made
+  copy, and after this change it would have kept Anki on the old Edge-only
+  code until someone refreshed it.
+- **CA-15 Edge pin and libs.** edge-tts is pinned at 7.3.1 in the new
+  `addon/requirements-libs.txt`. `addon/libs` was rebuilt from it with Python
+  3.13, and the old folder was moved to `AnkiTTS_backup\libs-edge-tts-7.2.8-20261101`.
+  `.venv313` was upgraded in place. *Not taken:* also upgrading `.venv` (3.14,
+  unused by tests or the add-on), and pinning every transitive version (pip
+  resolves them; the resolved set is in the session summary).
+- **CA-16 deploy.bat repaired, not deleted.** It now mirrors `src` into
+  `addon\src` and rebuilds `addon\libs`. *Not taken:* deleting it, because a
+  packaged copy still needs the mirror and the libs rebuild is a real step.
+- **CA-17 README rewritten clean.** The stored README carried literal
+  markdown escapes (`\#`, `\-`), so it rendered as backslashes. The rewrite
+  keeps every section and updates features, requirements and setup. *Not
+  taken:* editing only the provider lines inside the escaped text.
+- **CA-18 CLAUDE.md requirements line updated to CA-3.** The line "no other
+  provider belongs in the default configuration" contradicted CA-3. It now
+  states the CA-3 chain and keeps the exclusion for providers outside it.
+  *Not taken:* leaving project memory contradicting Alec's ruling.
+- **CA-19 Generic-path error semantics kept.** A chunk is skipped only when
+  every provider that tried answered "no audio". Any real error (for example
+  HTTP 403) still surfaces, as Edge errors did before. *Not taken:* skipping
+  on any failure, which would hide outages as silent cards.
+- **CA-20 Integration tests are a separate script**
+  (`tests/integration_providers.py`), not part of `run_tests.py`. They need
+  the engine venv, the network and a paid key, and the regression suite must
+  stay offline and free. *Not taken:* auto-skipping checks inside the suite.
 
 ## 15. Parked
 
