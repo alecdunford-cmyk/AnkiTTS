@@ -19,8 +19,12 @@ PAUSE_DURATIONS = {
 PARENTHETICAL_PAUSE = 250
 DEFAULT_PAUSE = 225
 
-SILENCE_THRESHOLD_DB = -45
+# Where the sound has really ended. -45 dBFS sat only 9 dB below the mean
+# level of Pocket's English clone (-37 dBFS) and cut the last syllable; see
+# docs/audio-tail-diagnosis-20261101.md and ruling CA-22.
+SILENCE_THRESHOLD_DB = -60
 TRAILING_SILENCE_CHUNK_MS = 10
+TRIM_SAFETY_MARGIN_MS = 50
 MINIMUM_AUDIO_LENGTH_MS = 50
 
 @contextmanager
@@ -123,12 +127,15 @@ def trim_trailing_silence(
     audio,
     silence_threshold_db=SILENCE_THRESHOLD_DB,
     chunk_size_ms=TRAILING_SILENCE_CHUNK_MS,
+    margin_ms=TRIM_SAFETY_MARGIN_MS,
 ):
     """
     Remove trailing silence already included in a generated clip.
 
     This allows AnkiTTS to control the final pause duration instead
-    of stacking custom silence on top of Edge TTS trailing silence.
+    of stacking custom silence on top of the provider's trailing silence.
+    The last margin_ms of the original audio after the detected end of
+    the sound is kept, so a soft word ending is never clipped.
     """
 
     trim_position = len(
@@ -156,7 +163,13 @@ def trim_trailing_silence(
         trim_position = chunk_start
 
     return audio[
-        :trim_position
+        : min(
+            len(
+                audio
+            ),
+            trim_position
+            + margin_ms,
+        )
     ]
 
 
