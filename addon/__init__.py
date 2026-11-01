@@ -11,7 +11,14 @@ from aqt.utils import qconnect, showInfo
 
 ADDON_DIR = Path(__file__).resolve().parent
 
-if (ADDON_DIR / "src").is_dir():
+# In the repository checkout (addons21\AnkiTTS is a junction to
+# C:\AnkiTTS\addon) run the repository's src, so the add-on never runs a
+# stale addon\src mirror. A packaged add-on carries its own src.
+if (ADDON_DIR.parent / ".git").exists() and (
+    ADDON_DIR.parent / "src"
+).is_dir():
+    ENGINE_PATH = ADDON_DIR.parent / "src"
+elif (ADDON_DIR / "src").is_dir():
     ENGINE_PATH = ADDON_DIR / "src"
 else:
     ENGINE_PATH = ADDON_DIR.parent / "src"
@@ -29,6 +36,19 @@ if str(ENGINE_PATH) not in sys.path:
         0,
         str(ENGINE_PATH),
     )
+
+from ankitts_log import configure_logging, get_logger
+
+LOG_PATH = configure_logging(
+    ADDON_DIR / "user_files" / "logs"
+)
+
+get_logger("addon").info(
+    "AnkiTTS loaded: engine %s, libs %s, Python %s",
+    ENGINE_PATH,
+    LIB_PATH,
+    sys.version.split()[0],
+)
 
 from anki_integration.browser import add_browser_menu_action
 from anki_integration.editor import process_editor_note

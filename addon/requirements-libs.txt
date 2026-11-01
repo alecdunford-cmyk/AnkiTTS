@@ -1,0 +1,6 @@
+# Runtime dependencies vendored into addon/libs for Anki's bundled Python
+# (Anki 26.5 bundles CPython 3.13.13). Rebuild with deploy.bat.
+edge-tts==7.3.1
+lingua-language-detector==2.2.0
+pydub==0.25.1
+audioop-lts==0.2.2; python_version >= "3.13"

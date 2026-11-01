@@ -29,3 +29,9 @@ addon/meta.json
 
 # Generated add-on runtime source mirror
 addon/src/
+
+# Add-on logs and other per-user runtime files
+addon/user_files/
+
+# Half-built vendored dependencies (deploy.bat)
+addon/libs.new/

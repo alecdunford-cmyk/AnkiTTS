@@ -572,8 +572,81 @@ class AppSettings:
         return settings
 
 
+def read_addon_config(
+    addon_dir: Path | None = None,
+) -> dict[str, Any]:
+    """
+    Return the live add-on configuration exactly as Anki builds it.
+
+    Anki's getConfig overlays meta.json["config"] (what the settings
+    dialog saved) on config.json (the shipped defaults), key by key at
+    the top level. Development and integration runs use this to read
+    the same settings the add-on uses inside Anki.
+    """
+
+    if addon_dir is None:
+        addon_dir = (
+            Path(__file__)
+            .resolve()
+            .parent
+            .parent
+            / "addon"
+        )
+
+    config: dict[str, Any] = {}
+
+    for file_name, key in (
+        (
+            "config.json",
+            None,
+        ),
+        (
+            "meta.json",
+            "config",
+        ),
+    ):
+        path = (
+            Path(
+                addon_dir
+            )
+            / file_name
+        )
+
+        if not path.exists():
+            continue
+
+        with path.open(
+            "r",
+            encoding="utf-8",
+        ) as config_file:
+            data = json.load(
+                config_file
+            )
+
+        if key is not None:
+            data = data.get(
+                key
+            ) or {}
+
+        if isinstance(
+            data,
+            dict,
+        ):
+            config.update(
+                data
+            )
+
+    return config
+
+
 class SettingsManager:
-    """Loads and saves AnkiTTS settings as JSON."""
+    """
+    Loads and saves AnkiTTS settings as JSON.
+
+    The live add-on does not use this class: it reads Anki's add-on
+    config (see read_addon_config). The default settings.json at the
+    repository root is a developer file.
+    """
 
     def __init__(
         self,
@@ -593,6 +666,18 @@ class SettingsManager:
             )
 
         self.settings_path = settings_path
+
+    @staticmethod
+    def load_addon_config(
+        addon_dir: Path | None = None,
+    ) -> AppSettings:
+        """Load the settings the live add-on uses inside Anki."""
+
+        return AppSettings.from_dict(
+            read_addon_config(
+                addon_dir
+            )
+        )
 
     def load(self) -> AppSettings:
         """Load settings, falling back to defaults when no file exists."""
