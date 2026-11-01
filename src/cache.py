@@ -69,10 +69,14 @@ def get_audio_path(
     rate="+0%",
     volume="+0%",
     pitch="+0Hz",
+    provider_identity=None,
 ):
     """
     Return a cache path unique to the text and every setting
     that can affect the generated audio.
+
+    provider_identity (provider, model, version and voice ids) records
+    which provider produced the file; see docs/DESIGN-providers.md.
     """
 
     cache_data = {
@@ -83,6 +87,11 @@ def get_audio_path(
         "volume": volume,
         "pitch": pitch,
     }
+
+    if provider_identity:
+        cache_data.update(
+            provider_identity
+        )
 
     serialized_data = json.dumps(
         cache_data,
@@ -110,12 +119,15 @@ def get_structured_audio_path(
     rate="+0%",
     volume="+0%",
     pitch="+0Hz",
+    **extra_identity,
 ):
     """
     Return a provider-aware cache path for one structured segment.
 
     RCE scheduling values such as IDs, sequence, repetition, and pauses
     are intentionally excluded because they do not change synthesis.
+    Extra identity fields (a reference clip hash or voice id) are added
+    only when present, so Edge keys keep their original shape.
     """
 
     cache_data = {
@@ -130,6 +142,10 @@ def get_structured_audio_path(
         "volume": volume,
         "pitch": pitch,
     }
+
+    cache_data.update(
+        extra_identity
+    )
 
     serialized_data = json.dumps(
         cache_data,

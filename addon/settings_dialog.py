@@ -22,7 +22,7 @@ from cache import (
     get_cache_statistics,
 )
 
-from settings import AppSettings
+from settings import PROVIDER_IDS, AppSettings
 from voice_manager import VoiceManager
 
 
@@ -126,6 +126,8 @@ class SettingsDialog(QDialog):
         )
 
         self.create_field_mappings_tab()
+
+        self.create_providers_tab()
 
         self.button_box = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Save
@@ -246,6 +248,237 @@ class SettingsDialog(QDialog):
         self.tab_widget.addTab(
             general_tab,
             "General",
+        )
+
+    def create_providers_tab(
+        self,
+    ):
+        """
+        Create the minimal provider tab: chain order and paths.
+
+        Keys are never entered here; Fish reads FISH_API_KEY from the
+        environment.
+        """
+
+        providers_tab = QWidget()
+        providers_layout = QVBoxLayout()
+
+        description = QLabel(
+            "Providers are tried in order for every segment; a provider "
+            "that is not configured, not reachable or fails hands the "
+            "segment to the next. Ids: pocket (local voice clone), fish "
+            "(Fish Audio, paid, key from FISH_API_KEY), edge (Microsoft "
+            "Edge voices)."
+        )
+
+        description.setWordWrap(
+            True
+        )
+
+        pocket = self.settings.get_provider_settings(
+            "pocket"
+        )
+
+        fish = self.settings.get_provider_settings(
+            "fish"
+        )
+
+        self.provider_chain_edit = QLineEdit(
+            ", ".join(
+                self.settings.provider_chain
+            )
+        )
+
+        self.pocket_python_edit = QLineEdit(
+            str(
+                pocket.get(
+                    "engine_python",
+                    "",
+                )
+            )
+        )
+
+        self.pocket_clip_edits = {}
+        self.fish_reference_edits = {}
+
+        form_layout = QFormLayout()
+
+        form_layout.addRow(
+            "Provider order:",
+            self.provider_chain_edit,
+        )
+
+        form_layout.addRow(
+            "Pocket engine Python:",
+            self.pocket_python_edit,
+        )
+
+        for language_code, language_name in (
+            (
+                "fr",
+                "French",
+            ),
+            (
+                "en",
+                "English",
+            ),
+        ):
+            clip_edit = QLineEdit(
+                str(
+                    pocket.get(
+                        "reference_clips",
+                        {},
+                    ).get(
+                        language_code,
+                        "",
+                    )
+                )
+            )
+
+            self.pocket_clip_edits[
+                language_code
+            ] = clip_edit
+
+            form_layout.addRow(
+                f"Pocket {language_name} reference clip:",
+                clip_edit,
+            )
+
+        self.fish_model_edit = QLineEdit(
+            str(
+                fish.get(
+                    "model",
+                    "",
+                )
+            )
+        )
+
+        form_layout.addRow(
+            "Fish model:",
+            self.fish_model_edit,
+        )
+
+        for language_code, language_name in (
+            (
+                "fr",
+                "French",
+            ),
+            (
+                "en",
+                "English",
+            ),
+        ):
+            reference_edit = QLineEdit(
+                str(
+                    fish.get(
+                        "reference_ids",
+                        {},
+                    ).get(
+                        language_code,
+                        "",
+                    )
+                )
+            )
+
+            self.fish_reference_edits[
+                language_code
+            ] = reference_edit
+
+            form_layout.addRow(
+                f"Fish {language_name} voice id:",
+                reference_edit,
+            )
+
+        providers_layout.addWidget(
+            description
+        )
+
+        providers_layout.addLayout(
+            form_layout
+        )
+
+        providers_layout.addStretch()
+
+        providers_tab.setLayout(
+            providers_layout
+        )
+
+        self.tab_widget.addTab(
+            providers_tab,
+            "Providers",
+        )
+
+    def build_provider_settings(
+        self,
+    ):
+        """Return (provider_chain, providers) from the provider tab."""
+
+        provider_chain = [
+            provider_id.strip().lower()
+            for provider_id in self.provider_chain_edit.text().split(
+                ","
+            )
+            if provider_id.strip()
+        ]
+
+        unknown = [
+            provider_id
+            for provider_id in provider_chain
+            if provider_id not in PROVIDER_IDS
+        ]
+
+        if unknown or not provider_chain:
+            raise ValueError(
+                "Provider order must list pocket, fish and/or edge, "
+                f"separated by commas (not understood: {', '.join(unknown) or 'empty'})."
+            )
+
+        providers = {
+            provider_id: self.settings.get_provider_settings(
+                provider_id
+            )
+            for provider_id in PROVIDER_IDS
+        }
+
+        providers[
+            "pocket"
+        ][
+            "engine_python"
+        ] = self.pocket_python_edit.text().strip()
+
+        for (
+            language_code,
+            clip_edit,
+        ) in self.pocket_clip_edits.items():
+            providers[
+                "pocket"
+            ][
+                "reference_clips"
+            ][
+                language_code
+            ] = clip_edit.text().strip()
+
+        providers[
+            "fish"
+        ][
+            "model"
+        ] = self.fish_model_edit.text().strip()
+
+        for (
+            language_code,
+            reference_edit,
+        ) in self.fish_reference_edits.items():
+            providers[
+                "fish"
+            ][
+                "reference_ids"
+            ][
+                language_code
+            ] = reference_edit.text().strip()
+
+        return (
+            provider_chain,
+            providers,
         )
 
     def format_file_size(
@@ -1207,6 +1440,15 @@ class SettingsDialog(QDialog):
                 "field_mapping"
             ] = self.build_field_mapping()
 
+            (
+                config[
+                    "provider_chain"
+                ],
+                config[
+                    "providers"
+                ],
+            ) = self.build_provider_settings()
+
             validated_settings = (
                 AppSettings.from_dict(
                     config
@@ -1256,6 +1498,12 @@ class SettingsDialog(QDialog):
                 ),
                 "pitch": (
                     validated_settings.pitch
+                ),
+                "provider_chain": (
+                    validated_settings.provider_chain
+                ),
+                "providers": (
+                    validated_settings.providers
                 ),
             }
         )

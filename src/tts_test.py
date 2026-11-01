@@ -1,12 +1,26 @@
+from cache import get_audio_path
 from generator import create_audio
+from settings import SettingsManager
 
 
 text = "Bonjour, je m'appelle Alec. J'étudie le français."
 
-create_audio(
-    text,
-    "fr",
-    "output/french_test2.mp3"
+settings = SettingsManager.load_addon_config()
+profile = settings.get_speech_profile(
+    "fr"
 )
 
-print("Done!")
+result = create_audio(
+    text,
+    "fr",
+    profile,
+    lambda identity, fields: get_audio_path(
+        text=text,
+        language="fr",
+        provider_identity=identity,
+        **fields,
+    ),
+    settings=settings,
+)
+
+print("Done!", result.provider_id, result.path)

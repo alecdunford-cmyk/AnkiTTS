@@ -7,5 +7,35 @@
   },
   "rate": "+0%",
   "volume": "+0%",
-  "pitch": "+0Hz"
+  "pitch": "+0Hz",
+  "provider_chain": [
+    "pocket",
+    "fish",
+    "edge"
+  ],
+  "providers": {
+    "pocket": {
+      "engine_python": "C:\\AnkiTTS-engine-env\\Scripts\\python.exe",
+      "models": {
+        "fr": "french",
+        "en": "english"
+      },
+      "reference_clips": {
+        "fr": "D:\\RCE-Project-Archive\\Milestones\\Card-Audio\\reference\\alec-fr-lively-15s.wav",
+        "en": "D:\\RCE-Project-Archive\\Milestones\\Card-Audio\\reference\\alec-en-lively-15s.wav"
+      },
+      "start_timeout_seconds": 180,
+      "request_timeout_seconds": 300,
+      "idle_shutdown_seconds": 300
+    },
+    "fish": {
+      "model": "s2.1-pro",
+      "reference_ids": {
+        "fr": "",
+        "en": ""
+      },
+      "timeout_seconds": 60
+    },
+    "edge": {}
+  }
 }

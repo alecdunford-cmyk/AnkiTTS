@@ -26,6 +26,125 @@ DEFAULT_FIELD_MAPPING = {
     },
 }
 
+PROVIDER_IDS = (
+    "pocket",
+    "fish",
+    "edge",
+)
+
+DEFAULT_PROVIDER_CHAIN = [
+    "pocket",
+    "fish",
+    "edge",
+]
+
+REFERENCE_CLIP_DIRECTORY = (
+    r"D:\RCE-Project-Archive\Milestones\Card-Audio\reference"
+)
+
+DEFAULT_PROVIDER_SETTINGS = {
+    "pocket": {
+        "engine_python": (
+            r"C:\AnkiTTS-engine-env\Scripts\python.exe"
+        ),
+        "models": {
+            "fr": "french",
+            "en": "english",
+        },
+        "reference_clips": {
+            "fr": (
+                REFERENCE_CLIP_DIRECTORY
+                + r"\alec-fr-lively-15s.wav"
+            ),
+            "en": (
+                REFERENCE_CLIP_DIRECTORY
+                + r"\alec-en-lively-15s.wav"
+            ),
+        },
+        "start_timeout_seconds": 180,
+        "request_timeout_seconds": 300,
+        "idle_shutdown_seconds": 300,
+    },
+    "fish": {
+        "model": "s2.1-pro",
+        "reference_ids": {
+            "fr": "",
+            "en": "",
+        },
+        "timeout_seconds": 60,
+    },
+    "edge": {},
+}
+
+
+def merge_provider_settings(
+    loaded: Any,
+) -> dict[str, dict[str, Any]]:
+    """
+    Overlay loaded provider settings on the defaults.
+
+    Missing providers, fields and per-language entries keep their
+    defaults, so configs written before providers existed migrate on load.
+    """
+
+    merged = deepcopy(
+        DEFAULT_PROVIDER_SETTINGS
+    )
+
+    if not isinstance(
+        loaded,
+        dict,
+    ):
+        return merged
+
+    for (
+        provider_id,
+        provider_settings,
+    ) in loaded.items():
+        if (
+            provider_id not in merged
+            or not isinstance(
+                provider_settings,
+                dict,
+            )
+        ):
+            continue
+
+        for (
+            key,
+            value,
+        ) in provider_settings.items():
+            default_value = merged[
+                provider_id
+            ].get(
+                key
+            )
+
+            if (
+                isinstance(
+                    default_value,
+                    dict,
+                )
+                and isinstance(
+                    value,
+                    dict,
+                )
+            ):
+                default_value.update(
+                    {
+                        str(language): value[language]
+                        for language in value
+                    }
+                )
+            else:
+                merged[
+                    provider_id
+                ][key] = deepcopy(
+                    value
+                )
+
+    return merged
+
 
 @dataclass(frozen=True)
 class SpeechProfile:
@@ -60,6 +179,33 @@ class AppSettings:
     rate: str = "+0%"
     volume: str = "+0%"
     pitch: str = "+0Hz"
+
+    provider_chain: list[str] = field(
+        default_factory=lambda: list(
+            DEFAULT_PROVIDER_CHAIN
+        )
+    )
+
+    providers: dict[str, dict[str, Any]] = field(
+        default_factory=lambda: deepcopy(
+            DEFAULT_PROVIDER_SETTINGS
+        )
+    )
+
+    def get_provider_settings(
+        self,
+        provider_id: str,
+    ) -> dict[str, Any]:
+        """Return one provider's settings merged over its defaults."""
+
+        return deepcopy(
+            merge_provider_settings(
+                self.providers
+            ).get(
+                provider_id,
+                {},
+            )
+        )
 
     def get_speech_profile(
         self,
@@ -251,6 +397,49 @@ class AppSettings:
                 raise ValueError(
                     f"{attribute_name} must be a string."
                 )
+
+        if (
+            not isinstance(
+                self.provider_chain,
+                list,
+            )
+            or not self.provider_chain
+        ):
+            raise ValueError(
+                "provider_chain must be a non-empty list."
+            )
+
+        for provider_id in self.provider_chain:
+            if provider_id not in PROVIDER_IDS:
+                raise ValueError(
+                    f'Unknown provider "{provider_id}" in '
+                    "provider_chain; use pocket, fish or edge."
+                )
+
+        if len(
+            set(
+                self.provider_chain
+            )
+        ) != len(
+            self.provider_chain
+        ):
+            raise ValueError(
+                "provider_chain must not repeat a provider."
+            )
+
+        if not isinstance(
+            self.providers,
+            dict,
+        ) or not all(
+            isinstance(
+                provider_settings,
+                dict,
+            )
+            for provider_settings in self.providers.values()
+        ):
+            raise ValueError(
+                "providers must map provider ids to dictionaries."
+            )
 
         if not isinstance(
             self.speech_profiles,
@@ -470,6 +659,40 @@ class AppSettings:
             settings.pitch = data[
                 "pitch"
             ]
+
+        loaded_chain = data.get(
+            "provider_chain"
+        )
+
+        if isinstance(
+            loaded_chain,
+            list,
+        ):
+            chain = []
+
+            for provider_id in loaded_chain:
+                if (
+                    provider_id in PROVIDER_IDS
+                    and provider_id not in chain
+                ):
+                    chain.append(
+                        provider_id
+                    )
+                else:
+                    print(
+                        "Ignoring provider_chain entry: "
+                        f"{provider_id!r}"
+                    )
+
+            settings.provider_chain = chain or [
+                "edge"
+            ]
+
+        settings.providers = merge_provider_settings(
+            data.get(
+                "providers"
+            )
+        )
 
         loaded_speech_profiles = data.get(
             "speech_profiles"

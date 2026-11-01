@@ -11,10 +11,11 @@ from card_processor import (
     empty_statistics,
 )
 from generator import (
+    SynthesisFailed,
     create_audio,
-    get_edge_provider_identity,
 )
 from rce_contract import RCE_JOB_TYPE
+from settings import SpeechProfile
 from stitcher import stitch_structured_audio
 from structured_processor import (
     ResolvedSpeechTrack,
@@ -166,10 +167,6 @@ def process_structured_job(
             f"RCE speech resolution failed: {error}"
         ) from error
 
-    provider_identity = (
-        get_edge_provider_identity()
-    )
-
     statistics = empty_statistics()
     prepared_tracks = {}
 
@@ -183,7 +180,7 @@ def process_structured_job(
                 track=resolved_tracks[
                     side
                 ],
-                provider_identity=provider_identity,
+                settings=settings,
             )
 
             prepared_tracks[
@@ -250,7 +247,12 @@ def create_structured_track_filename(
     track,
     provider_identity,
 ):
-    """Create a deterministic filename from schedule and synthesis inputs."""
+    """
+    Create a deterministic filename from schedule and synthesis inputs.
+
+    provider_identity is one identity for every segment or a sequence
+    with one identity per segment; a track may mix providers.
+    """
 
     if not isinstance(
         track,
@@ -260,23 +262,40 @@ def create_structured_track_filename(
             "A resolved speech track is required."
         )
 
+    if isinstance(
+        provider_identity,
+        dict,
+    ):
+        segment_identities = [
+            provider_identity
+        ] * len(
+            track.segments
+        )
+    else:
+        segment_identities = list(
+            provider_identity
+        )
+
+    if len(
+        segment_identities
+    ) != len(
+        track.segments
+    ):
+        raise StructuredAudioProcessingError(
+            "One provider identity is required per segment."
+        )
+
     identity = {
         "rce_card_id": rce_card_id,
         "schema_version": (
             track.schema_version
         ),
         "side": track.side,
-        "provider": provider_identity[
-            "provider"
-        ],
-        "provider_model": provider_identity[
-            "provider_model"
-        ],
-        "provider_version": provider_identity[
-            "provider_version"
-        ],
         "segments": [
             {
+                "provider_identity": dict(
+                    segment_identity
+                ),
                 "text": segment.text,
                 "language": segment.language,
                 "profile_key": (
@@ -296,7 +315,10 @@ def create_structured_track_filename(
                     segment.pause_after_milliseconds
                 ),
             }
-            for segment in track.segments
+            for segment, segment_identity in zip(
+                track.segments,
+                segment_identities,
+            )
         ],
     }
 
@@ -326,7 +348,7 @@ def create_structured_track_filename(
 def _prepare_track(
     rce_card_id,
     track,
-    provider_identity,
+    settings,
 ):
     statistics = empty_statistics()
 
@@ -343,61 +365,48 @@ def _prepare_track(
 
     segment_requests = [
         _create_segment_request(
-            segment,
-            provider_identity,
+            segment
         )
         for segment in track.segments
     ]
 
-    missing_by_path = {}
+    unique_requests = {}
 
     for request in segment_requests:
-        audio_path = request[
-            "audio_path"
-        ]
+        unique_requests.setdefault(
+            request[
+                "key"
+            ],
+            request,
+        )
 
-        if _is_nonempty_file(
-            audio_path
-        ):
-            continue
-
-        if audio_path in missing_by_path:
-            continue
-
-        if audio_path.exists():
-            audio_path.unlink()
-
-        missing_by_path[
-            audio_path
-        ] = request
-
-    _synthesize_missing_segments(
+    results = _synthesize_missing_segments(
         rce_card_id,
         list(
-            missing_by_path.values()
+            unique_requests.values()
         ),
+        settings,
     )
 
-    generated_paths = set(
-        missing_by_path
-    )
-
-    counted_generated_paths = set()
+    counted_paths = set()
     audio_segments = []
+    segment_identities = []
 
     for request in segment_requests:
         segment = request[
             "segment"
         ]
 
-        audio_path = request[
-            "audio_path"
+        synthesis = results[
+            request[
+                "key"
+            ]
         ]
 
         if (
-            audio_path in generated_paths
-            and audio_path
-            not in counted_generated_paths
+            synthesis.generated
+            and synthesis.path
+            not in counted_paths
         ):
             statistics[
                 "generated"
@@ -408,14 +417,18 @@ def _prepare_track(
                 "cached"
             ] += 1
 
-        counted_generated_paths.add(
-            audio_path
+        counted_paths.add(
+            synthesis.path
+        )
+
+        segment_identities.append(
+            synthesis.identity
         )
 
         audio_segments.append(
             {
                 "file": str(
-                    audio_path
+                    synthesis.path
                 ),
                 "pause_before_milliseconds": (
                     segment.pause_before_milliseconds
@@ -429,7 +442,7 @@ def _prepare_track(
     filename = create_structured_track_filename(
         rce_card_id,
         track,
-        provider_identity,
+        segment_identities,
     )
 
     final_path = OUTPUT_DIR / filename
@@ -454,29 +467,25 @@ def _prepare_track(
 
 def _create_segment_request(
     segment,
-    provider_identity,
 ):
+    """Describe one segment's synthesis inputs; scheduling is excluded."""
+
+    profile = SpeechProfile(
+        language=segment.resolved_profile_language,
+        voice=segment.voice,
+        rate=segment.edge_rate,
+        volume=segment.volume,
+        pitch=segment.pitch,
+    )
+
     return {
         "segment": segment,
-        "audio_path": get_structured_audio_path(
-            provider=provider_identity[
-                "provider"
-            ],
-            provider_model=provider_identity[
-                "provider_model"
-            ],
-            provider_version=provider_identity[
-                "provider_version"
-            ],
-            text=segment.text,
-            language=segment.language,
-            profile_key=(
-                segment.resolved_profile_key
-            ),
-            voice=segment.voice,
-            rate=segment.edge_rate,
-            volume=segment.volume,
-            pitch=segment.pitch,
+        "profile": profile,
+        "key": (
+            segment.text,
+            segment.language,
+            segment.resolved_profile_key,
+            profile,
         ),
     }
 
@@ -484,9 +493,12 @@ def _create_segment_request(
 def _synthesize_missing_segments(
     rce_card_id,
     requests,
+    settings,
 ):
+    """Resolve every unique segment through the provider chain."""
+
     if not requests:
-        return
+        return {}
 
     worker_count = min(
         MAX_PARALLEL_SYNTHESIS,
@@ -500,68 +512,88 @@ def _synthesize_missing_segments(
         thread_name_prefix="ankitts-rce",
     ) as executor:
         futures = [
-            executor.submit(
-                _synthesize_segment,
-                rce_card_id,
-                request,
+            (
+                request[
+                    "key"
+                ],
+                executor.submit(
+                    _synthesize_segment,
+                    rce_card_id,
+                    request,
+                    settings,
+                ),
             )
             for request in requests
         ]
 
-        for future in futures:
-            future.result()
+        return {
+            key: future.result()
+            for key, future in futures
+        }
 
 
 def _synthesize_segment(
     rce_card_id,
     request,
+    settings,
 ):
     segment = request[
         "segment"
     ]
 
-    audio_path = request[
-        "audio_path"
-    ]
+    def cache_path_for(
+        identity,
+        fields,
+    ):
+        provider_fields = dict(
+            identity
+        )
+
+        return get_structured_audio_path(
+            provider=provider_fields.pop(
+                "provider"
+            ),
+            provider_model=provider_fields.pop(
+                "provider_model"
+            ),
+            provider_version=provider_fields.pop(
+                "provider_version"
+            ),
+            text=segment.text,
+            language=segment.language,
+            profile_key=(
+                segment.resolved_profile_key
+            ),
+            **fields,
+            **provider_fields,
+        )
 
     try:
-        audio_created = create_audio(
+        return create_audio(
             text=segment.text,
-            voice=segment.voice,
-            output_file=str(
-                audio_path
-            ),
-            rate=segment.edge_rate,
-            volume=segment.volume,
-            pitch=segment.pitch,
+            language=segment.resolved_profile_language,
+            profile=request[
+                "profile"
+            ],
+            cache_path_for=cache_path_for,
+            settings=settings,
         )
 
-    except Exception as error:
-        if audio_path.exists():
-            audio_path.unlink()
+    except SynthesisFailed as error:
+        if error.no_audio_only:
+            raise StructuredAudioProcessingError(
+                "No provider returned usable audio after retries for "
+                f'RCE card "{rce_card_id}", segment '
+                f'"{segment.segment_id}", text '
+                f"{_format_text_preview(segment.text)}, language "
+                f'"{segment.language}", voice "{segment.voice}", '
+                f'rate "{segment.edge_rate}" ({error}).'
+            ) from error
 
         raise StructuredAudioProcessingError(
-            "Edge synthesis failed for RCE segment "
+            "Synthesis failed for RCE segment "
             f'"{segment.segment_id}": {error}'
         ) from error
-
-    if (
-        not audio_created
-        or not _is_nonempty_file(
-            audio_path
-        )
-    ):
-        if audio_path.exists():
-            audio_path.unlink()
-
-        raise StructuredAudioProcessingError(
-            "Edge returned no usable audio after retries for "
-            f'RCE card "{rce_card_id}", segment '
-            f'"{segment.segment_id}", text '
-            f"{_format_text_preview(segment.text)}, language "
-            f'"{segment.language}", voice "{segment.voice}", '
-            f'rate "{segment.edge_rate}".'
-        )
 
 
 def _format_text_preview(

@@ -2,7 +2,10 @@ from pathlib import Path
 
 from cache import get_audio_path
 from filename import create_filename
-from generator import create_audio
+from generator import (
+    SynthesisFailed,
+    create_audio,
+)
 from parser import parse_text
 from settings import SettingsManager
 from stitcher import stitch_audio
@@ -71,45 +74,54 @@ def process_chunks(
             statistics["skipped"] += 1
             continue
 
-        audio_path = get_audio_path(
-            text=chunk["text"],
-            language=speech_profile.language,
-            voice=speech_profile.voice,
-            rate=speech_profile.rate,
-            volume=speech_profile.volume,
-            pitch=speech_profile.pitch,
-        )
+        text = chunk["text"]
 
-        if not audio_path.exists():
+        def cache_path_for(
+            identity,
+            fields,
+            text=text,
+            speech_profile=speech_profile,
+        ):
+            return get_audio_path(
+                text=text,
+                language=speech_profile.language,
+                provider_identity=identity,
+                **fields,
+            )
+
+        try:
+            synthesis = create_audio(
+                text=text,
+                language=speech_profile.language,
+                profile=speech_profile,
+                cache_path_for=cache_path_for,
+                settings=settings,
+            )
+
+        except SynthesisFailed as error:
+            if not error.no_audio_only:
+                raise
+
             print(
-                f"Generating: {chunk['text']}"
+                "Skipping chunk because no provider "
+                f"returned audio: {text}"
             )
 
-            audio_created = create_audio(
-                text=chunk["text"],
-                voice=speech_profile.voice,
-                output_file=str(
-                    audio_path
-                ),
-                rate=speech_profile.rate,
-                volume=speech_profile.volume,
-                pitch=speech_profile.pitch,
+            statistics["skipped"] += 1
+
+            continue
+
+        audio_path = synthesis.path
+
+        if synthesis.generated:
+            print(
+                f"Generated ({synthesis.provider_id}): {text}"
             )
-
-            if not audio_created:
-                print(
-                    "Skipping chunk because Edge TTS "
-                    f"returned no audio: {chunk['text']}"
-                )
-
-                statistics["skipped"] += 1
-
-                continue
 
             statistics["generated"] += 1
         else:
             print(
-                f"Using cache: {chunk['text']}"
+                f"Using cache ({synthesis.provider_id}): {text}"
             )
 
             statistics["cached"] += 1

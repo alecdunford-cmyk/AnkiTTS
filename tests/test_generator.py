@@ -1,7 +1,8 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-import generator
+# The Edge retry behaviour moved from generator into providers.edge.
+from providers import edge as generator
 
 
 def check_no_audio_is_skipped():

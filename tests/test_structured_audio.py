@@ -17,7 +17,15 @@ from structured_audio import (
     create_structured_track_filename,
     process_structured_job,
 )
+from providers import registry
+from tests.provider_fakes import HookProvider
 from structured_processor import resolve_speech_plan
+
+
+# Every check synthesizes through this one fake provider; the checks set
+# HOOK.create_audio and HOOK.get_edge_provider_identity as they used to
+# set the same names on structured_audio.
+HOOK = HookProvider()
 
 
 PROVIDER_IDENTITY = {
@@ -372,7 +380,7 @@ def check_final_filename_identity():
 
 def check_repetitions_reuse_cache_and_preserve_schedule():
     original_create_audio = (
-        structured_audio.create_audio
+        HOOK.create_audio
     )
 
     original_stitch = (
@@ -380,7 +388,7 @@ def check_repetitions_reuse_cache_and_preserve_schedule():
     )
 
     original_identity = (
-        structured_audio.get_edge_provider_identity
+        HOOK.get_edge_provider_identity
     )
 
     generated = []
@@ -429,7 +437,7 @@ def check_repetitions_reuse_cache_and_preserve_schedule():
         )
 
     try:
-        structured_audio.create_audio = (
+        HOOK.create_audio = (
             fake_create_audio
         )
 
@@ -437,7 +445,7 @@ def check_repetitions_reuse_cache_and_preserve_schedule():
             fake_stitch
         )
 
-        structured_audio.get_edge_provider_identity = (
+        HOOK.get_edge_provider_identity = (
             lambda: dict(
                 PROVIDER_IDENTITY
             )
@@ -568,7 +576,7 @@ def check_repetitions_reuse_cache_and_preserve_schedule():
         )
 
     finally:
-        structured_audio.create_audio = (
+        HOOK.create_audio = (
             original_create_audio
         )
 
@@ -576,14 +584,14 @@ def check_repetitions_reuse_cache_and_preserve_schedule():
             original_stitch
         )
 
-        structured_audio.get_edge_provider_identity = (
+        HOOK.get_edge_provider_identity = (
             original_identity
         )
 
 
 def check_missing_segments_synthesize_in_bounded_parallel_order():
     original_create_audio = (
-        structured_audio.create_audio
+        HOOK.create_audio
     )
 
     original_stitch = (
@@ -591,7 +599,7 @@ def check_missing_segments_synthesize_in_bounded_parallel_order():
     )
 
     original_identity = (
-        structured_audio.get_edge_provider_identity
+        HOOK.get_edge_provider_identity
     )
 
     lock = Lock()
@@ -673,7 +681,7 @@ def check_missing_segments_synthesize_in_bounded_parallel_order():
         )
 
     try:
-        structured_audio.create_audio = (
+        HOOK.create_audio = (
             fake_create_audio
         )
 
@@ -681,7 +689,7 @@ def check_missing_segments_synthesize_in_bounded_parallel_order():
             fake_stitch
         )
 
-        structured_audio.get_edge_provider_identity = (
+        HOOK.get_edge_provider_identity = (
             lambda: dict(
                 PROVIDER_IDENTITY
             )
@@ -738,7 +746,7 @@ def check_missing_segments_synthesize_in_bounded_parallel_order():
         )
 
     finally:
-        structured_audio.create_audio = (
+        HOOK.create_audio = (
             original_create_audio
         )
 
@@ -746,18 +754,18 @@ def check_missing_segments_synthesize_in_bounded_parallel_order():
             original_stitch
         )
 
-        structured_audio.get_edge_provider_identity = (
+        HOOK.get_edge_provider_identity = (
             original_identity
         )
 
 
 def check_valid_empty_card():
     original_identity = (
-        structured_audio.get_edge_provider_identity
+        HOOK.get_edge_provider_identity
     )
 
     try:
-        structured_audio.get_edge_provider_identity = (
+        HOOK.get_edge_provider_identity = (
             lambda: dict(
                 PROVIDER_IDENTITY
             )
@@ -804,14 +812,14 @@ def check_valid_empty_card():
         )
 
     finally:
-        structured_audio.get_edge_provider_identity = (
+        HOOK.get_edge_provider_identity = (
             original_identity
         )
 
 
 def check_synthesis_failure_creates_no_final_track():
     original_create_audio = (
-        structured_audio.create_audio
+        HOOK.create_audio
     )
 
     original_stitch = (
@@ -819,7 +827,7 @@ def check_synthesis_failure_creates_no_final_track():
     )
 
     original_identity = (
-        structured_audio.get_edge_provider_identity
+        HOOK.get_edge_provider_identity
     )
 
     calls = []
@@ -862,7 +870,7 @@ def check_synthesis_failure_creates_no_final_track():
         )
 
     try:
-        structured_audio.create_audio = (
+        HOOK.create_audio = (
             fake_create_audio
         )
 
@@ -870,7 +878,7 @@ def check_synthesis_failure_creates_no_final_track():
             forbidden_stitch
         )
 
-        structured_audio.get_edge_provider_identity = (
+        HOOK.get_edge_provider_identity = (
             lambda: dict(
                 PROVIDER_IDENTITY
             )
@@ -968,7 +976,7 @@ def check_synthesis_failure_creates_no_final_track():
         )
 
     finally:
-        structured_audio.create_audio = (
+        HOOK.create_audio = (
             original_create_audio
         )
 
@@ -976,18 +984,18 @@ def check_synthesis_failure_creates_no_final_track():
             original_stitch
         )
 
-        structured_audio.get_edge_provider_identity = (
+        HOOK.get_edge_provider_identity = (
             original_identity
         )
 
 
 def check_synthesis_exception_removes_partial_cache():
     original_create_audio = (
-        structured_audio.create_audio
+        HOOK.create_audio
     )
 
     original_identity = (
-        structured_audio.get_edge_provider_identity
+        HOOK.get_edge_provider_identity
     )
 
     def failing_create_audio(
@@ -1009,11 +1017,11 @@ def check_synthesis_exception_removes_partial_cache():
         )
 
     try:
-        structured_audio.create_audio = (
+        HOOK.create_audio = (
             failing_create_audio
         )
 
-        structured_audio.get_edge_provider_identity = (
+        HOOK.get_edge_provider_identity = (
             lambda: dict(
                 PROVIDER_IDENTITY
             )
@@ -1052,18 +1060,18 @@ def check_synthesis_exception_removes_partial_cache():
         )
 
     finally:
-        structured_audio.create_audio = (
+        HOOK.create_audio = (
             original_create_audio
         )
 
-        structured_audio.get_edge_provider_identity = (
+        HOOK.get_edge_provider_identity = (
             original_identity
         )
 
 
 def check_stitch_failure_removes_pending_tracks():
     original_create_audio = (
-        structured_audio.create_audio
+        HOOK.create_audio
     )
 
     original_stitch = (
@@ -1071,7 +1079,7 @@ def check_stitch_failure_removes_pending_tracks():
     )
 
     original_identity = (
-        structured_audio.get_edge_provider_identity
+        HOOK.get_edge_provider_identity
     )
 
     def fake_create_audio(
@@ -1105,7 +1113,7 @@ def check_stitch_failure_removes_pending_tracks():
         )
 
     try:
-        structured_audio.create_audio = (
+        HOOK.create_audio = (
             fake_create_audio
         )
 
@@ -1113,7 +1121,7 @@ def check_stitch_failure_removes_pending_tracks():
             failing_stitch
         )
 
-        structured_audio.get_edge_provider_identity = (
+        HOOK.get_edge_provider_identity = (
             lambda: dict(
                 PROVIDER_IDENTITY
             )
@@ -1143,7 +1151,7 @@ def check_stitch_failure_removes_pending_tracks():
         )
 
     finally:
-        structured_audio.create_audio = (
+        HOOK.create_audio = (
             original_create_audio
         )
 
@@ -1151,14 +1159,14 @@ def check_stitch_failure_removes_pending_tracks():
             original_stitch
         )
 
-        structured_audio.get_edge_provider_identity = (
+        HOOK.get_edge_provider_identity = (
             original_identity
         )
 
 
 def check_resolution_failure_precedes_synthesis():
     original_create_audio = (
-        structured_audio.create_audio
+        HOOK.create_audio
     )
 
     called = []
@@ -1174,7 +1182,7 @@ def check_resolution_failure_precedes_synthesis():
         return True
 
     try:
-        structured_audio.create_audio = (
+        HOOK.create_audio = (
             forbidden_create_audio
         )
 
@@ -1200,7 +1208,7 @@ def check_resolution_failure_precedes_synthesis():
         assert called == []
 
     finally:
-        structured_audio.create_audio = (
+        HOOK.create_audio = (
             original_create_audio
         )
 
@@ -1554,12 +1562,22 @@ def run():
         check_orphaned_track_temporaries_are_cleaned_safely,
     ]
 
-    for check in checks:
-        print(
-            f"    {check.__name__}...",
-            end=" ",
+    registry.set_override_chain(
+        [HOOK]
+    )
+
+    try:
+        for check in checks:
+            print(
+                f"    {check.__name__}...",
+                end=" ",
+            )
+
+            check()
+
+            print("✓")
+
+    finally:
+        registry.set_override_chain(
+            None
         )
-
-        check()
-
-        print("✓")
