@@ -215,25 +215,45 @@ def run_fish():
 
 
 def run_fallback():
-    settings = settings_with_chain(
-        ["pocket", "fish", "edge"],
-        pocket={"engine_python": r"C:\does-not-exist\Scripts\python.exe"},
+    broken_pocket = {"engine_python": r"C:\does-not-exist\Scripts\python.exe"}
+    fish_ready = FISH_VOICES_FILE.exists() and bool(
+        read_user_environment("FISH_API_KEY")
     )
 
-    if FISH_VOICES_FILE.exists() and read_user_environment("FISH_API_KEY"):
+    # Case 1: Pocket broken, Fish configured (if possible) -> Fish.
+    # Case 2: Pocket broken, Fish without voice ids -> Edge.
+    cases = []
+
+    if fish_ready:
         voices = json.loads(FISH_VOICES_FILE.read_text(encoding="utf-8"))
-        settings.providers["fish"]["reference_ids"] = {
-            "fr": voices["fr"],
-            "en": voices["en"],
-        }
+        cases.append(
+            (
+                "fish",
+                {"reference_ids": {"fr": voices["fr"], "en": voices["en"]}},
+            )
+        )
+    else:
+        print("FALLBACK to fish: SKIPPED (no FISH_API_KEY or voice file)")
 
-    with tempfile.TemporaryDirectory() as directory:
-        result, wall, seconds, text = synthesize(settings, "fr", Path(directory))
-        assert result.provider_id in ("fish", "edge"), result.provider_id
-        assert result.identity["provider"] in ("fish-audio", "edge-tts")
-        report("FALLBACK", "fr", result, wall, seconds, text)
+    cases.append(("edge", {"reference_ids": {"fr": "", "en": ""}}))
 
-    registry.close_all()
+    for expected, fish_settings in cases:
+        settings = settings_with_chain(
+            ["pocket", "fish", "edge"],
+            pocket=broken_pocket,
+            fish=fish_settings,
+        )
+
+        with tempfile.TemporaryDirectory() as directory:
+            result, wall, seconds, text = synthesize(settings, "fr", Path(directory))
+            assert result.provider_id == expected, result.provider_id
+            assert result.identity["provider"] == {
+                "fish": "fish-audio",
+                "edge": "edge-tts",
+            }[expected]
+            report(f"FALLBACK->{expected}", "fr", result, wall, seconds, text)
+
+        registry.close_all()
 
 
 def main(argv):
