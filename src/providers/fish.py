@@ -18,6 +18,7 @@ from providers.base import (
     ProviderUnavailable,
 )
 from providers.secrets import read_user_environment
+from speech_text import SPEECH_TEXT_VERSION
 
 
 FISH_PROVIDER_ID = "fish-audio"
@@ -118,6 +119,7 @@ class FishProvider(Provider):
             "provider_model": self.model,
             "provider_version": FISH_API_VERSION,
             "reference_id": reference_id,
+            "speech_text_version": SPEECH_TEXT_VERSION,
         }
 
     def voices(

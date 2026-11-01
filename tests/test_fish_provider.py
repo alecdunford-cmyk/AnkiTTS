@@ -9,6 +9,7 @@ import urllib.error
 from providers.base import NoAudioProduced, ProviderError, ProviderUnavailable
 from providers.fish import FishProvider
 from settings import SpeechProfile
+from speech_text import SPEECH_TEXT_VERSION
 
 
 CONFIG = {
@@ -33,6 +34,7 @@ def check_identity_capabilities_and_health():
         "provider_model": "s2.1-pro",
         "provider_version": "v1",
         "reference_id": "fr-voice",
+        "speech_text_version": SPEECH_TEXT_VERSION,
     }
     assert provider.cache_fields("fr", PROFILE) == {
         "voice": None,

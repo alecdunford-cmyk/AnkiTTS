@@ -19,6 +19,7 @@ from providers.base import (
     ProviderUnavailable,
 )
 from providers.secrets import read_user_environment
+from speech_text import SPEECH_TEXT_VERSION
 
 
 POCKET_PROVIDER_ID = "pocket-tts"
@@ -539,6 +540,7 @@ class PocketProvider(Provider):
             "reference_sha256": file_sha256(
                 clip_path
             ),
+            "speech_text_version": SPEECH_TEXT_VERSION,
         }
 
     def voices(

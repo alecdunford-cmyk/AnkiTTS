@@ -18,6 +18,7 @@ from providers.base import (
     Provider,
     ProviderError,
 )
+from speech_text import SPEECH_TEXT_VERSION
 
 
 EDGE_PROVIDER_ID = "edge-tts"
@@ -153,7 +154,10 @@ class EdgeProvider(Provider):
         self,
         language,
     ):
-        return get_edge_provider_identity()
+        return {
+            **get_edge_provider_identity(),
+            "speech_text_version": SPEECH_TEXT_VERSION,
+        }
 
     def capabilities(self):
         return Capabilities(

@@ -22,6 +22,7 @@ from settings import (
     AppSettings,
     SpeechProfile,
 )
+from speech_text import SPEECH_TEXT_VERSION
 from tests.provider_fakes import FakeProvider
 from tests.test_structured_audio import (
     create_note,
@@ -590,8 +591,157 @@ def check_encode_applies_atempo():
         assert not list(root.glob("*.tmp"))
 
 
+def check_providers_speak_prepared_text_and_cache_uses_original():
+    with TemporaryDirectory() as directory:
+        root = Path(directory)
+        provider = FakeProvider("first")
+        cache_path_for = generic_cache_path(root, text="il/elle")
+
+        result = create_audio(
+            "il/elle",
+            "fr",
+            PROFILE,
+            cache_path_for,
+            chain=[provider],
+        )
+
+        assert provider.calls[0][0] == "il, ou elle"
+        assert result.path.read_bytes() == b"first:il, ou elle"
+
+        # The key comes from the original text plus the version in the
+        # identity, not from what was spoken.
+        fields = provider.cache_fields("fr", PROFILE)
+
+        assert result.path == cache_path_for(result.identity, fields)
+        assert result.path != generic_cache_path(root, text="il, ou elle")(
+            result.identity,
+            fields,
+        )
+
+        cached = create_audio(
+            "il/elle",
+            "fr",
+            PROFILE,
+            cache_path_for,
+            chain=[provider],
+        )
+
+        assert cached.generated is False
+        assert len(provider.calls) == 1
+
+
+def check_text_without_speakable_content_falls_back_to_the_original():
+    with TemporaryDirectory() as directory:
+        provider = FakeProvider("first")
+
+        create_audio(
+            "[m]",
+            "fr",
+            PROFILE,
+            generic_cache_path(Path(directory), text="[m]"),
+            chain=[provider],
+        )
+
+        assert provider.calls[0][0] == "[m]"
+
+
+def check_speech_text_version_is_in_every_identity():
+    edge_identity = EdgeProvider().identity("fr")
+
+    assert edge_identity["speech_text_version"] == SPEECH_TEXT_VERSION
+    assert edge_identity == dict(
+        generator.get_edge_provider_identity(),
+        speech_text_version=SPEECH_TEXT_VERSION,
+    )
+    assert "speech_text_version" not in generator.get_edge_provider_identity()
+    assert FakeProvider("x").identity("fr")["speech_text_version"] == (
+        SPEECH_TEXT_VERSION
+    )
+
+    older = dict(edge_identity, speech_text_version="0")
+
+    assert cache.get_audio_path(
+        text="faire",
+        language="fr",
+        voice="fr-FR-DeniseNeural",
+        provider_identity=edge_identity,
+    ) != cache.get_audio_path(
+        text="faire",
+        language="fr",
+        voice="fr-FR-DeniseNeural",
+        provider_identity=older,
+    )
+
+    def structured(identity):
+        extra = dict(identity)
+
+        return cache.get_structured_audio_path(
+            provider=extra.pop("provider"),
+            provider_model=extra.pop("provider_model"),
+            provider_version=extra.pop("provider_version"),
+            text="faire",
+            language="fr-FR",
+            profile_key="fr",
+            voice="fr-FR-DeniseNeural",
+            **extra,
+        )
+
+    assert structured(edge_identity) != structured(older)
+    assert structured(edge_identity) != structured(
+        generator.get_edge_provider_identity()
+    )
+
+
+def check_unusual_characters_are_logged_without_the_text():
+    import logging
+
+    records = []
+
+    class Collector(logging.Handler):
+        def emit(self, record):
+            records.append(record.getMessage())
+
+    collector = Collector(level=logging.INFO)
+    original_level = generator.logger.level
+    generator.logger.addHandler(collector)
+    generator.logger.setLevel(logging.INFO)
+
+    try:
+        with TemporaryDirectory() as directory:
+            text = "jaune/bleu → [x] vert"
+
+            create_audio(
+                text,
+                "fr",
+                PROFILE,
+                generic_cache_path(Path(directory), text=text),
+                chain=[FakeProvider("first")],
+            )
+
+    finally:
+        generator.logger.removeHandler(collector)
+        generator.logger.setLevel(original_level)
+
+    speech_records = [
+        record for record in records if record.startswith("Speech text")
+    ]
+
+    assert any(
+        "4 unusual character(s)" in record and "'/[]→'" in record
+        for record in speech_records
+    ), speech_records
+
+    for record in speech_records:
+        for word in ("jaune", "bleu", "vert"):
+            assert word not in record, record
+
+
 def run():
     checks = [
+        check_providers_speak_prepared_text_and_cache_uses_original,
+        check_text_without_speakable_content_falls_back_to_the_original,
+        check_speech_text_version_is_in_every_identity,
+        check_unusual_characters_are_logged_without_the_text,
         check_first_healthy_provider_wins,
         check_unhealthy_provider_falls_through,
         check_failing_provider_falls_through_and_cleans_up,

@@ -12,6 +12,7 @@ from providers.base import (
     Provider,
     ProviderError,
 )
+from speech_text import SPEECH_TEXT_VERSION
 
 
 def forbidden_create_audio(
@@ -45,7 +46,10 @@ class HookProvider(Provider):
         self,
         language,
     ):
-        return self.get_edge_provider_identity()
+        return dict(
+            self.get_edge_provider_identity(),
+            speech_text_version=SPEECH_TEXT_VERSION,
+        )
 
     def capabilities(self):
         return Capabilities(
@@ -117,6 +121,7 @@ class FakeProvider(Provider):
             "provider": f"{provider_id}-engine",
             "provider_model": "model-1",
             "provider_version": "1.0",
+            "speech_text_version": SPEECH_TEXT_VERSION,
         }
         self._languages = (
             None

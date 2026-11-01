@@ -497,8 +497,10 @@ def check_repetitions_reuse_cache_and_preserve_schedule():
                 generated
             ) == 1
 
+            # The provider speaks the prepared text (the slash becomes
+            # ", ou"); the cache key is made from the original text.
             assert generated[0] == {
-                "text": text,
+                "text": "faire, ou agir; (Sport)",
                 "voice": "fr-FR-DeniseNeural",
                 "rate": "+0%",
                 "volume": "+0%",

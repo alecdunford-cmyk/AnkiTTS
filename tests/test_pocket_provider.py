@@ -13,6 +13,7 @@ from providers import pocket
 from providers.base import ProviderError
 from providers.pocket import PocketProvider, engine_package_version
 from settings import SpeechProfile
+from speech_text import SPEECH_TEXT_VERSION
 
 
 TESTS_DIR = Path(__file__).resolve().parent
@@ -87,6 +88,7 @@ def check_identity_hashes_clip_and_reads_version():
             "provider_model": "pocket-tts/french",
             "provider_version": "4.0.1",
             "reference_sha256": hashlib.sha256(clip.read_bytes()).hexdigest(),
+            "speech_text_version": SPEECH_TEXT_VERSION,
         }
 
         assert provider.cache_fields("fr", PROFILE) == {

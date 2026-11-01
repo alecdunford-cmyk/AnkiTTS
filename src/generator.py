@@ -12,6 +12,10 @@ from providers.edge import (
     EDGE_PROVIDER_MODEL,
     get_edge_provider_identity,
 )
+from speech_text import (
+    describe_unusual_characters,
+    prepare_for_speech,
+)
 
 
 __all__ = [
@@ -96,6 +100,43 @@ def _is_nonempty_file(
     )
 
 
+def log_speech_text(
+    text,
+    spoken,
+    language,
+):
+    """
+    Log, per segment, how many characters fall outside letters, digits,
+    spaces and ordinary punctuation, and which characters they are, so a
+    real batch shows what else the dictionary sends. Characters only, never
+    the text.
+    """
+
+    count, characters = describe_unusual_characters(
+        text
+    )
+
+    if count:
+        logger.info(
+            "Speech text (%s): %d unusual character(s), set %r",
+            language,
+            count,
+            characters,
+        )
+
+    if spoken != text:
+        logger.info(
+            "Speech text (%s) prepared: %d -> %d characters",
+            language,
+            len(
+                text
+            ),
+            len(
+                spoken
+            ),
+        )
+
+
 def create_audio(
     text,
     language,
@@ -118,6 +159,29 @@ def create_audio(
         chain = registry.resolve_chain(
             settings
         )
+
+    # Providers speak the prepared text; the cache key (cache_path_for) is
+    # made from the original text plus the speech_text_version in every
+    # provider's identity, so the plan text stays the authority.
+    spoken = prepare_for_speech(
+        text,
+        language,
+    )
+
+    if not spoken.strip():
+        logger.warning(
+            "Speech text preparation left nothing to say in a %s "
+            "segment; speaking the original text.",
+            language,
+        )
+
+        spoken = text
+
+    log_speech_text(
+        text,
+        spoken,
+        language,
+    )
 
     attempts = []
 
@@ -202,7 +266,7 @@ def create_audio(
 
         try:
             provider.synthesize(
-                text,
+                spoken,
                 language,
                 profile,
                 audio_path,
