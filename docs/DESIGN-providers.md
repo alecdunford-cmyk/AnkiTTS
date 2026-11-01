@@ -3,6 +3,8 @@
 Status: accepted design, built in stages B–H on 2026-11-01. This document is
 the durable home of the card-and-audio rulings CA-3 onward. CA-1 and CA-2 are
 in `D:\RCE-Project-Archive\Session-Handoffs\AnkiTTS-Card-Audio-Bakeoff-Plan-20261029.md`.
+The audio-defect fixes of the same day (ruling CA-21 and CA-22 to CA-28: the
+trim margin and speech-text preparation) are in section 15.
 
 ## 1. Why
 
@@ -54,7 +56,8 @@ class Provider(ABC):
 
 - `identity(language)` returns at least `provider`, `provider_model` and
   `provider_version`, plus whatever else selects the voice: `reference_sha256`
-  (Pocket) or `reference_id` (Fish). It feeds the cache key and the track
+  (Pocket) or `reference_id` (Fish), and `speech_text_version` (every
+  provider, section 15). It feeds the cache key and the track
   filename. It must be cheap, because it is computed before every cache lookup.
   Pocket reads its version from the engine venv's `dist-info` and hashes the
   clip once per (path, size, mtime), so it never starts the worker.
@@ -147,6 +150,12 @@ generic key gains fields, so both caches refill once after this release. No
 cached file is deleted. `Clear audio cache` in the settings dialog still
 removes everything.
 
+Since the audio-defect fixes (section 15) every provider identity also carries
+`speech_text_version`, so the Edge structured key gains that one field too and
+every cache entry and track filename changes once more (one refill, accepted
+in CA-21's brief). The text in the key is always the **original** text; the
+prepared text is never keyed.
+
 ## 5. Rate, pitch and volume
 
 | | Edge | Pocket | Fish |
@@ -164,8 +173,13 @@ removes everything.
   filter is applied.
 - Volume and pitch are Edge concepts. Pocket and Fish ignore them, leave them
   out of their cache keys (CA-10) and log once per provider instance when a
-  non-default value is ignored. Loudness stays even because every segment is
-  normalised by the existing stitcher path.
+  non-default value is ignored. **Correction (2026-11-01):** an earlier
+  version of this document said loudness stays even because the stitcher
+  normalises every segment. It does not: the stitcher trims and joins only.
+  Pocket's English clone measured about 12 dB quieter than its French clone
+  (mean -36.7 against -24.9 dBFS, `docs/audio-tail-diagnosis-20261101.md`), so
+  a mixed card has a level step. Per-segment loudness normalisation is parked
+  (section 16).
 
 ## 6. Pocket TTS worker
 
@@ -237,7 +251,8 @@ The previous `generator` code moved unchanged into `src/providers/edge.py`:
 the `NoAudioReceived` retry (1, 2, 4 s), `get_edge_provider_identity()` and
 `generate_audio`. `generator.get_edge_provider_identity` stays as a
 compatibility name. Identity is `edge-tts` / `edge-neural-voices` /
-`<edge_tts version>`. It is unchanged, so the structured key shape is too.
+`<edge_tts version>`. `get_edge_provider_identity()` is unchanged; the provider's
+`identity()` adds `speech_text_version` to it (section 15).
 Health is configuration-only (always ok). Edge failures surface during
 synthesis.
 
@@ -441,10 +456,155 @@ Later rulings made during the build:
   the engine venv, the network and a paid key, and the regression suite must
   stay offline and free. *Not taken:* auto-skipping checks inside the suite.
 
-## 15. Parked
+Rulings CA-21 (Alec) and CA-22 to CA-28 (the implementing session), made while
+fixing the first real card's audio defects, are in section 15.
+
+## 15. Speech text preparation and the tail trim
+
+Alec's first real card with the Pocket voices showed three audio defects. This
+section is their fix: a trim that no longer clips the last syllable, and one
+preparation step that turns dictionary notation into words and pauses before
+any provider is called. The measurements behind the trim are in
+`docs/audio-tail-diagnosis-20261101.md`.
+
+### Ruling CA-21 (Alec, 2026-11-01), verbatim
+
+```
+Context: the provider seam is built (AnkiTTS-Providers-Design-Summary-20261101.md, HEAD f59fd90,
+145/145). Alec's first real card with the Pocket voices showed three audio defects.
+1. English (and possibly French) audio is cut off abruptly on the last syllable of a sentence or
+phrase. This is fixed on the AnkiTTS side (trim margin, tail padding, or final punctuation
+handed to the engine), whichever the diagnosis shows.
+2. A slash between alternatives in dictionary text is never spoken as a slash: before synthesis
+it becomes " or " in English and " ou " in French, by segment language, for every provider.
+3. The alternative is punctuated so the engine pauses and stresses it naturally: "X, ou Y" /
+"X, or Y" (comma before, nothing after). Segments are not split at "or"/"ou". The same
+treatment applies to a spelled-out "or"/"ou" only in short, sentence-less segments (a gloss
+list), never inside an example sentence; the clean fix (RCE marking alternatives in the
+speech plan) is parked until sem-2b closes.
+```
+
+### The cut-off ending (defect 1): diagnosis and trim
+
+Three suspects were tested on 12 invented phrases through the real Pocket
+worker (half with a final full stop, half without), keeping the worker WAV, the
+MP3 and the stitched track:
+
+| Suspect | Verdict | Evidence |
+|---|---|---|
+| (a) `trim_trailing_silence` at -45 dBFS biting the final consonant | **Real, mostly English** | Pocket's English clone speaks at a mean -36.7 dBFS, so -45 dBFS is only 9 dB below the average. The trim removed 108 ms of audible content on average (max 230 ms) from English clips, and every English track ended at -35 to -44 dBFS. French (mean -24.9 dBFS): 23 ms on average (max 40 ms). |
+| (b) the engine stopping early without terminal punctuation | Ruled out | Pocket already appends a full stop itself (`append_terminal_punctuation` defaults to true and neither language config changes it). Clips with and without a stop have the same length and tail shape. |
+| (c) atempo or the MP3 encode | Ruled out | Tempo is 1, so no filter runs. WAV and MP3 have identical length in all 12 cases. |
+
+The fix, in `stitcher.trim_trailing_silence`, used by both stitchers:
+
+- `SILENCE_THRESHOLD_DB` moves from -45 to **-60 dBFS**, which is where the
+  sound really ends (Pocket's own tail sits at -80 to -84 dBFS, an Edge clip's at
+  digital silence).
+- `TRIM_SAFETY_MARGIN_MS = 50`: after the detected end of the sound, 50 ms of
+  the original audio is kept (never more than the clip has). It covers the 10 ms
+  window granularity and the MP3 smoothing of the threshold crossing.
+- Replayed on the 12 clips: nothing audible is lost in either language, and the
+  extra silence kept is a constant 50 ms.
+
+Consequence for pauses: a segment's audio now ends up to 50 ms later than
+before, so each authoritative `pause_after` (structured path) and each
+text-derived pause (generic path) is followed by, at most, 50 ms more of decay
+or silence. RCE's pause values are unchanged and still applied exactly; the
+audible gap between two segments is up to 50 ms longer.
+
+Regression tests: `tests/test_stitcher.py`, including a fake-worker clip whose
+last 60 ms is quiet speech (about -50 dBFS) that the stitched track must keep
+(and that the old -45 dBFS rule would have removed).
+
+### `prepare_for_speech(text, language)` (defects 2 and 3)
+
+`src/speech_text.py`. Called once in `generator.create_audio` on the text handed
+to every provider, so it applies on the generic and the structured paths alike.
+`language` is the segment's profile language (`fr`, `en-US` and `FR_ca` all
+resolve to their base language). A provider receives the prepared text; the
+cache key uses the **original** text plus `speech_text_version` (below), so the
+plan text stays the authority.
+
+| # | Rule | Examples (invented) |
+|---|---|---|
+| 1 | A slash between word alternatives, spaced or not, becomes `, or ` (English) / `, ou ` (French): comma before, nothing after. Three alternatives chain. Other languages keep their slash. | `sb/sth` → `sb, or sth`; `il / elle` → `il, ou elle`; `mon/ma/mes` → `mon, ou ma, ou mes`; `le/l'` → `le, ou l'` |
+| 1a | `and/or` and `et/ou` become `and or` and `et ou` (no comma). | `tea and/or coffee` → `tea and or coffee` |
+| 1b | Not alternatives, left alone: digit/digit (`3/4`, `12/05/2026`), tokens containing `://`, two bare single letters (`m/s`, `n/a`, `A/C`), `km/h`. | |
+| 2 | In a sentence-less segment of at most 12 words (a gloss list), a bare ` or ` / ` ou ` gets a comma before it, unless a comma, `;` or `:` already precedes it (or the word before it is `and`/`et`). A segment with a sentence end anywhere in it, or longer than 12 words, is left alone. Segments are never split. | `rouge ou bleu` → `rouge, ou bleu`; `Veux-tu du thé ou du café ?` unchanged |
+| 3 | No terminal full stop is added: the engine does it (diagnosis, suspect b). | |
+| 4 | `→` and `=` become a comma (a short pause); `≈` is dropped; bracketed `[...]` and `{...}` labels are dropped. Parentheses are kept. Any language. | `chat → cat` → `chat, cat`; `run [verb] fast` → `run fast`; `faire (x) = agir` → `faire (x), agir` |
+
+Doubled punctuation left by these rewrites is collapsed (`A, → B` → `A, B`;
+`a →. b` → `a. b`), leading commas are stripped, and whitespace is normalised,
+only when a rule changed the text; untouched text is returned as it is. The
+function is idempotent.
+
+If preparation leaves nothing speakable (a segment that is only a bracketed
+label), the original text is spoken and a warning is logged (CA-26).
+
+### Cache identity: `speech_text_version`
+
+`speech_text.SPEECH_TEXT_VERSION` (currently `"1"`) is a field of the identity
+of **every** provider (`EdgeProvider`, `PocketProvider`, `FishProvider`). Bump
+it whenever a rule changes what is spoken. Because the identity feeds the
+generic key, the structured key and the structured track filename, everything
+refills once after this release. Regenerating a card after the change is
+enough to pick up the new audio; no cache needs to be cleared by hand.
+
+### Logging
+
+Per `create_audio` call (each segment, cached or not), if the **original** text
+holds characters outside letters, digits, spaces and ordinary punctuation
+(`. , ; : ! ? ' " ( ) - – — …`, curly quotes, `« »`, and CJK punctuation), the
+log has one line with their count and the set of those characters, never the
+text. A second line gives the length before and after preparation when the text
+changed. The next real batch therefore shows what else the dictionary sends.
+Slashes and the symbols rule 4 handles count too, so the log also shows how
+often each is hit.
+
+### Rulings made while fixing the defects (the implementing session)
+
+Option taken, then option not taken.
+
+- **CA-22 Trim at -60 dBFS with a 50 ms margin.** *Not taken:* the managing
+  chat's likely margin-only fix (keep -45 dBFS, add 80-150 ms). On the data that
+  would still cut up to 80 ms of English at +150 ms, and it needs +250 ms to
+  lose nothing, adding 100 to 240 ms of dead air to every clip and to every
+  authoritative pause. Also: the brief assumed Pocket's WAV ends with almost no
+  silence; it ends with 110 to 530 ms.
+- **CA-23 No terminal full stop is added.** *Not taken:* appending `.` in
+  AnkiTTS. Pocket already does it, and the data shows no early stop.
+- **CA-24 Slash rewriting is limited to real alternatives** (rows 1a and 1b
+  above), and only for `en` and `fr`. *Not taken:* rewriting every slash,
+  which would turn `3/4` into `3, or 4` and break dates and units.
+- **CA-25 The gloss rule is stricter than "no terminal punctuation":** a
+  sentence end anywhere inside the segment also disables it, and it never puts a
+  comma after `;` / `:` or inside `and or` / `et ou`. *Not taken:* checking only
+  the end of the segment, which would comma an `or` in `Il est parti. Elle ou lui`.
+- **CA-26 Nothing speakable falls back to the original text** with a warning.
+  *Not taken:* skipping the segment, which on the structured path aborts the
+  whole card for a label-only segment.
+- **CA-27 `speech_text_version` lives in each provider's `identity()`**, not
+  added centrally in `create_audio`. `get_edge_provider_identity()` stays the
+  engine-level identity (edge-tts version). A future provider must add the
+  field itself. *Not taken:* injecting it centrally in `create_audio`, which
+  would cover a forgetful new provider but leave `identity()` short of the full
+  record of what produced a file.
+- **CA-28 The unusual-character log** counts on the original text, per
+  `create_audio` call, and only when the count is above zero. *Not taken:* a
+  zero-count line per segment, which would fill the rotating log with noise.
+
+## 16. Parked
 
 - **Qwen3-TTS** (0.6B / 1.7B). Trigger: "if Pocket's French ever disappoints
   on real cards" (CA-3 part 2). It would be a fourth provider behind the same
   interface, in its own venv.
 - **`Playback Plan`** is still required on RCE notes and still not consumed
   (inventory). It is unchanged here.
+- **RCE marks alternatives in the speech plan** (trigger: sem-2b closed). The
+  clean fix for defects 2 and 3: RCE would say which words are alternatives
+  and the slash and bare-`or` heuristics in `speech_text.py` could go.
+- **Per-segment loudness normalisation.** Trigger: Alec hears the level step
+  between English and French segments in one track (about 12 dB between the two
+  Pocket clones). Not built; section 5 no longer claims it exists.

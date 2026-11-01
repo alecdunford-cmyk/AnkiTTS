@@ -32,6 +32,25 @@ in a tagged release.
   on load, so older configurations migrate without edits. The Settings dialog
   has a minimal Providers tab.
 
+### Audio defects (2026-11-01)
+
+- **Cut-off endings fixed.** The stitcher trimmed trailing silence at
+  -45 dBFS, only 9 dB under the average level of Pocket's English voice, and
+  clipped the last syllable. It now trims at -60 dBFS and keeps a 50 ms margin
+  (`docs/audio-tail-diagnosis-20261101.md`). Pauses between segments can be up
+  to 50 ms longer than before.
+- **Speech text preparation** (`src/speech_text.py`), applied to the text every
+  provider receives: a slash between alternatives is spoken as ", or" (English)
+  or ", ou" (French); a bare "or"/"ou" in a short sentence-less gloss gets a
+  comma; "→" and "=" become a pause, "≈" and bracketed `[...]` / `{...}` labels
+  are dropped. Example sentences are left alone.
+- **Cache:** every provider identity now carries `speech_text_version`, so
+  cached audio and published track names change once. The key is made from the
+  original text, never the prepared text.
+- **Log:** per segment, a count of unusual characters and their set (never the
+  text).
+- Design and rulings CA-21 to CA-28: `docs/DESIGN-providers.md`, section 15.
+
 ### Repairs (2026-11-01)
 
 - edge-tts 7.2.8 → **7.3.1**. 7.2.8 failed the Edge handshake with HTTP 403.
