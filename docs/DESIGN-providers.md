@@ -530,22 +530,28 @@ plan text stays the authority.
 |---|---|---|
 | 1 | A slash between word alternatives, spaced or not, becomes `, or ` (English) / `, ou ` (French): comma before, nothing after. Three alternatives chain. Other languages keep their slash. | `sb/sth` → `sb, or sth`; `il / elle` → `il, ou elle`; `mon/ma/mes` → `mon, ou ma, ou mes`; `le/l'` → `le, ou l'` |
 | 1a | `and/or` and `et/ou` become `and or` and `et ou` (no comma). | `tea and/or coffee` → `tea and or coffee` |
-| 1b | Not alternatives, left alone: digit/digit (`3/4`, `12/05/2026`), tokens containing `://`, two bare single letters (`m/s`, `n/a`, `A/C`), `km/h`. | |
+| 1b | Not alternatives, left alone: digit/digit (`3/4`, `12/05/2026`), tokens containing `://`, two bare single letters (`n/a`, `A/C`). `km/h` and `m/s` are units (rule 7). | |
 | 2 | In a sentence-less segment of at most 12 words (a gloss list), a bare ` or ` / ` ou ` gets a comma before it, unless a comma, `;` or `:` already precedes it (or the word before it is `and`/`et`). A segment with a sentence end anywhere in it, or longer than 12 words, is left alone. Segments are never split. | `rouge ou bleu` → `rouge, ou bleu`; `Veux-tu du thé ou du café ?` unchanged |
 | 3 | No terminal full stop is added: the engine does it (diagnosis, suspect b). | |
-| 4 | `→` and `=` become a comma (a short pause); `≈` is dropped; bracketed `[...]` and `{...}` labels are dropped. Parentheses are kept. Any language. | `chat → cat` → `chat, cat`; `run [verb] fast` → `run fast`; `faire (x) = agir` → `faire (x), agir` |
+| 4 | `→` becomes a comma (a short pause) and `≈` is dropped, in any language. Bracketed `[...]` and `{...}` labels are **spoken**, set off by commas (CA-29). Parentheses are kept. | `chat → cat` → `chat, cat`; `run [verb] fast` → `run, verb, fast`; `[quelqu'un]` → `quelqu'un` |
+| 5 | `=` and a `+` between words or numbers are spoken between two pauses, English and French only: `, equals, ` / `, égale, ` and `, plus, `. `×` and a spaced `x` between numbers are `times` / `fois` (no pauses). A leading sign (`+5`) is `plus 5`. `C++` and `B+` are left alone. In other languages `=` stays a plain comma and `+` is untouched (CA-29). | `de + le = du` → `de, plus, le, égale, du`; `2 x 3` → `deux fois trois` |
+| 6 | Currency signs `€ $ £ ¥` before or after a number become the currency word, singular for 1; `€20/month` gives `20 euros per month` (`par` in French). English and French. | `€20` → `20 euros`; `2,50 €` → `deux virgule cinquante euros` |
+| 7 | Unit abbreviations after a number become words, singular or plural by the number (English: anything but 1 is plural; French: 2 and above). Unambiguous units also expand with no number (`km`, `cm`, `mm`, `kg`, `mg`, `ml`, `cl`, `dl`, `kW`, `Hz`, ...), in the plural. Ambiguous single letters (`m g l s h`) need a number. `s` and `ms` need a space after the number (`the 1990s` is a decade). `m²` / `m2` / `m 2` after a number is square metres and `m³` cubic (CA-30). `%` is `percent` / `pour cent`; `°C`, `°F` and `°` are degrees. `km/h` and `m/s` are `per hour` / `per second` (`par heure`, `par seconde`). | `20 km` → `20 kilometers`; `6 m 2` → `six mètres carrés`; `14 h 30` → `quatorze heures trente`; `20 °C` → `vingt degrés Celsius` |
+| 8 | French only: numerals are spelled out (up to 10^12; the cardinal is masculine, so `1 pièce` is `un pièce`). A decimal comma reads `virgule`; a space-separated group of three digits is a thousands group (`1 000` is `mille`). Leading zeros (`007`), codes (`H2O`, `A4`, `3D`) and anything over 10^12 are left as written. English numerals are left to the engine. | `1998` → `mille neuf cent quatre-vingt-dix-huit` |
+| 9 | French ordinals: `20e`, `20 e`, `20ème`, `1er`, `1re`, `1ère` are spoken as ordinals (`vingtième`, `premier`, `première`; `21e` is `vingt et unième`). A Roman numeral with an ordinal suffix is only trusted before `siècle`, `millénaire`, `arrondissement`, `dynastie`, `république` or `empire` (`XXe siècle`); `Vie` and `Cie` are words. English ordinals are left to the engine. | `du 20 e siècle` → `du vingtième siècle` |
+| 10 | A lone letter (English and French) is spoken by its name: `h` is `ache` / `aitch`. Not spelled: the letters that are words (`a i` English; `a y o` French), a letter touching an apostrophe, hyphen, slash or `+` (`d'`, `T-shirt`, `C++`), `e.g.`, `p. 3`, and `(s)` / `(e)` after a word. `a)`, `b)` and `(c)` are section letters and are always spoken (including `a`, `i`), followed by a comma. | `un h muet` → `un ache muet`; `b) le chien` → `bé, le chien` |
 
 Doubled punctuation left by these rewrites is collapsed (`A, → B` → `A, B`;
 `a →. b` → `a. b`), leading commas are stripped, and whitespace is normalised,
 only when a rule changed the text; untouched text is returned as it is. The
 function is idempotent.
 
-If preparation leaves nothing speakable (a segment that is only a bracketed
-label), the original text is spoken and a warning is logged (CA-26).
+If preparation leaves nothing speakable (a segment that is only `≈`, an arrow or
+a comma), the original text is spoken and a warning is logged (CA-26).
 
 ### Cache identity: `speech_text_version`
 
-`speech_text.SPEECH_TEXT_VERSION` (currently `"1"`) is a field of the identity
+`speech_text.SPEECH_TEXT_VERSION` (currently `"2"`; rules 5 to 10 and the spoken labels came with version 2) is a field of the identity
 of **every** provider (`EdgeProvider`, `PocketProvider`, `FishProvider`). Bump
 it whenever a rule changes what is spoken. Because the identity feeds the
 generic key, the structured key and the structured track filename, everything
@@ -584,7 +590,7 @@ Option taken, then option not taken.
   the end of the segment, which would comma an `or` in `Il est parti. Elle ou lui`.
 - **CA-26 Nothing speakable falls back to the original text** with a warning.
   *Not taken:* skipping the segment, which on the structured path aborts the
-  whole card for a label-only segment.
+  whole card for a segment of only symbols.
 - **CA-27 `speech_text_version` lives in each provider's `identity()`**, not
   added centrally in `create_audio`. `get_edge_provider_identity()` stays the
   engine-level identity (edge-tts version). A future provider must add the
@@ -594,6 +600,45 @@ Option taken, then option not taken.
 - **CA-28 The unusual-character log** counts on the original text, per
   `create_audio` call, and only when the count is above zero. *Not taken:* a
   zero-count line per segment, which would fill the rotating log with noise.
+
+### Rulings made while extending the rules (the implementing session, same day)
+
+Alec listened to the first corrected card and reported: `€20` read as `twenty`
+with a cut-off ending; `km` and `cm` read oddly; `h` and `=` not spoken and no
+pauses at `+` and `=`; `20 e` and `6 m 2` garbled; `[quelqu'un]` not spoken;
+numbers, symbols and unit abbreviations garbled in French as well. He also
+asked for a different voice on notes, headings and labels, and for section
+numbers and letters to be spoken. Rules 4 to 10 are the answer to the first
+group; the voice question is parked (section 16).
+
+- **CA-29 Bracketed labels are spoken, and `=` and `+` are words.** This
+  supersedes CA-21's implied drop of `[...]` labels and the plain-comma `=`.
+  Labels are read between commas so they sound set apart; `=` is `equals` /
+  `égale`, `+` is `plus`, each with a pause either side. *Not taken:* a pause
+  without a word (the original rule), which is what Alec heard and could not
+  follow.
+- **CA-30 `m²`, `m2` and `m 2` after a number are square metres** (`mètres
+  carrés`), cubic for `3`. Alec's note said `6 m 2` "should read as 6 mètres 2";
+  the only reading of that notation that is correct French is `six mètres
+  carrés`, so that is what is spoken. *Not taken:* the literal `six mètres
+  deux`. Risk: `5 m 2 fois` would also be read as an area. Overrule here if
+  the literal reading is wanted.
+- **CA-31 French numerals are spelled by AnkiTTS, with no new dependency.** A
+  small cardinal/ordinal converter lives in `speech_text.py` (masculine forms,
+  classic hyphenation, `quatre-vingts` only when nothing follows). *Not taken:*
+  `num2words`, which would be one more package in the vendored libs for a few
+  dozen lines of rules. English numerals are left to the engine: the English
+  voice reads digits correctly and only the sign, unit or ordinal was wrong.
+- **CA-32 Ambiguity is resolved toward leaving text alone.** Roman numerals
+  only before an ordinal noun; `s` / `ms` only after a space; `m g l h` only
+  after a number; lone letters that are words are not spelled; numbers that
+  look like codes or exceed 10^12 are untouched. Known gaps: a run of
+  three-digit groups (`99 100 101`) reads as one thousands-grouped number and is
+  then left as written; dates (`20/03/2024`) and ranges (`10-20`) are not
+  rewritten; `1 pièce` takes the masculine `un`.
+- **CA-33 Section letters `a)` / `(b)` are always spoken**, with a trailing
+  comma, so a listener hears where a section starts. Whether a heading or
+  section marker is in the segment text at all is RCE's decision (below).
 
 ## 16. Parked
 
@@ -608,3 +653,26 @@ Option taken, then option not taken.
 - **Per-segment loudness normalisation.** Trigger: Alec hears the level step
   between English and French segments in one track (about 12 dB between the two
   Pocket clones). Not built; section 5 no longer claims it exists.
+- **A different voice for notes, headings and labels, and spoken section
+  numbers** (Alec, 2026-11-01). Not built, because both halves need RCE:
+  - *Who speaks what* is RCE's content. The speech plan already carries
+    `voiceProfileId` per segment, and AnkiTTS already resolves a direct
+    profile key or a logical alias to a profile. So RCE would emit, for
+    heading/note/label segments, a profile id such as `french-heading` /
+    `english-heading`, and AnkiTTS would add those aliases and profiles.
+  - *Today the voice is per language, not per profile.* Pocket chooses its
+    reference clip from `reference_clips[language]`, and
+    `provider.identity(language)` and the cache key know nothing of the
+    profile. A second voice per language therefore needs a profile-aware
+    identity on all three providers (a cache-key change, like
+    `speech_text_version`), a `reference_clips` entry per profile with the
+    language clip as fallback, and a Settings field for it.
+  - *Section numbers and letters* are only spoken if they are in the segment
+    text. If RCE sends `b)` or `2.` inside the text, rule 10 and the French
+    numerals speak them. If it sends them as markup or metadata, RCE would
+    have to put them in the text or in their own segment.
+  - Trigger: RCE confirms which segments are headings/notes and which profile
+    ids it will send (with sem-2b, alongside "RCE marks alternatives").
+  - A short wording for RCE: "For heading, note and label segments, set
+    `voiceProfileId` to `<language>-heading`; include the section marker (`a)`,
+    `2.`) in the segment text."

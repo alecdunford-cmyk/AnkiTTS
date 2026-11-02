@@ -42,14 +42,32 @@ in a tagged release.
 - **Speech text preparation** (`src/speech_text.py`), applied to the text every
   provider receives: a slash between alternatives is spoken as ", or" (English)
   or ", ou" (French); a bare "or"/"ou" in a short sentence-less gloss gets a
-  comma; "→" and "=" become a pause, "≈" and bracketed `[...]` / `{...}` labels
-  are dropped. Example sentences are left alone.
+  comma; "→" becomes a pause and "≈" is dropped (the first version also
+  dropped `[...]` labels and made "=" a pause; see "round 2" below).
+  Example sentences are left alone.
 - **Cache:** every provider identity now carries `speech_text_version`, so
   cached audio and published track names change once. The key is made from the
   original text, never the prepared text.
 - **Log:** per segment, a count of unusual characters and their set (never the
   text).
 - Design and rulings CA-21 to CA-28: `docs/DESIGN-providers.md`, section 15.
+
+### Speech text, round 2 (2026-11-01)
+
+From listening to the first corrected card (`speech_text_version` 2, rules and
+rulings CA-29 to CA-33 in `docs/DESIGN-providers.md`, section 15):
+
+- **Spoken, no longer dropped or garbled:** currency signs (`€20` is "20
+  euros"), unit abbreviations in English and French (`km`, `cm`, `m²`, `km/h`,
+  `°C`, `%`, `h`, `min`, ...), bracketed `[...]` labels, `=` ("equals" /
+  "égale") and `+` ("plus"), each between two pauses, `×`, and lone letters
+  such as `h` ("ache" / "aitch"). Section letters `a)` and `(b)` are spoken.
+- **French numerals** are spelled out ("1 250" is "mille deux cent
+  cinquante") and **French ordinals** are spoken ("20 e siècle", "XXe siècle"
+  is "vingtième siècle"; "1er" is "premier").
+- `[...]` labels, previously dropped, are now spoken (supersedes part of CA-21).
+- Parked: a different voice for headings/notes and spoken section numbers
+  (needs RCE to mark segments and a profile-aware provider identity).
 
 ### Repairs (2026-11-01)
 

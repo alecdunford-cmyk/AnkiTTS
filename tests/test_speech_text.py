@@ -50,11 +50,9 @@ def check_slash_that_is_not_an_alternative_is_left_alone():
         "3/4 full",
         "on 12/05/2026",
         "see http://example.invalid/page",
-        "60 km/h",
-        "10 m/s",
         "n/a",
         "A/C",
-        "a // b",
+        "see // there",
     ):
         assert prepare_for_speech(text, "en") == text, text
 
@@ -109,19 +107,19 @@ def check_or_is_not_touched_in_long_segments():
     twelve = "one two three four five six seven eight nine ten eleven or"
     thirteen_before = "one two three four five six seven eight nine ten eleven twelve or last"
 
-    assert len(f"{twelve} x".split()) == 13
+    assert len(f"{twelve} xylophone".split()) == 13
 
     assert prepare_for_speech(
-        "one two three four five six seven eight nine ten eleven or x", "en"
-    ) == "one two three four five six seven eight nine ten eleven or x"
+        "one two three four five six seven eight nine ten eleven or xylophone", "en"
+    ) == "one two three four five six seven eight nine ten eleven or xylophone"
     assert prepare_for_speech(thirteen_before, "en") == thirteen_before
 
     # Exactly twelve words is still a gloss.
     assert (
-        prepare_for_speech("a b c d e f g h i j or k", "en")
-        == "a b c d e f g h i j, or k"
+        prepare_for_speech("aa bb cc dd ee ff gg hh ii jj or kk", "en")
+        == "aa bb cc dd ee ff gg hh ii jj, or kk"
     )
-    assert len("a b c d e f g h i j or k".split()) == 12
+    assert len("aa bb cc dd ee ff gg hh ii jj or kk".split()) == 12
 
 
 def check_slash_is_rewritten_even_in_a_sentence():
@@ -136,50 +134,288 @@ def check_slash_is_rewritten_even_in_a_sentence():
     )
 
 
-def check_symbols_become_pauses_or_are_dropped():
+def check_arrows_become_pauses_and_approx_is_dropped():
     for text, expected in (
         ("chat → cat", "chat, cat"),
         ("chat→cat", "chat, cat"),
-        ("a = b", "a, b"),
         ("quick ≈ fast", "quick fast"),
         ("quick≈fast", "quick fast"),
-        ("run [verb] fast", "run fast"),
-        ("run {noun} fast", "run fast"),
-        ("[verb] run", "run"),
-        ("run [verb]", "run"),
-        ("run (informal) fast", "run (informal) fast"),
-        ("run [a] and {b} fast", "run and fast"),
     ):
         assert prepare_for_speech(text, "en") == expected, text
 
-    # Symbols are language independent.
+    # Arrows are language independent.
     assert prepare_for_speech("これ → それ", "ja") == "これ, それ"
-    assert prepare_for_speech("chat → [m] cat", "fr") == "chat, cat"
+
+
+def check_equals_and_plus_are_spoken_between_pauses():
+    for text, language, expected in (
+        ("cat = dog", "en", "cat, equals, dog"),
+        ("cat=dog", "en", "cat, equals, dog"),
+        ("old + new", "en", "old, plus, new"),
+        ("chat = félin", "fr", "chat, égale, félin"),
+        ("de + le = du", "fr", "de, plus, le, égale, du"),
+        ("2+2 = 4", "en", "2, plus, 2, equals, 4"),
+        ("+5 degrees", "en", "plus 5 degrees"),
+    ):
+        assert prepare_for_speech(text, language) == expected, text
+
+    # Other languages keep "=" as a plain pause and leave "+" alone.
+    assert prepare_for_speech("これ = それ", "ja") == "これ, それ"
+    assert prepare_for_speech("これ + それ", "ja") == "これ + それ"
+
+
+def check_plus_that_is_not_an_operator_is_left_alone():
+    assert prepare_for_speech("C++ code", "en") == "C++ code"
+    assert prepare_for_speech("a B+ grade", "en") == "a B+ grade"
+    assert prepare_for_speech("C++ code", "fr") == "C++ code"
+
+
+def check_a_grammar_rule_line_is_readable():
+    # Invented analogue of a dictionary note on elision and contraction.
+    assert prepare_for_speech(
+        "Devant une voyelle ou un h muet = l' ; de + le = du ; à + les = aux.",
+        "fr",
+    ) == (
+        "Devant une voyelle ou un ache muet, égale, l' ; de, plus, le, égale, "
+        "du ; à, plus, les, égale, aux."
+    )
+
+
+def check_bracketed_labels_are_spoken():
+    for text, language, expected in (
+        ("run [verb] fast", "en", "run, verb, fast"),
+        ("run {noun} fast", "en", "run, noun, fast"),
+        ("[verb] run", "en", "verb, run"),
+        ("run [verb]", "en", "run, verb"),
+        ("[quelqu'un]", "fr", "quelqu'un"),
+        ("voir [quelqu'un] partir", "fr", "voir, quelqu'un, partir"),
+        ("sparkle → shine [verb] ≈ glitter", "en", "sparkle, shine, verb, glitter"),
+        ("run (informal) fast", "en", "run (informal) fast"),
+    ):
+        assert prepare_for_speech(text, language) == expected, text
 
 
 def check_parentheses_are_kept():
     assert (
         prepare_for_speech("faire (quelque chose) = agir", "fr")
-        == "faire (quelque chose), agir"
+        == "faire (quelque chose), égale, agir"
     )
 
 
 def check_doubled_punctuation_is_collapsed():
     for text, expected in (
-        ("A, → B", "A, B"),
-        ("A → , B", "A, B"),
-        ("A; → B", "A; B"),
-        ("A → → B", "A, B"),
-        ("A = = B", "A, B"),
-        ("a →. b", "a. b"),
-        ("→ B", "B"),
-        ("= B", "B"),
-        ("A →", "A,"),
+        ("cat, → dog", "cat, dog"),
+        ("cat → , dog", "cat, dog"),
+        ("cat; → dog", "cat; dog"),
+        ("cat → → dog", "cat, dog"),
+        ("cat →. dog", "cat. dog"),
+        ("→ dog", "dog"),
+        ("= dog", "equals, dog"),
+        ("cat →", "cat"),
+        ("cat = ", "cat, equals"),
     ):
         assert prepare_for_speech(text, "en") == expected, text
 
     # An alternative next to existing punctuation never doubles the comma.
     assert prepare_for_speech("il/elle → on", "fr") == "il, ou elle, on"
+
+
+def check_currency_signs_are_spoken():
+    for text, language, expected in (
+        ("It costs €20", "en", "It costs 20 euros"),
+        ("It costs 20€", "en", "It costs 20 euros"),
+        ("It costs € 20", "en", "It costs 20 euros"),
+        ("a €1 coin", "en", "a 1 euro coin"),
+        ("$2.50/day", "en", "2.50 dollars per day"),
+        ("£5", "en", "5 pounds"),
+        ("Ça coûte 20 €", "fr", "Ça coûte vingt euros"),
+        ("Ça coûte €20", "fr", "Ça coûte vingt euros"),
+        ("1 €", "fr", "un euro"),
+        ("2,50 €", "fr", "deux virgule cinquante euros"),
+        ("12 €/mois", "fr", "douze euros par mois"),
+        ("£5", "fr", "cinq livres sterling"),
+    ):
+        assert prepare_for_speech(text, language) == expected, text
+
+
+def check_unit_abbreviations_are_spoken_in_english():
+    for text, expected in (
+        ("5 km and 3 cm", "5 kilometers and 3 centimeters"),
+        ("1 km", "1 kilometer"),
+        ("20km", "20 kilometers"),
+        ("0.5 kg", "0.5 kilograms"),
+        ("250 ml", "250 milliliters"),
+        ("a 60 km/h limit", "a 60 kilometers per hour limit"),
+        ("10 m/s", "10 meters per second"),
+        ("a 6 m 2 room", "a 6 square meters room"),
+        ("a 6 m² room", "a 6 square meters room"),
+        ("3 h 15 min", "3 hours 15 minutes"),
+        ("wait 5 s", "wait 5 seconds"),
+        ("50 %", "50 percent"),
+        ("20 °C and 5°F", "20 degrees Celsius and 5 degrees Fahrenheit"),
+        ("1 °C", "1 degree Celsius"),
+    ):
+        assert prepare_for_speech(text, "en") == expected, text
+
+
+def check_unit_abbreviations_are_spoken_in_french():
+    for text, expected in (
+        ("5 km et 3 cm", "cinq kilomètres et trois centimètres"),
+        ("1 km", "un kilomètre"),
+        ("1,5 kg", "un virgule cinq kilogramme"),
+        ("0,05 l", "zéro virgule zéro cinq litre"),
+        ("une pièce de 6 m 2", "une pièce de six mètres carrés"),
+        ("12 m²", "douze mètres carrés"),
+        ("2 m3", "deux mètres cubes"),
+        ("14 h 30", "quatorze heures trente"),
+        ("90 km/h", "quatre-vingt-dix kilomètres par heure"),
+        ("20 °C", "vingt degrés Celsius"),
+        ("50 %", "cinquante pour cent"),
+        ("1 000 km", "mille kilomètres"),
+    ):
+        assert prepare_for_speech(text, "fr") == expected, text
+
+
+def check_bare_unambiguous_units_are_spoken_but_single_letters_are_not():
+    assert prepare_for_speech("km", "en") == "kilometers"
+    assert prepare_for_speech("cm", "en") == "centimeters"
+    assert prepare_for_speech("km", "fr") == "kilomètres"
+    assert prepare_for_speech("cm", "fr") == "centimètres"
+    assert prepare_for_speech("km, cm, mm", "en") == (
+        "kilometers, centimeters, millimeters"
+    )
+
+    # Without a number a lone m, g, l, s or h is a letter, not a unit.
+    assert prepare_for_speech("the letter m", "en") == "the letter em"
+    assert prepare_for_speech("un g muet", "fr") == "un gé muet"
+
+
+def check_units_are_not_invented_in_other_words():
+    for text, language in (
+        ("the 1990s", "en"),
+        ("in her 20s", "en"),
+        ("5 minutes", "en"),
+        ("Ce soir", "fr"),
+        ("H2O", "en"),
+    ):
+        assert prepare_for_speech(text, language) == text, text
+
+    # Whole words after a number: only the number is spelled (French).
+    assert prepare_for_speech("3 mois", "fr") == "trois mois"
+    assert prepare_for_speech("2 heures", "fr") == "deux heures"
+    assert prepare_for_speech("le 5 mars", "fr") == "le cinq mars"
+
+
+def check_french_numbers_are_spelled_out():
+    for text, expected in (
+        ("0", "zéro"),
+        ("7", "sept"),
+        ("16", "seize"),
+        ("21", "vingt et un"),
+        ("22", "vingt-deux"),
+        ("71", "soixante et onze"),
+        ("72", "soixante-douze"),
+        ("80", "quatre-vingts"),
+        ("81", "quatre-vingt-un"),
+        ("91", "quatre-vingt-onze"),
+        ("99", "quatre-vingt-dix-neuf"),
+        ("100", "cent"),
+        ("101", "cent un"),
+        ("200", "deux cents"),
+        ("280", "deux cent quatre-vingts"),
+        ("1000", "mille"),
+        ("1998", "mille neuf cent quatre-vingt-dix-huit"),
+        ("2024", "deux mille vingt-quatre"),
+        ("80 000", "quatre-vingt mille"),
+        ("200 000", "deux cent mille"),
+        ("1 000 000", "un million"),
+        ("3,5", "trois virgule cinq"),
+        ("0,05", "zéro virgule zéro cinq"),
+    ):
+        assert prepare_for_speech(text, "fr") == expected, text
+
+    # English numerals are left to the engine.
+    assert prepare_for_speech("1998 and 21", "en") == "1998 and 21"
+
+    # Codes, leading zeros and digits glued to letters are not numerals.
+    for text in ("007", "H2O", "A4", "3D"):
+        assert prepare_for_speech(text, "fr") == text, text
+
+
+def check_french_ordinals_are_spoken():
+    for text, expected in (
+        ("les romanciers du 20e siècle", "les romanciers du vingtième siècle"),
+        ("les romanciers du 20 e siècle", "les romanciers du vingtième siècle"),
+        ("le 20ème siècle", "le vingtième siècle"),
+        ("le 1er mai", "le premier mai"),
+        ("la 1re fois", "la première fois"),
+        ("la 1ère fois", "la première fois"),
+        ("2e, 3e, 4e, 5e", "deuxième, troisième, quatrième, cinquième"),
+        ("9e et 11e", "neuvième et onzième"),
+        ("21e", "vingt et unième"),
+        ("80e", "quatre-vingtième"),
+        ("100e", "centième"),
+        ("au XXe siècle", "au vingtième siècle"),
+        ("le XIXe siècle", "le dix-neuvième siècle"),
+        ("le Ier siècle", "le premier siècle"),
+    ):
+        assert prepare_for_speech(text, "fr") == expected, text
+
+    # French words that look like Roman numerals stay words.
+    for text in ("la Vie est belle", "la Cie du Nord", "Le chat", "Mixe"):
+        assert prepare_for_speech(text, "fr") == text, text
+
+
+def check_lone_letters_are_spelled():
+    for text, language, expected in (
+        ("un h muet", "fr", "un ache muet"),
+        ("vitamine C", "fr", "vitamine cé"),
+        ("la lettre w", "fr", "la lettre double vé"),
+        ("plan B", "en", "plan bee"),
+        ("the letter h", "en", "the letter aitch"),
+        ("Option B.", "en", "Option bee."),
+    ):
+        assert prepare_for_speech(text, language) == expected, text
+
+    # Letters that are words stay words; elisions and abbreviations stay.
+    for text, language in (
+        ("il a dit y", "fr"),
+        ("A paper lantern", "en"),
+        ("I think so", "en"),
+        ("c'est d' abord", "fr"),
+        ("a-t-il fini", "fr"),
+        ("T-shirt", "en"),
+        ("e.g. this", "en"),
+        ("see p. 3", "en"),
+        ("C++ code", "en"),
+    ):
+        assert prepare_for_speech(text, language) == text, text
+
+
+def check_section_letters_are_spoken_with_a_pause():
+    for text, language, expected in (
+        ("a) le chat", "fr", "a, le chat"),
+        ("b) le chien", "fr", "bé, le chien"),
+        ("(c) le chien", "fr", "cé, le chien"),
+        ("y) le chien", "fr", "i grec, le chien"),
+        ("a) the cat", "en", "ay, the cat"),
+        ("(b) the dog", "en", "bee, the dog"),
+        ("I) the end", "en", "eye, the end"),
+    ):
+        assert prepare_for_speech(text, language) == expected, text
+
+    # A plural or feminine marker is not a section letter.
+    for text, language in (
+        ("friend(s)", "en"),
+        ("ami(e)", "fr"),
+    ):
+        assert prepare_for_speech(text, language) == text, text
+
+
+def check_multiplication_sign():
+    assert prepare_for_speech("2 x 3", "fr") == "deux fois trois"
+    assert prepare_for_speech("2 × 3", "en") == "2 times 3"
+    assert prepare_for_speech("an x ray", "en") == "an ex ray"
 
 
 def check_nothing_else_is_changed():
@@ -214,8 +450,12 @@ def check_preparation_is_idempotent():
         ("il/elle ou on", "fr"),
         ("to hold sb/sth or sth else", "en"),
         ("chat → [m] cat ≈ tiger", "en"),
-        ("A, → B = C", "en"),
+        ("cat, → dog = bird", "en"),
         ("Do you want tea or coffee?", "en"),
+        ("It costs €20 for 5 km", "en"),
+        ("Ça coûte 20 € pour 5 km au 20e siècle", "fr"),
+        ("un h muet = d' ; de + le = du", "fr"),
+        ("une pièce de 6 m 2 et 3,5 kg", "fr"),
     ):
         once = prepare_for_speech(text, language)
 
@@ -266,7 +506,21 @@ def run():
         check_or_is_not_touched_in_example_sentences,
         check_or_is_not_touched_in_long_segments,
         check_slash_is_rewritten_even_in_a_sentence,
-        check_symbols_become_pauses_or_are_dropped,
+        check_arrows_become_pauses_and_approx_is_dropped,
+        check_equals_and_plus_are_spoken_between_pauses,
+        check_plus_that_is_not_an_operator_is_left_alone,
+        check_a_grammar_rule_line_is_readable,
+        check_bracketed_labels_are_spoken,
+        check_currency_signs_are_spoken,
+        check_unit_abbreviations_are_spoken_in_english,
+        check_unit_abbreviations_are_spoken_in_french,
+        check_bare_unambiguous_units_are_spoken_but_single_letters_are_not,
+        check_units_are_not_invented_in_other_words,
+        check_french_numbers_are_spelled_out,
+        check_french_ordinals_are_spoken,
+        check_lone_letters_are_spelled,
+        check_section_letters_are_spoken_with_a_pause,
+        check_multiplication_sign,
         check_parentheses_are_kept,
         check_doubled_punctuation_is_collapsed,
         check_nothing_else_is_changed,

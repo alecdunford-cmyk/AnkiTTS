@@ -635,14 +635,14 @@ def check_text_without_speakable_content_falls_back_to_the_original():
         provider = FakeProvider("first")
 
         create_audio(
-            "[m]",
+            "≈",
             "fr",
             PROFILE,
-            generic_cache_path(Path(directory), text="[m]"),
+            generic_cache_path(Path(directory), text="≈"),
             chain=[provider],
         )
 
-        assert provider.calls[0][0] == "[m]"
+        assert provider.calls[0][0] == "≈"
 
 
 def check_speech_text_version_is_in_every_identity():
