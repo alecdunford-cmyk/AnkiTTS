@@ -52,6 +52,24 @@ in a tagged release.
   text).
 - Design and rulings CA-21 to CA-28: `docs/DESIGN-providers.md`, section 15.
 
+### Loudness normalisation (2026-11-01)
+
+Rulings CA-35 to CA-41, `docs/DESIGN-providers.md`, section 17:
+
+- **Every provider's clip is normalised to -16 LUFS before it is cached**
+  (Pocket, Fish and Edge), so a card mixing English and French no longer has
+  a level step (the English clone was about 12 dB quieter). Where reaching the
+  target would pass -1.5 dBTP, a limiter holds the peaks (at most 12 dB of it);
+  such a clip may end up 1 to 2 LU short. It never clips. Very short clips are
+  measured looped; silence is left alone.
+- `loudness_version` is in every provider identity, so cached audio and track
+  names refill once more.
+- **MP3 quality:** clips and stitched tracks are now encoded at 96 kbit/s. The
+  old default (about 32 kbit/s) was poor for the English voice and made a
+  stitched track overshoot to full scale.
+- **Trim threshold -60 to -50 dBFS** (the normalised tails are louder).
+- Fish audio is now always re-encoded (it was renamed into the cache at tempo 1).
+
 ### Speech text, round 2 (2026-11-01)
 
 From listening to the first corrected card (`speech_text_version` 2, rules and

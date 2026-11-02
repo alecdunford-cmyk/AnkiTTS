@@ -156,6 +156,9 @@ every cache entry and track filename changes once more (one refill, accepted
 in CA-21's brief). The text in the key is always the **original** text; the
 prepared text is never keyed.
 
+Loudness normalisation (section 17) adds one more identity field on every
+provider, `loudness_version`, with the same effect: one refill, no file deleted.
+
 ## 5. Rate, pitch and volume
 
 | | Edge | Pocket | Fish |
@@ -173,13 +176,13 @@ prepared text is never keyed.
   filter is applied.
 - Volume and pitch are Edge concepts. Pocket and Fish ignore them, leave them
   out of their cache keys (CA-10) and log once per provider instance when a
-  non-default value is ignored. **Correction (2026-11-01):** an earlier
-  version of this document said loudness stays even because the stitcher
-  normalises every segment. It does not: the stitcher trims and joins only.
-  Pocket's English clone measured about 12 dB quieter than its French clone
-  (mean -36.7 against -24.9 dBFS, `docs/audio-tail-diagnosis-20261101.md`), so
-  a mixed card has a level step. Per-segment loudness normalisation is parked
-  (section 16).
+  non-default value is ignored. **Loudness is normalised per
+  segment at encode time, for every provider (section 17, CA-35).** An earlier
+  version of this document said the stitcher already did this. It did not (it
+  trims and joins only), and Pocket's English clone measured about 12 dB
+  quieter than its French clone, so a mixed card had a level step. That is
+  now true: each clip is brought to -16 LUFS before it is cached, and the
+  stitcher still trims and joins only.
 
 ## 6. Pocket TTS worker
 
@@ -252,7 +255,11 @@ the `NoAudioReceived` retry (1, 2, 4 s), `get_edge_provider_identity()` and
 `generate_audio`. `generator.get_edge_provider_identity` stays as a
 compatibility name. Identity is `edge-tts` / `edge-neural-voices` /
 `<edge_tts version>`. `get_edge_provider_identity()` is unchanged; the provider's
-`identity()` adds `speech_text_version` to it (section 15).
+`identity()` adds `speech_text_version` (section 15) and `loudness_version`
+(section 17) to it. Edge writes its MP3 itself, so after a successful
+synthesis the file is decoded, normalised and re-encoded in place
+(`providers.audio.normalise_mp3_in_place`); a failure there is a provider error
+and nothing is cached.
 Health is configuration-only (always ok). Edge failures surface during
 synthesis.
 
@@ -513,9 +520,15 @@ text-derived pause (generic path) is followed by, at most, 50 ms more of decay
 or silence. RCE's pause values are unchanged and still applied exactly; the
 audible gap between two segments is up to 50 ms longer.
 
+**Amended by CA-37 (same day, after loudness normalisation):** the trim
+threshold is now **-50 dBFS**, because normalised audio is up to 22 dB louder
+and its -80 dBFS tail rose to within 1.5 dB of -60. The 50 ms margin is
+unchanged. Section 17 has the replay.
+
 Regression tests: `tests/test_stitcher.py`, including a fake-worker clip whose
-last 60 ms is quiet speech (about -50 dBFS) that the stitched track must keep
-(and that the old -45 dBFS rule would have removed).
+last 60 ms is a soft final syllable (about -38 dBFS RMS in the normalised clip)
+that the stitched track must keep, and a tail 38 dB under the program level
+that it must remove.
 
 ### `prepare_for_speech(text, language)` (defects 2 and 3)
 
@@ -573,7 +586,7 @@ often each is hit.
 
 Option taken, then option not taken.
 
-- **CA-22 Trim at -60 dBFS with a 50 ms margin.** *Not taken:* the managing
+- **CA-22 Trim at -60 dBFS with a 50 ms margin** (threshold amended to -50 by CA-37). *Not taken:* the managing
   chat's likely margin-only fix (keep -45 dBFS, add 80-150 ms). On the data that
   would still cut up to 80 ms of English at +150 ms, and it needs +250 ms to
   lose nothing, adding 100 to 240 ms of dead air to every clip and to every
@@ -658,9 +671,14 @@ group; the voice question is parked (section 16).
 - **RCE marks alternatives in the speech plan** (trigger: sem-2b closed). The
   clean fix for defects 2 and 3: RCE would say which words are alternatives
   and the slash and bare-`or` heuristics in `speech_text.py` could go.
-- **Per-segment loudness normalisation.** Trigger: Alec hears the level step
-  between English and French segments in one track (about 12 dB between the two
-  Pocket clones). Not built; section 5 no longer claims it exists.
+- **Per-segment loudness normalisation** is built (section 17), no longer
+  parked.
+- **Peaky English clips stay 1 to 2 LU under the target.** Pocket's English
+  voice has peaks 19 to 22 dB over its loudness; the limiter's 12 dB cap
+  (CA-36) leaves the peakiest takes at -17 to -18 LUFS. Trigger: Alec hears a
+  level step in a mixed card, or crunch or pumping on English, either of which
+  points at the limiter. Options then: a lower common target (about -18 LUFS
+  makes every clip linear), or a gentler dynamics stage than a limiter.
 - **A different voice for notes, headings and labels, and spoken section
   numbers** (Alec, 2026-11-01). Not built, because both halves need RCE:
   - *Who speaks what* is RCE's content. The speech plan already carries
@@ -684,3 +702,151 @@ group; the voice question is parked (section 16).
   - A short wording for RCE: "For heading, note and label segments, set
     `voiceProfileId` to `<language>-heading`; include the section marker (`a)`,
     `2.`) in the segment text."
+
+## 17. Loudness normalisation
+
+### Ruling CA-35 (Alec, 2026-11-01, 20:13, "All A"), verbatim
+
+```
+1. Per-segment loudness normalisation is built now: every provider's clip is normalised to one
+   target (-16 LUFS, the bake-off's setting) at encode, before caching, with a version in the
+   cache identity so audio refills once.
+2. Working rhythm: Alec studies on the current build for several days and keeps a running list
+   of what sounds wrong, reads wrong or looks wrong; then one batched fix session. That list
+   also seeds the card-design doc (bridge step 3).
+3. CA-30 stands: "6 m 2" after a number is read as square metres.
+```
+
+### How it works (`providers/audio.py`)
+
+Every clip a provider produces is normalised before it is cached:
+
+1. **Measure** integrated loudness and true peak with ffmpeg's `loudnorm` in
+   analysis mode (I=-16, TP=-1.5, LRA=11, the bake-off's settings), after any
+   `atempo`.
+2. **Gain.** The gain is `-16 - measured`, bounded to +-30 dB. If it keeps the
+   true peak under -1.5 dBTP it is applied as a plain `volume` filter (linear,
+   exact).
+3. **Limiter, only when the gain would pass -1.5 dBTP.** Pocket's voices have
+   peaks 19 to 22 dB above their loudness; the room between -16 LUFS and
+   -1.5 dBTP is 14.5 dB, so about half the Pocket clips need it. An `alimiter`
+   (5 ms attack, 50 ms release, latency compensated) holds the sample peak at
+   -3 dBFS, and the gain is **calibrated closed-loop** (up to 3 measurements of
+   the limited audio) until the output is within 0.3 LU of -16, never letting
+   the limiter cut peaks by more than **12 dB**. Beyond that the clip stays
+   quieter than the target and is reported as `at_limit`.
+4. **Encode** as 96 kbit/s MP3 (CA-38), written to a temporary file and moved
+   into place.
+
+A clip under 400 ms has no integrated loudness (BS.1770 needs a 400 ms block),
+so it is measured looped to 2 s. Silence (under -69 LUFS) is encoded unchanged.
+Each normalisation is logged as one line: input and output LUFS and dBTP, the
+gain, and whether the limiter or its cap applied. Never any text.
+
+`loudness_version` (`"1"`, `providers.audio.LOUDNESS_VERSION`) is in every
+provider identity, the same pattern as `speech_text_version` (CA-27), so cached
+audio and track names refill once. Bump it whenever a constant in
+`providers/audio.py` changes what is cached.
+
+Where each provider passes through it:
+
+| Provider | Path |
+|---|---|
+| Pocket | worker WAV, then `encode_mp3` (always) |
+| Fish | the API's MP3 is written raw, then `encode_mp3` (always; it used to be renamed straight into the cache at tempo 1) |
+| Edge | `edge-tts` writes an MP3; `normalise_mp3_in_place` decodes, normalises and re-encodes it |
+
+### Rulings (the implementing session)
+
+Option taken, then option not taken.
+
+- **CA-36 Measure with `loudnorm`, apply an explicit gain, and limit only when
+  needed.** The brief asked for `loudnorm` two-pass in linear mode. On the real
+  clips that is not linear: with `linear=true` and the measured values,
+  `loudnorm` silently fell back to its *dynamic* mode on four of six Pocket
+  clips, and stayed linear (capped by true peak) on the other two at -19.9 and
+  -18.1 LUFS, so the English-French step would have stayed at 2 to 4 LU. The
+  explicit gain is deterministic, never clips, and lands on the target.
+  *Not taken:* `loudnorm` doing the whole job (inconsistent between clips);
+  linear gain only (English near -23 and French near -20 LUFS, the 12 dB step
+  reduced only to about 3 LU). The limiter cap is 12 dB: at 10 dB the peakiest
+  take stopped at -17.6, at 12 dB at -16.4, at 14 dB at -16.2 (the last 2 dB
+  buys 0.2 LU at the price of heavier limiting).
+- **CA-37 The trim threshold moves from -60 to -50 dBFS** (amends CA-22; the
+  50 ms margin stays). Normalisation raises Pocket's -80 dBFS tail by the clip's
+  gain, up to +22 dB: English tails measured -58.5 to -66 dBFS afterwards, one
+  of six (in one run) no longer trimmed at all, two within 3 dB of the threshold. Replayed
+  on 14 normalised clips at -60, -55, -50, -45 and -40: the loudest 10 ms
+  window the trim removes is -59.4 dBFS at -55 and -50, -58.9 at -45 (about
+  40 dB under the speech), and -55.5 only at -40. -50 leaves 8 dB above the highest tail
+  floor and 18 dB under a soft word ending. *Not taken:* keeping -60 (brittle,
+  and already failing on one clip); a per-clip threshold from the applied gain
+  (the cached MP3 does not carry it).
+- **CA-38 Clips and stitched tracks are encoded at 96 kbit/s.** Measured by the
+  signal-to-distortion ratio of the decoded MP3 against the same audio before
+  encoding (dB, higher is better), on two Pocket clips and the two Edge clips
+  (Edge is a second MP3 generation):
+
+  | Bitrate | Pocket EN | Pocket FR | Edge EN | Edge FR |
+  |---|---|---|---|---|
+  | old default (about 32k) | 6.4 | 15.6 | 13.9 | 17.0 |
+  | 48k | 9.8 | 18.5 | 18.7 | 19.8 |
+  | 64k | 17.4 | 22.7 | 22.5 | 23.0 |
+  | **96k** | **24.1** | **25.5** | **25.8** | **25.5** |
+  | 128k | 25.6 | 25.9 | 26.0 | 25.9 |
+
+  The curve is steep to 96k and flat after (within 1.5 dB of 128k). The old
+  default was poor, worst on the quiet English clone. The stitched track had
+  the same default; a mixed track encoded at about 32 kbit/s overshot the
+  clips' -3 dBFS peaks to a decoded **-0.02 dBFS** (full scale, clipping), and
+  at 96k its peak is -2.7 dBFS (-1.9 dBTP). Both stitchers now export at 96k
+  (`stitcher.TRACK_MP3_BITRATE`). *Not taken:* 64k (cheaper, 2.5 to 6.7 dB worse);
+  128k (no gain by the numbers). Files are about 3 times larger than before,
+  12 KB per second of audio.
+- **CA-39 There is no single place every provider's audio passes**, contrary to
+  the brief: Edge never used `encode_mp3`, and Fish renamed its MP3 into the
+  cache at tempo 1. Normalisation is therefore one function in
+  `providers/audio.py` (`encode_mp3` and `normalise_mp3_in_place`) that all
+  three providers call. A failure to normalise is a provider error and the
+  file is not cached. *Not taken:* caching the unnormalised clip on failure,
+  which would put quiet audio under an identity that promises -16 LUFS.
+- **CA-40 Short clips are measured looped; silence is left alone.** *Not
+  taken:* padding with silence, which smears a 200 ms tone by about 3 LU, and
+  skipping short clips.
+- **CA-41 The acceptance criteria are met for the clips, and met only barely
+  for a mixed track.** Details below. Peaky English takes stop short of -16
+  (the 12 dB cap), which can leave a segment-to-segment step of 1.9 to 2.2 LU
+  next to a French clip (three runs of the harness: 1.87, 2.15 and 2.04 LU).
+  *Not taken:* a lower target for English only (CA-35 asks for one target),
+  or a cap above 12 dB (heavier limiting for tenths of a LU). See Parked.
+
+### Acceptance (real Pocket worker, 6 invented phrases per language, 2 through Edge)
+
+Run `loudness\acceptance.py` (outside the repository; output kept with it).
+Final run, every figure measured on the cached MP3:
+
+- **Clips:** 14 of 14 within +-1 LU of -16 LUFS or at their stated limiter cap:
+  12 within +-1 LU (-16.4 to -16.8) and 2 at the 12 dB cap (-17.0 and -17.9);
+  **no clipping** (decoded sample peaks -2.3 to
+  -3.6 dBFS; true peaks -0.8 to -3.6 dBTP, within 0.7 dB of the -1.5 target at
+  worst, from MP3 overshoot).
+- **Mixed-language track** (Pocket EN/FR alternating, then Edge): per-segment
+  loudness -15.8 to -17.9 LUFS; largest step 2.04 LU.
+- **Tail noise floor** after normalisation (last 100 ms of each Pocket clip):
+  -59.7 to -76.3 dBFS on 11 clips, against a -50 dBFS threshold; the one clip above it
+  (`en-4`, a sentence with no final punctuation) is already above it before
+  normalisation (the engine ended on the voiced syllable, raw -47.9 dBFS).
+- **Cost:** 180 to 700 ms per clip (linear 180 to 200 ms; limited clips need up
+  to three measurement passes), against about 1 to 3.5 s of synthesis.
+
+### Tests
+
+`tests/test_loudness.py` (12 checks): a -30 dBFS tone and the fake Pocket
+worker's `QUIET30` clip come out within 1 LU of -16; a loud clip is turned
+down; a 200 ms clip is normalised (measured looped) and not clipped; a peaky
+clip uses the limiter and stays under -0.5 dBFS; an unreachable target is
+reported as `at_limit` and still does not clip; silence is left alone; tempo
+and normalisation combine; an existing MP3 is normalised in place; the Edge
+provider normalises what Edge wrote and caches nothing on failure. Identity
+tests for the three providers and the fakes carry `loudness_version`; the Fish
+test now supplies real MP3 bytes.

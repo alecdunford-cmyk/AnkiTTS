@@ -133,3 +133,10 @@ the level of quiet English speech. Fix it in the stitcher (stage B) by trimming
 at -60 dBFS and keeping a 50 ms safety margin. No terminal punctuation is
 added to the engine's text (the engine already does it), and no change is
 made to the encode step.
+
+## Amendment (2026-11-01, CA-37)
+
+After per-segment loudness normalisation (docs/DESIGN-providers.md, section 17)
+the trim threshold is -50 dBFS, not -60: normalised audio is up to 22 dB louder
+and its tail rose from -80 dBFS to about -60. The measurements above are of the
+unnormalised clips and still describe why -45 dBFS was wrong for them.
