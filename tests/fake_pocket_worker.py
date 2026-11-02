@@ -2,8 +2,8 @@
 A stand-in for providers/pocket_worker.py speaking the same protocol, for
 the regression tests. Needs only the standard library. Behaviour by text:
 "FAIL" -> error response, "HANG" -> never answers, "EXIT" -> process exits,
-"QUIETTAIL" -> a loud tone, then 60 ms of quiet speech-level tone (about
--50 dBFS), then 400 ms of digital silence. "QUIET30" -> 1.5 s of tone
+"QUIETTAIL" -> a loud tone, then 60 ms of a soft final syllable (about
+-38 dBFS RMS, 22 dB under the body), then 400 ms of digital silence. "QUIET30" -> 1.5 s of tone
 peaking at -30 dBFS (a quiet clip, for the loudness tests).
 """
 
@@ -59,7 +59,7 @@ def write_quiet_tail(path, rate=24000):
 
     frames = (
         tone(QUIET_TAIL_BODY_SECONDS, 8000)
-        + tone(QUIET_TAIL_SPEECH_SECONDS, 147)
+        + tone(QUIET_TAIL_SPEECH_SECONDS, 600)
         + b"\x00\x00" * int(QUIET_TAIL_SILENCE_SECONDS * rate)
     )
 

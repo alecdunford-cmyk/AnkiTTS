@@ -32,7 +32,7 @@ LIMITER_RELEASE_MS = 50
 
 # The limiter may be asked to cut peaks by at most this much; beyond it the
 # clip stays quieter than the target ("limited") rather than being squashed.
-MAXIMUM_LIMITER_DB = 10.0
+MAXIMUM_LIMITER_DB = 12.0
 MAXIMUM_GAIN_DB = 30.0
 CALIBRATION_TOLERANCE_LU = 0.3
 CALIBRATION_ROUNDS = 3
@@ -44,9 +44,11 @@ LOOP_MEASUREMENT_FILTER = (
 )
 SILENCE_FLOOR_LUFS = -69.0
 
-# 64 kbit/s mono: the default encoder rate was about 32 kbit/s, and Edge clips
-# are decoded and re-encoded, so a second generation needs the headroom.
-MP3_BITRATE = "64k"
+# 96 kbit/s mono. The previous encoder default was about 32 kbit/s. Measured
+# signal-to-distortion on real clips climbs steeply to 96k and is flat after
+# it (within 1.2 dB of 128k), also for Edge clips, which are decoded and
+# re-encoded (CA-36).
+MP3_BITRATE = "96k"
 
 # stitcher.hide_subprocess_windows patches subprocess.Popen globally, so
 # concurrent encodes from synthesis threads take turns.
@@ -222,7 +224,7 @@ def _chain(
             "alimiter="
             f"limit={10 ** (LIMITER_CEILING_DBFS / 20):.4f}"
             f":attack={LIMITER_ATTACK_MS}:release={LIMITER_RELEASE_MS}"
-            ":level=disabled"
+            ":level=disabled:latency=1"
         )
 
     return ",".join(

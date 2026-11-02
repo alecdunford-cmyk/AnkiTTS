@@ -26,24 +26,31 @@ def tone(milliseconds, level_dbfs):
 
 def check_trim_keeps_quiet_tail_and_margin():
     body = tone(500, -20)
-    quiet = tone(60, -50)
+    quiet = tone(60, -40)
     silence = AudioSegment.silent(duration=400)
     clip = body + quiet + silence
 
     kept = trim_trailing_silence(clip)
 
-    # The quiet tail is kept whole, then the margin, and no more.
+    # The soft final syllable is kept whole, then the margin, and no more.
     assert len(kept) == 560 + TRIM_SAFETY_MARGIN_MS
-    assert kept[500:560].dBFS > -55
+    assert kept[500:560].dBFS > -45
 
-    # The old rule (-45 dBFS, no margin) is the defect this guards against.
-    old = trim_trailing_silence(
+    # A threshold sitting just above the syllable is the defect this guards
+    # against: it would cut the ending.
+    cutting = trim_trailing_silence(
         clip,
-        silence_threshold_db=-45,
+        silence_threshold_db=-35,
         margin_ms=0,
     )
 
-    assert len(old) <= 510
+    assert len(cutting) <= 510
+
+    # A tail 38 dB under the program level (a normalised clip's noise floor)
+    # is removed: only the margin of it stays.
+    floor = body + tone(60, -58) + silence
+
+    assert len(trim_trailing_silence(floor)) == 500 + TRIM_SAFETY_MARGIN_MS
 
 
 def check_trim_margin_is_bounded_by_the_clip():
@@ -98,15 +105,15 @@ def check_quiet_tail_from_the_worker_survives_the_stitched_track():
 
         # The last 60 ms of speech is still in the track (not trimmed)...
         assert len(stitched) >= 560 - 15
-        assert stitched[500:555].dBFS > -58
+        assert stitched[500:555].dBFS > -45
 
         # ...and the 400 ms of silence behind it still is.
         assert len(stitched) <= 560 + TRIM_SAFETY_MARGIN_MS + 60
 
-        # The old threshold would have removed the quiet speech.
+        # A threshold just above the soft ending would have removed it.
         old = trim_trailing_silence(
             encoded,
-            silence_threshold_db=-45,
+            silence_threshold_db=-35,
             margin_ms=0,
         )
 
@@ -114,8 +121,39 @@ def check_quiet_tail_from_the_worker_survives_the_stitched_track():
         assert len(stitched) - len(old) >= 40
 
 
+def check_stitched_track_is_exported_at_the_track_bitrate():
+    if shutil.which("ffmpeg") is None:
+        print("(ffmpeg not on PATH; skipped)", end=" ")
+        return
+
+    with TemporaryDirectory() as directory:
+        clip = Path(directory) / "clip.mp3"
+        track = Path(directory) / "track.mp3"
+
+        tone(3000, -20).set_frame_rate(24000).export(
+            str(clip),
+            format="mp3",
+        )
+
+        stitch_structured_audio(
+            [
+                {
+                    "file": str(clip),
+                    "pause_before_milliseconds": 0,
+                    "pause_after_milliseconds": 0,
+                }
+            ],
+            track,
+        )
+
+        seconds = len(AudioSegment.from_file(str(track))) / 1000
+
+        # 96 kbit/s, not the pydub default of about 32.
+        assert 80 <= track.stat().st_size * 8 / seconds / 1000 <= 112
+
+
 def check_stitchers_use_the_shared_trim():
-    assert stitcher.SILENCE_THRESHOLD_DB == -60
+    assert stitcher.SILENCE_THRESHOLD_DB == -50
     assert TRIM_SAFETY_MARGIN_MS == 50
 
 
@@ -124,6 +162,7 @@ def run():
         check_trim_keeps_quiet_tail_and_margin,
         check_trim_margin_is_bounded_by_the_clip,
         check_quiet_tail_from_the_worker_survives_the_stitched_track,
+        check_stitched_track_is_exported_at_the_track_bitrate,
         check_stitchers_use_the_shared_trim,
     ]
 

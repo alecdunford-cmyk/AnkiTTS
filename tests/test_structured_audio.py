@@ -1269,6 +1269,7 @@ def check_exact_pause_stitching_and_atomic_export():
             self,
             output_file,
             format,
+            bitrate=None,
         ):
             exported_events.extend(
                 self.events
@@ -1406,6 +1407,7 @@ def check_failed_stitch_export_is_not_published():
             self,
             output_file,
             format,
+            bitrate=None,
         ):
             Path(
                 output_file

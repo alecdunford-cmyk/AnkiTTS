@@ -19,10 +19,16 @@ PAUSE_DURATIONS = {
 PARENTHETICAL_PAUSE = 250
 DEFAULT_PAUSE = 225
 
-# Where the sound has really ended. -45 dBFS sat only 9 dB below the mean
-# level of Pocket's English clone (-37 dBFS) and cut the last syllable; see
-# docs/audio-tail-diagnosis-20261101.md and ruling CA-22.
-SILENCE_THRESHOLD_DB = -60
+# Where the sound has really ended, in audio that is already normalised to
+# -16 LUFS (speech near -19 dBFS RMS). -45 dBFS once cut the last syllable of
+# unnormalised English (docs/audio-tail-diagnosis-20261101.md, CA-22); -60 dBFS
+# was right until loudness normalisation raised Pocket's -80 dBFS tail by up
+# to 22 dB, to within 1.5 dB of it (CA-37). -50 dBFS leaves 8 dB above the
+# loudest normalised tail floor measured and removes nothing above -59 dBFS.
+SILENCE_THRESHOLD_DB = -50
+# The stitched track is a further MP3 generation. The pydub default is about
+# 32 kbit/s, which overshoots the clips' -3 dBFS peaks to full scale (CA-36).
+TRACK_MP3_BITRATE = "96k"
 TRAILING_SILENCE_CHUNK_MS = 10
 TRIM_SAFETY_MARGIN_MS = 50
 MINIMUM_AUDIO_LENGTH_MS = 50
@@ -207,6 +213,7 @@ def stitch_audio(
         combined.export(
             output_file,
             format="mp3",
+            bitrate=TRACK_MP3_BITRATE,
         )
 
 
@@ -275,6 +282,7 @@ def stitch_structured_audio(
             combined.export(
                 temporary_path,
                 format="mp3",
+                bitrate=TRACK_MP3_BITRATE,
             )
 
         temporary_path.replace(
