@@ -533,10 +533,10 @@ plan text stays the authority.
 | 1b | Not alternatives, left alone: digit/digit (`3/4`, `12/05/2026`), tokens containing `://`, two bare single letters (`n/a`, `A/C`). `km/h` and `m/s` are units (rule 7). | |
 | 2 | In a sentence-less segment of at most 12 words (a gloss list), a bare ` or ` / ` ou ` gets a comma before it, unless a comma, `;` or `:` already precedes it (or the word before it is `and`/`et`). A segment with a sentence end anywhere in it, or longer than 12 words, is left alone. Segments are never split. | `rouge ou bleu` → `rouge, ou bleu`; `Veux-tu du thé ou du café ?` unchanged |
 | 3 | No terminal full stop is added: the engine does it (diagnosis, suspect b). | |
-| 4 | `→` becomes a comma (a short pause) and `≈` is dropped, in any language. Bracketed `[...]` and `{...}` labels are **spoken**, set off by commas (CA-29). Parentheses are kept. | `chat → cat` → `chat, cat`; `run [verb] fast` → `run, verb, fast`; `[quelqu'un]` → `quelqu'un` |
+| 4 | `→` becomes a comma (a short pause) and `≈` is dropped, in any language. Bracketed `[...]` and `{...}` labels are **spoken in the flow of the sentence**, with no pause (CA-29, CA-34). Parentheses are kept. | `chat → cat` → `chat, cat`; `faire [quelque chose] à [quelqu'un]` → `faire quelque chose à quelqu'un` |
 | 5 | `=` and a `+` between words or numbers are spoken between two pauses, English and French only: `, equals, ` / `, égale, ` and `, plus, `. `×` and a spaced `x` between numbers are `times` / `fois` (no pauses). A leading sign (`+5`) is `plus 5`. `C++` and `B+` are left alone. In other languages `=` stays a plain comma and `+` is untouched (CA-29). | `de + le = du` → `de, plus, le, égale, du`; `2 x 3` → `deux fois trois` |
 | 6 | Currency signs `€ $ £ ¥` before or after a number become the currency word, singular for 1; `€20/month` gives `20 euros per month` (`par` in French). English and French. | `€20` → `20 euros`; `2,50 €` → `deux virgule cinquante euros` |
-| 7 | Unit abbreviations after a number become words, singular or plural by the number (English: anything but 1 is plural; French: 2 and above). Unambiguous units also expand with no number (`km`, `cm`, `mm`, `kg`, `mg`, `ml`, `cl`, `dl`, `kW`, `Hz`, ...), in the plural. Ambiguous single letters (`m g l s h`) need a number. `s` and `ms` need a space after the number (`the 1990s` is a decade). `m²` / `m2` / `m 2` after a number is square metres and `m³` cubic (CA-30). `%` is `percent` / `pour cent`; `°C`, `°F` and `°` are degrees. `km/h` and `m/s` are `per hour` / `per second` (`par heure`, `par seconde`). | `20 km` → `20 kilometers`; `6 m 2` → `six mètres carrés`; `14 h 30` → `quatorze heures trente`; `20 °C` → `vingt degrés Celsius` |
+| 7 | Unit abbreviations after a number become words, singular or plural by the number (English: anything but 1 is plural; French: 2 and above). Unambiguous units also expand with no number (`km`, `cm`, `mm`, `kg`, `mg`, `ml`, `cl`, `dl`, `kW`, `Hz`, ...), in the plural. Ambiguous single letters (`m g l s h`) need a number. `s` and `ms` need a space after the number (`the 1990s` is a decade). `m²` / `m2` / `m 2` after a number is square metres and `m³` cubic (CA-30). `%` is `percent` / `pour cent`; `°C`, `°F` and `°` are degrees. `km/h` and `m/s` are `per hour` / `per second` (`par heure`, `par seconde`). Before a noun, English `3-km` is singular (`3-kilometer`), and a slash after a unit followed by a number is a slash between alternatives (`3-km/3-hour walk` → `3-kilometer, or 3-hour walk`, CA-34). | `20 km` → `20 kilometers`; `6 m 2` → `six mètres carrés`; `14 h 30` → `quatorze heures trente`; `20 °C` → `vingt degrés Celsius` |
 | 8 | French only: numerals are spelled out (up to 10^12; the cardinal is masculine, so `1 pièce` is `un pièce`). A decimal comma reads `virgule`; a space-separated group of three digits is a thousands group (`1 000` is `mille`). Leading zeros (`007`), codes (`H2O`, `A4`, `3D`) and anything over 10^12 are left as written. English numerals are left to the engine. | `1998` → `mille neuf cent quatre-vingt-dix-huit` |
 | 9 | French ordinals: `20e`, `20 e`, `20ème`, `1er`, `1re`, `1ère` are spoken as ordinals (`vingtième`, `premier`, `première`; `21e` is `vingt et unième`). A Roman numeral with an ordinal suffix is only trusted before `siècle`, `millénaire`, `arrondissement`, `dynastie`, `république` or `empire` (`XXe siècle`); `Vie` and `Cie` are words. English ordinals are left to the engine. | `du 20 e siècle` → `du vingtième siècle` |
 | 10 | A lone letter (English and French) is spoken by its name: `h` is `ache` / `aitch`. Not spelled: the letters that are words (`a i` English; `a y o` French), a letter touching an apostrophe, hyphen, slash or `+` (`d'`, `T-shirt`, `C++`), `e.g.`, `p. 3`, and `(s)` / `(e)` after a word. `a)`, `b)` and `(c)` are section letters and are always spoken (including `a`, `i`), followed by a comma. | `un h muet` → `un ache muet`; `b) le chien` → `bé, le chien` |
@@ -551,7 +551,7 @@ a comma), the original text is spoken and a warning is logged (CA-26).
 
 ### Cache identity: `speech_text_version`
 
-`speech_text.SPEECH_TEXT_VERSION` (currently `"2"`; rules 5 to 10 and the spoken labels came with version 2) is a field of the identity
+`speech_text.SPEECH_TEXT_VERSION` (currently `"3"`; rules 5 to 10 came with version 2, the no-pause labels and hyphenated units with version 3) is a field of the identity
 of **every** provider (`EdgeProvider`, `PocketProvider`, `FishProvider`). Bump
 it whenever a rule changes what is spoken. Because the identity feeds the
 generic key, the structured key and the structured track filename, everything
@@ -617,6 +617,14 @@ group; the voice question is parked (section 16).
   `égale`, `+` is `plus`, each with a pause either side. *Not taken:* a pause
   without a word (the original rule), which is what Alec heard and could not
   follow.
+- **CA-34 Labels are read with no pause; hyphenated units are singular.** Alec
+  listened to CA-29's output: the comma pauses around `[quelque chose]`,
+  `[quelqu'un]`, `[someone]`, `[something]` and similar tags broke the sentence,
+  so a label is now just its words in the flow (the brackets disappear). Also
+  `a 3-km/3-hour walk` was not expanded because a unit was not recognised after
+  a hyphen or before a slash; `3-km` is now `3-kilometer` (English attributive
+  units are singular) and the slash after it is rewritten as an alternative.
+  *Not taken:* keeping a short pause for labels, which is what he heard.
 - **CA-30 `m²`, `m2` and `m 2` after a number are square metres** (`mètres
   carrés`), cubic for `3`. Alec's note said `6 m 2` "should read as 6 mètres 2";
   the only reading of that notation that is correct French is `six mètres

@@ -65,7 +65,9 @@ rulings CA-29 to CA-33 in `docs/DESIGN-providers.md`, section 15):
 - **French numerals** are spelled out ("1 250" is "mille deux cent
   cinquante") and **French ordinals** are spoken ("20 e siècle", "XXe siècle"
   is "vingtième siècle"; "1er" is "premier").
-- `[...]` labels, previously dropped, are now spoken (supersedes part of CA-21).
+- `[...]` labels, previously dropped, are now spoken, in the flow of the sentence
+  with no pause (supersedes part of CA-21; CA-29, CA-34). `speech_text_version` 3.
+- Hyphenated units before a noun ("a 3-km/3-hour walk") are expanded and singular.
 - Parked: a different voice for headings/notes and spoken section numbers
   (needs RCE to mark segments and a profile-aware provider identity).
 

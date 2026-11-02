@@ -183,13 +183,15 @@ def check_a_grammar_rule_line_is_readable():
 
 def check_bracketed_labels_are_spoken():
     for text, language, expected in (
-        ("run [verb] fast", "en", "run, verb, fast"),
-        ("run {noun} fast", "en", "run, noun, fast"),
-        ("[verb] run", "en", "verb, run"),
-        ("run [verb]", "en", "run, verb"),
+        ("run [verb] fast", "en", "run verb fast"),
+        ("run {noun} fast", "en", "run noun fast"),
+        ("[verb] run", "en", "verb run"),
+        ("run [verb]", "en", "run verb"),
         ("[quelqu'un]", "fr", "quelqu'un"),
-        ("voir [quelqu'un] partir", "fr", "voir, quelqu'un, partir"),
-        ("sparkle → shine [verb] ≈ glitter", "en", "sparkle, shine, verb, glitter"),
+        ("voir [quelqu'un] partir", "fr", "voir quelqu'un partir"),
+        ("faire [quelque chose] à [quelqu'un]", "fr", "faire quelque chose à quelqu'un"),
+        ("to give [someone] [something]", "en", "to give someone something"),
+        ("sparkle → shine [verb] ≈ glitter", "en", "sparkle, shine verb glitter"),
         ("run (informal) fast", "en", "run (informal) fast"),
     ):
         assert prepare_for_speech(text, language) == expected, text
@@ -256,6 +258,23 @@ def check_unit_abbreviations_are_spoken_in_english():
         ("1 °C", "1 degree Celsius"),
     ):
         assert prepare_for_speech(text, "en") == expected, text
+
+
+def check_hyphenated_units_before_a_noun():
+    for text, expected in (
+        ("a 3-km walk", "a 3-kilometer walk"),
+        ("a 3-km/3-hour walk", "a 3-kilometer, or 3-hour walk"),
+        ("a 2.5-kg bag", "a 2.5-kilogram bag"),
+        ("a 5-cm gap", "a 5-centimeter gap"),
+    ):
+        assert prepare_for_speech(text, "en") == expected, text
+
+    assert prepare_for_speech("une marche de 3 km/3 heures", "fr") == (
+        "une marche de trois kilomètres, ou trois heures"
+    )
+
+    # "5-s" is not seconds: seconds need a space after the number.
+    assert prepare_for_speech("a 5-s pause", "en") == "a 5-s pause"
 
 
 def check_unit_abbreviations_are_spoken_in_french():
@@ -513,6 +532,7 @@ def run():
         check_bracketed_labels_are_spoken,
         check_currency_signs_are_spoken,
         check_unit_abbreviations_are_spoken_in_english,
+        check_hyphenated_units_before_a_noun,
         check_unit_abbreviations_are_spoken_in_french,
         check_bare_unambiguous_units_are_spoken_but_single_letters_are_not,
         check_units_are_not_invented_in_other_words,

@@ -19,7 +19,7 @@ import re
 import unicodedata
 
 
-SPEECH_TEXT_VERSION = "2"
+SPEECH_TEXT_VERSION = "3"
 
 # Alternatives are only rewritten in these languages (CA-21 points 2 and 3).
 ALTERNATIVE_WORDS = {
@@ -930,12 +930,22 @@ def _expand_units(
                 language,
             )
 
+        separator = match.group(
+            "separator"
+        )
+
         # "the 1990s" is a decade, not 1990 seconds.
-        if name in _SPACE_REQUIRED and not match.string[
-            match.end("number") : match.start("unit")
-        ]:
+        if name in _SPACE_REQUIRED and not separator.isspace():
             return match.group(
                 0
+            )
+
+        # "a 3-km walk" is singular in English, whatever the number.
+        if separator == "-" and language == "en":
+            return f"{token}-" + _unit_phrase(
+                entry,
+                False,
+                language,
             )
 
         return f"{token} " + _unit_phrase(
@@ -947,8 +957,10 @@ def _expand_units(
             language,
         )
 
+    # A slash may follow a unit when a number comes next ("3-km/3-hour"),
+    # but "km/h" and "m/s" are matched whole before this point.
     text = re.sub(
-        rf"(?<![\w.,])(?P<number>{number})\s?(?P<unit>{symbols})(?![\w/²³])",
+        rf"(?<![\w.,])(?P<number>{number})(?P<separator>[\s-]?)(?P<unit>{symbols})(?![\w²³]|/[^\W\d])",
         unit,
         text,
     )
@@ -1171,7 +1183,7 @@ def prepare_for_speech(
     """
     Return the text a provider should synthesize for one segment.
 
-    1. Bracketed "[...]" and "{...}" labels are spoken, set off by pauses;
+    1. Bracketed "[...]" and "{...}" labels are spoken, read in the flow of the sentence;
        "≈" is dropped; "→" is a pause.
     2. "=" and "+" are spoken ("égale", "plus" / "equals", "plus") between
        two pauses in English and French; "×" and a spaced "x" between numbers
@@ -1200,10 +1212,11 @@ def prepare_for_speech(
 
     supported = lang in ALTERNATIVE_WORDS
 
+    # A label is read in the flow of the sentence, with no pause.
     prepared = _BRACKETED.sub(
-        lambda match: ", "
+        lambda match: " "
         + (match.group(1) or match.group(2) or "").strip()
-        + ", ",
+        + " ",
         text,
     )
 
