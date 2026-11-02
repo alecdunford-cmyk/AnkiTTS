@@ -10,7 +10,11 @@ import threading
 import time
 
 from ankitts_log import get_logger, text_preview
-from providers.audio import encode_mp3, tempo_from_rate
+from providers.audio import (
+    LOUDNESS_VERSION,
+    encode_mp3,
+    tempo_from_rate,
+)
 from providers.base import (
     Capabilities,
     HealthStatus,
@@ -541,6 +545,7 @@ class PocketProvider(Provider):
                 clip_path
             ),
             "speech_text_version": SPEECH_TEXT_VERSION,
+            "loudness_version": LOUDNESS_VERSION,
         }
 
     def voices(

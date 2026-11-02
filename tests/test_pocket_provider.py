@@ -10,6 +10,7 @@ from tempfile import TemporaryDirectory
 import time
 
 from providers import pocket
+from providers.audio import LOUDNESS_VERSION
 from providers.base import ProviderError
 from providers.pocket import PocketProvider, engine_package_version
 from settings import SpeechProfile
@@ -89,6 +90,7 @@ def check_identity_hashes_clip_and_reads_version():
             "provider_version": "4.0.1",
             "reference_sha256": hashlib.sha256(clip.read_bytes()).hexdigest(),
             "speech_text_version": SPEECH_TEXT_VERSION,
+            "loudness_version": LOUDNESS_VERSION,
         }
 
         assert provider.cache_fields("fr", PROFILE) == {

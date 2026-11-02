@@ -18,6 +18,10 @@ from providers.base import (
     Provider,
     ProviderError,
 )
+from providers.audio import (
+    LOUDNESS_VERSION,
+    normalise_mp3_in_place,
+)
 from speech_text import SPEECH_TEXT_VERSION
 
 
@@ -157,6 +161,7 @@ class EdgeProvider(Provider):
         return {
             **get_edge_provider_identity(),
             "speech_text_version": SPEECH_TEXT_VERSION,
+            "loudness_version": LOUDNESS_VERSION,
         }
 
     def capabilities(self):
@@ -222,3 +227,20 @@ class EdgeProvider(Provider):
             raise NoAudioProduced(
                 "Edge returned no audio after retries."
             )
+
+        try:
+            normalise_mp3_in_place(
+                output_path
+            )
+
+        except Exception as error:
+            if Path(
+                output_path
+            ).exists():
+                Path(
+                    output_path
+                ).unlink()
+
+            raise ProviderError(
+                f"Normalising Edge audio failed: {error}"
+            ) from error

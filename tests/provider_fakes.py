@@ -12,6 +12,7 @@ from providers.base import (
     Provider,
     ProviderError,
 )
+from providers.audio import LOUDNESS_VERSION
 from speech_text import SPEECH_TEXT_VERSION
 
 
@@ -49,6 +50,7 @@ class HookProvider(Provider):
         return dict(
             self.get_edge_provider_identity(),
             speech_text_version=SPEECH_TEXT_VERSION,
+            loudness_version=LOUDNESS_VERSION,
         )
 
     def capabilities(self):
@@ -122,6 +124,7 @@ class FakeProvider(Provider):
             "provider_model": "model-1",
             "provider_version": "1.0",
             "speech_text_version": SPEECH_TEXT_VERSION,
+            "loudness_version": LOUDNESS_VERSION,
         }
         self._languages = (
             None

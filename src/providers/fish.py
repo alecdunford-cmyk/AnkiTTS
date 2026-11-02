@@ -8,7 +8,11 @@ import urllib.error
 import urllib.request
 
 from ankitts_log import get_logger
-from providers.audio import encode_mp3, tempo_from_rate
+from providers.audio import (
+    LOUDNESS_VERSION,
+    encode_mp3,
+    tempo_from_rate,
+)
 from providers.base import (
     Capabilities,
     HealthStatus,
@@ -120,6 +124,7 @@ class FishProvider(Provider):
             "provider_version": FISH_API_VERSION,
             "reference_id": reference_id,
             "speech_text_version": SPEECH_TEXT_VERSION,
+            "loudness_version": LOUDNESS_VERSION,
         }
 
     def voices(
@@ -292,16 +297,12 @@ class FishProvider(Provider):
                 audio
             )
 
-            if tempo == 1:
-                raw_path.replace(
-                    output_path
-                )
-            else:
-                encode_mp3(
-                    raw_path,
-                    output_path,
-                    tempo,
-                )
+            # Always through encode_mp3: it normalises the loudness.
+            encode_mp3(
+                raw_path,
+                output_path,
+                tempo,
+            )
 
         except Exception as error:
             if output_path.exists():

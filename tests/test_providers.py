@@ -13,7 +13,7 @@ import generator
 import structured_audio
 from generator import SynthesisFailed, create_audio
 from providers import registry
-from providers.audio import encode_mp3, tempo_from_rate
+from providers.audio import LOUDNESS_VERSION, encode_mp3, tempo_from_rate
 from providers.base import NoAudioProduced, ProviderError
 from providers.edge import EdgeProvider
 from rce_contract import create_rce_speech_plan_job
@@ -652,10 +652,15 @@ def check_speech_text_version_is_in_every_identity():
     assert edge_identity == dict(
         generator.get_edge_provider_identity(),
         speech_text_version=SPEECH_TEXT_VERSION,
+        loudness_version=LOUDNESS_VERSION,
     )
     assert "speech_text_version" not in generator.get_edge_provider_identity()
+    assert "loudness_version" not in generator.get_edge_provider_identity()
     assert FakeProvider("x").identity("fr")["speech_text_version"] == (
         SPEECH_TEXT_VERSION
+    )
+    assert FakeProvider("x").identity("fr")["loudness_version"] == (
+        LOUDNESS_VERSION
     )
 
     older = dict(edge_identity, speech_text_version="0")

@@ -4,8 +4,12 @@ import io
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
+
+from pydub import AudioSegment
+from pydub.generators import Sine
 import urllib.error
 
+from providers.audio import LOUDNESS_VERSION, TARGET_LUFS, measure_loudness
 from providers.base import NoAudioProduced, ProviderError, ProviderUnavailable
 from providers.fish import FishProvider
 from settings import SpeechProfile
@@ -19,6 +23,18 @@ CONFIG = {
 }
 
 PROFILE = SpeechProfile("fr", "fr-FR-DeniseNeural", "+0%", "+10%", "+3Hz")
+
+
+def mp3_bytes():
+    # A real 1 s tone at -30 dBFS: Fish audio is decoded and normalised now.
+    with TemporaryDirectory() as directory:
+        path = Path(directory) / "tone.mp3"
+
+        Sine(440).to_audio_segment(duration=1000, volume=-30).set_frame_rate(24000).export(
+            str(path), format="mp3"
+        )
+
+        return path.read_bytes()
 
 
 def keys(value):
@@ -35,6 +51,7 @@ def check_identity_capabilities_and_health():
         "provider_version": "v1",
         "reference_id": "fr-voice",
         "speech_text_version": SPEECH_TEXT_VERSION,
+        "loudness_version": LOUDNESS_VERSION,
     }
     assert provider.cache_fields("fr", PROFILE) == {
         "voice": None,
@@ -63,8 +80,9 @@ def check_request_is_built_without_leaking_the_key():
     def opener(request, timeout):
         captured["request"] = request
         captured["timeout"] = timeout
-        return b"ID3-fake-mp3"
+        return fish_audio
 
+    fish_audio = mp3_bytes()
     provider = FishProvider(CONFIG, opener=opener, key_reader=keys("secret-key"))
 
     with TemporaryDirectory() as directory:
@@ -84,7 +102,10 @@ def check_request_is_built_without_leaking_the_key():
             "format": "mp3",
         }
         assert captured["timeout"] == 7
-        assert output.read_bytes() == b"ID3-fake-mp3"
+        # Whatever tempo, Fish audio goes through the normalising encode.
+        assert output.read_bytes() != fish_audio
+        assert abs(measure_loudness(output)[0] - TARGET_LUFS) <= 1.0
+        assert len(AudioSegment.from_file(str(output))) > 800
         assert sorted(path.name for path in Path(directory).iterdir()) == ["out.mp3"]
 
 

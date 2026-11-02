@@ -3,7 +3,8 @@ A stand-in for providers/pocket_worker.py speaking the same protocol, for
 the regression tests. Needs only the standard library. Behaviour by text:
 "FAIL" -> error response, "HANG" -> never answers, "EXIT" -> process exits,
 "QUIETTAIL" -> a loud tone, then 60 ms of quiet speech-level tone (about
--50 dBFS), then 400 ms of digital silence.
+-50 dBFS), then 400 ms of digital silence. "QUIET30" -> 1.5 s of tone
+peaking at -30 dBFS (a quiet clip, for the loudness tests).
 """
 
 import json
@@ -18,6 +19,23 @@ def write_tone(path, seconds=0.5, rate=24000):
     frames = b"".join(
         struct.pack("<h", int(8000 * math.sin(2 * math.pi * 440 * i / rate)))
         for i in range(int(seconds * rate))
+    )
+
+    with wave.open(path, "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(rate)
+        wav.writeframes(frames)
+
+
+QUIET_CLIP_SECONDS = 1.5
+
+
+def write_quiet_clip(path, rate=24000):
+    # Amplitude 1036 of 32768 is -30 dBFS.
+    frames = b"".join(
+        struct.pack("<h", int(1036 * math.sin(2 * math.pi * 440 * i / rate)))
+        for i in range(int(QUIET_CLIP_SECONDS * rate))
     )
 
     with wave.open(path, "wb") as wav:
@@ -92,6 +110,10 @@ def main():
                         + QUIET_TAIL_SPEECH_SECONDS
                         + QUIET_TAIL_SILENCE_SECONDS
                     )
+
+                elif text == "QUIET30":
+                    write_quiet_clip(request["output"])
+                    audio_seconds = QUIET_CLIP_SECONDS
 
                 else:
                     write_tone(request["output"])
