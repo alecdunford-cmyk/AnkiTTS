@@ -22,6 +22,12 @@ os.environ.setdefault(
     tempfile.mkdtemp(prefix="ankitts-test-log-"),
 )
 
+# And generated earcons out of the add-on's user_files.
+os.environ.setdefault(
+    "ANKITTS_EARCON_DIR",
+    tempfile.mkdtemp(prefix="ankitts-test-earcons-"),
+)
+
 sys.path.insert(0, str(SRC_DIR))
 sys.path.insert(0, str(PROJECT_ROOT))
 

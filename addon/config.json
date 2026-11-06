@@ -68,5 +68,10 @@
     "translation-group": {"rate": 1.0, "pauseFactor": 0.3, "minPauseMs": 200, "maxPauseMs": 1000, "boundaryPauseMs": 600},
     "example": {"rate": 1.0, "pauseFactor": 0.3, "minPauseMs": 200, "maxPauseMs": 1000, "boundaryPauseMs": 600},
     "sentence": {"rate": 1.0, "pauseFactor": 0.3, "minPauseMs": 200, "maxPauseMs": 1000, "boundaryPauseMs": 600}
+  },
+  "earcons": {
+    "sectionBoundary": "",
+    "answerStart": "",
+    "directionFlip": ""
   }
 }

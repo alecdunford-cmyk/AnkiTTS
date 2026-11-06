@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from aqt import mw
 from aqt.qt import (
     QComboBox,
@@ -25,6 +27,7 @@ from cache import (
     get_cache_statistics,
 )
 
+from earcons import default_earcon_directory
 from settings import (
     DEFAULT_ROLE_VOICES,
     DEFAULT_TEMPO_PROFILES,
@@ -80,6 +83,21 @@ ROLE_VOICE_SLOTS = (
         "en",
         "English",
         "label",
+    ),
+)
+
+EARCON_LABELS = (
+    (
+        "sectionBoundary",
+        "Section boundary",
+    ),
+    (
+        "answerStart",
+        "Answer start",
+    ),
+    (
+        "directionFlip",
+        "Direction flip",
     ),
 )
 
@@ -531,6 +549,8 @@ class SettingsDialog(QDialog):
 
         self.add_tempo_profile_controls()
 
+        self.add_earcon_controls()
+
         self.speech_plan_layout.addStretch()
 
         speech_plan_content.setLayout(
@@ -551,6 +571,91 @@ class SettingsDialog(QDialog):
             scroll_area,
             "Speech Plans",
         )
+
+    def add_earcon_controls(
+        self,
+    ):
+        """Add one sound-file path per earcon; blank is the generated tone."""
+
+        description = QLabel(
+            "<b>Earcons</b><br>Short sounds a plan can place before or after "
+            "a segment. Leave a path blank for the generated default tone, "
+            f"kept in {default_earcon_directory()}. A replaced sound rebuilds "
+            "the tracks that use it, from the cached audio."
+        )
+
+        description.setWordWrap(
+            True
+        )
+
+        self.earcon_edits = {}
+
+        earcon_form = QFormLayout()
+
+        for (
+            role,
+            label,
+        ) in EARCON_LABELS:
+            path_edit = QLineEdit(
+                self.settings.earcons.get(
+                    role,
+                    "",
+                )
+            )
+
+            path_edit.setPlaceholderText(
+                "Generated default tone"
+            )
+
+            self.earcon_edits[
+                role
+            ] = path_edit
+
+            earcon_form.addRow(
+                f"{label}:",
+                path_edit,
+            )
+
+        self.speech_plan_layout.addSpacing(
+            18
+        )
+
+        self.speech_plan_layout.addWidget(
+            description
+        )
+
+        self.speech_plan_layout.addLayout(
+            earcon_form
+        )
+
+    def build_earcons(
+        self,
+    ):
+        """Build earcons; a named file must exist when the settings are saved."""
+
+        earcons = {}
+
+        for (
+            role,
+            path_edit,
+        ) in self.earcon_edits.items():
+            path = path_edit.text().strip()
+
+            if (
+                path
+                and not Path(
+                    path
+                ).is_file()
+            ):
+                raise ValueError(
+                    f'The {role} earcon file was not found: "{path}".'
+                )
+
+            earcons[
+                role
+            ] = path
+
+        return earcons
 
     def add_tempo_profile_controls(
         self,
@@ -2080,6 +2185,10 @@ class SettingsDialog(QDialog):
                 "tempo_profiles"
             ] = self.build_tempo_profiles()
 
+            config[
+                "earcons"
+            ] = self.build_earcons()
+
             validated_settings = (
                 AppSettings.from_dict(
                     config
@@ -2141,6 +2250,9 @@ class SettingsDialog(QDialog):
                 ),
                 "tempo_profiles": (
                     validated_settings.tempo_profiles
+                ),
+                "earcons": (
+                    validated_settings.earcons
                 ),
             }
         )

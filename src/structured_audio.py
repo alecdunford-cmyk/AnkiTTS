@@ -11,6 +11,10 @@ from card_processor import (
     combine_statistics,
     empty_statistics,
 )
+from earcons import (
+    file_sha256,
+    resolve_earcon_path,
+)
 from generator import (
     SynthesisFailed,
     create_audio,
@@ -263,12 +267,15 @@ def create_structured_track_filename(
     rce_card_id,
     track,
     provider_identity,
+    earcon_paths=None,
 ):
     """
     Create a deterministic filename from schedule and synthesis inputs.
 
     provider_identity is one identity for every segment or a sequence
     with one identity per segment; a track may mix providers.
+    earcon_paths maps the earcons a version 2 track uses to their files; their
+    contents are hashed, so replacing a sound republishes the tracks using it.
     """
 
     if not isinstance(
@@ -311,7 +318,8 @@ def create_structured_track_filename(
         ),
         "side": track.side,
         **_track_extras(
-            track
+            track,
+            earcon_paths,
         ),
         "segments": [
             {
@@ -372,6 +380,7 @@ def create_structured_track_filename(
 
 def _track_extras(
     track,
+    earcon_paths=None,
 ):
     """What a schema-version-2 track adds to its identity; v1: none."""
 
@@ -380,6 +389,14 @@ def _track_extras(
 
     return {
         "stitch_version": STITCH_VERSION,
+        "earcons": {
+            role: file_sha256(
+                path
+            )
+            for role, path in (
+                earcon_paths or {}
+            ).items()
+        },
         "tempo": {
             "pause_factor": str(
                 track.tempo.pause_factor
@@ -431,6 +448,8 @@ def _track_segment_extras(
         "pause_after": _pause_identity(
             segment.pause_after
         ),
+        "earcon_before": segment.earcon_before,
+        "earcon_after": segment.earcon_after,
     }
 
 
@@ -494,6 +513,11 @@ def _prepare_track(
         settings,
     )
 
+    earcon_paths = _resolve_earcons(
+        track,
+        settings,
+    )
+
     counted_paths = set()
     audio_segments = []
     segment_identities = []
@@ -545,6 +569,7 @@ def _prepare_track(
                 **_stitch_extras(
                     segment,
                     track,
+                    earcon_paths,
                 ),
             }
         )
@@ -553,6 +578,7 @@ def _prepare_track(
         rce_card_id,
         track,
         segment_identities,
+        earcon_paths,
     )
 
     final_path = OUTPUT_DIR / filename
@@ -575,19 +601,75 @@ def _prepare_track(
     )
 
 
+def _resolve_earcons(
+    track,
+    settings,
+):
+    """The files for the earcons this track uses; none for version 1."""
+
+    roles = {
+        role
+        for segment in track.spoken_segments
+        for role in (
+            segment.earcon_before,
+            segment.earcon_after,
+        )
+        if role is not None
+    }
+
+    try:
+        return {
+            role: resolve_earcon_path(
+                role,
+                settings,
+            )
+            for role in sorted(
+                roles
+            )
+        }
+
+    except (
+        OSError,
+        ValueError,
+    ) as error:
+        raise StructuredAudioProcessingError(
+            f"An earcon could not be prepared: {error}"
+        ) from error
+
+
 def _stitch_extras(
     segment,
     track,
+    earcon_paths,
 ):
     """What the stitcher needs for a schema-version-2 segment; v1: none."""
 
     if track.tempo is None:
         return {}
 
+    def earcon_file(
+        role,
+    ):
+        return (
+            None
+            if role is None
+            else str(
+                earcon_paths[
+                    role
+                ]
+            )
+        )
+
     return {
         "pause_before": segment.pause_before,
         "pause_after": segment.pause_after,
         "tempo": track.tempo,
+        "earcon_before": earcon_file(
+            segment.earcon_before
+        ),
+        "earcon_after": earcon_file(
+            segment.earcon_after
+        ),
     }
 
 

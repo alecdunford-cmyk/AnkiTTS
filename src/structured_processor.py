@@ -70,6 +70,8 @@ class ResolvedSpeechSegment:
     voice_provider: str | None = None
     pause_before: PauseSpec | None = None
     pause_after: PauseSpec | None = None
+    earcon_before: str | None = None
+    earcon_after: str | None = None
     spoken: bool = True
 
 
@@ -230,6 +232,8 @@ def resolve_speech_segment(
         voice_provider=voice_provider,
         pause_before=segment.pause_before,
         pause_after=segment.pause_after,
+        earcon_before=segment.earcon_before,
+        earcon_after=segment.earcon_after,
         spoken=segment.spoken,
     )
 

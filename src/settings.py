@@ -309,6 +309,65 @@ def merge_tempo_profiles(
     return merged
 
 
+# The three sounds a plan can ask for (CA-37 (4)). An empty path means the
+# default tone generated into user_files (src/earcons.py).
+EARCON_ROLES = (
+    "sectionBoundary",
+    "answerStart",
+    "directionFlip",
+)
+
+DEFAULT_EARCONS = {
+    role: ""
+    for role in EARCON_ROLES
+}
+
+
+def merge_earcons(
+    loaded: Any,
+) -> dict[str, str]:
+    """Overlay loaded earcon paths on the defaults, role by role."""
+
+    merged = dict(
+        DEFAULT_EARCONS
+    )
+
+    if loaded is None:
+        return merged
+
+    if not isinstance(
+        loaded,
+        dict,
+    ):
+        raise ValueError(
+            "earcons must be a dictionary."
+        )
+
+    for (
+        role,
+        path,
+    ) in loaded.items():
+        if role not in EARCON_ROLES:
+            raise ValueError(
+                f'Unknown earcon "{role}"; use '
+                f"{', '.join(EARCON_ROLES)}."
+            )
+
+        if not isinstance(
+            path,
+            str,
+        ):
+            raise ValueError(
+                f'earcons["{role}"] must be a file path.'
+            )
+
+        merged[
+            role
+        ] = path.strip()
+
+    return merged
+
+
 def merge_provider_settings(
     loaded: Any,
 ) -> dict[str, dict[str, Any]]:
@@ -433,6 +492,12 @@ class AppSettings:
     tempo_profiles: dict[str, dict[str, Any]] = field(
         default_factory=lambda: deepcopy(
             DEFAULT_TEMPO_PROFILES
+        )
+    )
+
+    earcons: dict[str, str] = field(
+        default_factory=lambda: dict(
+            DEFAULT_EARCONS
         )
     )
 
@@ -744,6 +809,10 @@ class AppSettings:
 
         self._validate_role_voices()
         self._validate_tempo_profiles()
+
+        self.earcons = merge_earcons(
+            self.earcons
+        )
 
         if not isinstance(
             self.speech_profiles,
@@ -1177,6 +1246,12 @@ class AppSettings:
         settings.tempo_profiles = merge_tempo_profiles(
             data.get(
                 "tempo_profiles"
+            )
+        )
+
+        settings.earcons = merge_earcons(
+            data.get(
+                "earcons"
             )
         )
 

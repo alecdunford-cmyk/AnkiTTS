@@ -39,6 +39,9 @@ TRACK_MP3_BITRATE = "96k"
 TRAILING_SILENCE_CHUNK_MS = 10
 TRIM_SAFETY_MARGIN_MS = 50
 MINIMUM_AUDIO_LENGTH_MS = 50
+# Between an earcon and the speech it belongs to, so a tone never runs straight
+# into a word. An earcon stays next to its speech; the plan's pauses go outside.
+EARCON_GAP_MS = 120
 
 @contextmanager
 def hide_subprocess_windows():
@@ -311,8 +314,11 @@ def stitch_structured_audio(
     Unlike generic stitching, this path never infers silence from text.
     Export is published atomically only after the complete track succeeds.
 
-    Returns the timeline of the schema-version-2 segments: one {"kind",
-    "start_ms", "duration_ms"} per pause and clip, in order, measured before MP3
+    A schema-version-2 segment is laid out as: pause before, earcon before,
+    speech, earcon after, pause after.
+
+    Returns the timeline of the version 2 segments: one {"kind", "start_ms",
+    "duration_ms"} per pause, earcon and clip, in order, measured before MP3
     encoding. A version 1 segment (no "tempo") is stitched exactly as it always
     was and adds nothing to it.
     """
@@ -399,11 +405,53 @@ def stitch_structured_audio(
                         recorded,
                     )
 
+                earcon_before = segment.get(
+                    "earcon_before"
+                )
+
+                if earcon_before:
+                    append(
+                        "earcon_before",
+                        AudioSegment.from_file(
+                            earcon_before
+                        ),
+                        recorded,
+                    )
+
+                    append(
+                        "earcon_gap",
+                        AudioSegment.silent(
+                            duration=EARCON_GAP_MS
+                        ),
+                        recorded,
+                    )
+
                 append(
                     "speech",
                     audio,
                     recorded,
                 )
+
+                earcon_after = segment.get(
+                    "earcon_after"
+                )
+
+                if earcon_after:
+                    append(
+                        "earcon_gap",
+                        AudioSegment.silent(
+                            duration=EARCON_GAP_MS
+                        ),
+                        recorded,
+                    )
+
+                    append(
+                        "earcon_after",
+                        AudioSegment.from_file(
+                            earcon_after
+                        ),
+                        recorded,
+                    )
 
                 if pause_after:
                     append(
