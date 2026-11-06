@@ -91,6 +91,8 @@ Each profile stores:
 
 Mappings simply choose which profile they should use.
 
+Each profile's voice list starts with that language's own voices, then offers every other Edge voice, since the multilingual ones speak other languages well.
+
 This allows, for example:
 
 | Language | Edge voice |

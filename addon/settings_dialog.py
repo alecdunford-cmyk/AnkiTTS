@@ -35,7 +35,11 @@ from settings import (
     SETTINGS_VERSION,
     AppSettings,
 )
-from voice_manager import VoiceManager, role_voice_choices
+from voice_manager import (
+    VoiceManager,
+    profile_voice_choices,
+    role_voice_choices,
+)
 
 
 LANGUAGES = {
@@ -1320,7 +1324,9 @@ class SettingsDialog(QDialog):
             "Configure the voice, speech rate, pitch, and volume "
             "used for each supported language. Reset buttons "
             "restore only the three modifiers and do not change "
-            "the selected voice."
+            "the selected voice. Each list starts with the language's "
+            "own voices, then every other voice; the multilingual ones "
+            "speak other languages well."
         )
 
         description.setWordWrap(
@@ -1476,30 +1482,19 @@ class SettingsDialog(QDialog):
         current_voice,
         voices_available,
     ):
-        choices = []
-
-        if voices_available:
-            matching_voices = (
-                self.voice_manager.get_voices(
-                    language_code
-                )
-            )
-
-            for voice in matching_voices:
-                choices.append(
-                    (
-                        self.voice_manager.get_display_name(
-                            voice
-                        ),
-                        voice[
-                            "ShortName"
-                        ],
-                    )
-                )
+        catalogue = (
+            self.voice_manager.get_all_voices()
+            if voices_available
+            else []
+        )
 
         self.fill_voice_combo(
             combo,
-            choices,
+            profile_voice_choices(
+                catalogue,
+                language_code,
+                current_voice,
+            ),
             current_voice,
         )
 

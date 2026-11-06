@@ -1016,6 +1016,13 @@ over the whole live catalogue, the four defaults always offered, even with no
 network), the tempo table and the earcon paths. `settings_version` is written
 only by the dialog's Save (CA-45).
 
+The **Speech Profiles** tab's voice lists used to show only the language's own
+locale. They now start with those and go on to every other voice (Alec,
+2026-11-06), so Seraphina (de-DE) can serve the English profile and version 1
+cards can use a CA-41 voice before card-4. This does not undo CA-42: a version 1
+key changes only if the user chooses a different voice, and each language then
+has one voice, with no label voice.
+
 ### Rulings (the implementing session, 2026-11-06)
 
 Option taken, then option not taken.
@@ -1100,8 +1107,8 @@ Option taken, then option not taken.
 ### Tests
 
 `tests/test_speech_plan_v2.py` (14 checks): every field, every rejection, version
-1 unaffected. `tests/test_role_voices.py` (22): defaults, migration, resolution,
-fallback, cache splits, one role regenerating, the picker's choices.
+1 unaffected. `tests/test_role_voices.py` (25): defaults, migration, resolution,
+fallback, cache splits, one role regenerating, both pickers' choices.
 `tests/test_tempo_pauses.py` (16): the note's table, the formula and clamp, the
 trimmed duration, what refills. `tests/test_earcons.py` (10): the tone
 specification, generated once, replacement, position, keys.

@@ -29,6 +29,10 @@ Rulings CA-41 (Alec) and CA-42 to CA-53, `docs/DESIGN-providers.md`, section 18:
   The move to Edge is a provider change, so a card regenerated now is Edge audio
   in those voices, generated once if Edge has not made it before. Audio already
   in Anki stays until its card is regenerated.
+- **The Speech Profiles voice lists offer every Edge voice**, the language's own
+  first. A multilingual voice from another locale can now serve a language, so
+  version 1 cards can use a CA-41 voice before RCE emits version 2. Choosing a
+  new voice regenerates the cards that use it, as any voice change does.
 
 ### Speech providers (2026-11-01)
 

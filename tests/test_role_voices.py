@@ -22,7 +22,10 @@ from structured_audio import (
 )
 from structured_processor import resolve_speech_plan
 from tests.provider_fakes import FakeProvider
-from voice_manager import role_voice_choices
+from voice_manager import (
+    profile_voice_choices,
+    role_voice_choices,
+)
 
 
 CA41 = {
@@ -1249,6 +1252,113 @@ def check_role_voice_choices_list_the_whole_catalogue():
     ) in choices
 
 
+PROFILE_CATALOGUE = [
+    {
+        "ShortName": "ja-JP-NanamiNeural",
+        "Locale": "ja-JP",
+        "Gender": "Female",
+    },
+    {
+        "ShortName": "en-US-JennyNeural",
+        "Locale": "en-US",
+        "Gender": "Female",
+    },
+    {
+        "ShortName": "en-GB-SoniaNeural",
+        "Locale": "en-GB",
+        "Gender": "Female",
+    },
+    {
+        "ShortName": "de-DE-SeraphinaMultilingualNeural",
+        "Locale": "de-DE",
+        "Gender": "Female",
+    },
+    {
+        "ShortName": "en-US-AndrewNeural",
+        "Locale": "en-US",
+        "Gender": "Male",
+    },
+]
+
+
+def check_profile_picker_offers_every_voice_own_language_first():
+    voices = [
+        voice
+        for _label, voice in profile_voice_choices(
+            PROFILE_CATALOGUE,
+            "en",
+        )
+    ]
+
+    # The language's own voices in the order the picker always used.
+    assert voices[:3] == [
+        "en-GB-SoniaNeural",
+        "en-US-AndrewNeural",
+        "en-US-JennyNeural",
+    ]
+
+    # Then the rest, so Seraphina can speak English; no voice twice.
+    assert "de-DE-SeraphinaMultilingualNeural" in voices[3:]
+    assert "ja-JP-NanamiNeural" in voices[3:]
+    assert len(voices) == len(set(voices))
+
+
+def check_profile_picker_works_offline_and_keeps_the_current_voice():
+    voices = [
+        voice
+        for _label, voice in profile_voice_choices(
+            [],
+            "en",
+            "en-US-JennyNeural",
+        )
+    ]
+
+    assert "en-US-JennyNeural" in voices
+    assert "de-DE-SeraphinaMultilingualNeural" in voices
+
+
+def check_profile_voice_from_another_locale_resolves_for_v1():
+    # A German-locale voice on the English profile: the language stays English.
+    plan = parse_speech_plan(
+        json.dumps(
+            {
+                "schemaVersion": 1,
+                "side": "back",
+                "segments": [
+                    {
+                        key: value
+                        for key, value in FOUR_VOICES[2].items()
+                        if key
+                        not in (
+                            "role",
+                            "voiceRole",
+                        )
+                    }
+                    | {
+                        "sequence": 1,
+                    }
+                ],
+            }
+        ),
+        "back",
+    )
+
+    segment = resolve_speech_plan(
+        plan,
+        AppSettings.from_dict(
+            {
+                "voices": {
+                    "en": "de-DE-SeraphinaMultilingualNeural",
+                },
+            }
+        ),
+    ).segments[0]
+
+    assert segment.voice == "de-DE-SeraphinaMultilingualNeural"
+    assert segment.resolved_profile_language == "en"
+    assert segment.voice_role is None
+
+
 def run():
     checks = [
         check_defaults_are_ca41,
@@ -1273,6 +1383,9 @@ def run():
         check_chain_chosen_after_the_change_is_respected,
         check_role_voice_choices_work_offline,
         check_role_voice_choices_list_the_whole_catalogue,
+        check_profile_picker_offers_every_voice_own_language_first,
+        check_profile_picker_works_offline_and_keeps_the_current_voice,
+        check_profile_voice_from_another_locale_resolves_for_v1,
     ]
 
     for check in checks:

@@ -101,6 +101,73 @@ def role_voice_choices(
     return choices
 
 
+def profile_voice_choices(
+    catalogue: list[dict[str, Any]],
+    language_code: str,
+    current_voice: str = "",
+) -> list[tuple[str, str]]:
+    """
+    Return (label, voice) rows for one speech profile's picker.
+
+    The language's own voices come first, in locale order, then every other
+    voice as role_voice_choices orders them, so a multilingual voice from
+    another locale can be chosen (Seraphina, de-DE, for English).
+    """
+
+    locale_prefix = f"{language_code.lower()}-"
+
+    own_voices = sorted(
+        (
+            voice
+            for voice in catalogue
+            if voice.get(
+                "Locale",
+                "",
+            ).lower().startswith(
+                locale_prefix
+            )
+        ),
+        key=lambda voice: (
+            voice.get(
+                "Locale",
+                "",
+            ),
+            voice.get(
+                "ShortName",
+                "",
+            ),
+        ),
+    )
+
+    choices = [
+        (
+            VoiceManager.get_display_name(
+                voice
+            ),
+            voice.get(
+                "ShortName",
+                "",
+            ),
+        )
+        for voice in own_voices
+    ]
+
+    own_names = {
+        name
+        for _label, name in choices
+    }
+
+    return choices + [
+        choice
+        for choice in role_voice_choices(
+            catalogue,
+            current_voice,
+        )
+        if choice[1]
+        not in own_names
+    ]
+
+
 class VoiceManager:
     """Retrieves, filters, and formats Edge TTS voices."""
 
