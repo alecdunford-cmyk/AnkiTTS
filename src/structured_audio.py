@@ -40,6 +40,10 @@ MAX_PARALLEL_SYNTHESIS = 3
 # cached, as with speech_text_version and loudness_version.
 ROLE_VOICE_VERSION = "1"
 
+# In the track identity of schema-version-2 tracks only. Bump it whenever the
+# stitcher's handling of version 2 pauses or earcons changes what is published.
+STITCH_VERSION = "1"
+
 OWN_VOICE = "own-voice"
 
 logger = get_logger(
@@ -275,6 +279,8 @@ def create_structured_track_filename(
             "A resolved speech track is required."
         )
 
+    spoken_segments = track.spoken_segments
+
     if isinstance(
         provider_identity,
         dict,
@@ -282,7 +288,7 @@ def create_structured_track_filename(
         segment_identities = [
             provider_identity
         ] * len(
-            track.segments
+            spoken_segments
         )
     else:
         segment_identities = list(
@@ -292,7 +298,7 @@ def create_structured_track_filename(
     if len(
         segment_identities
     ) != len(
-        track.segments
+        spoken_segments
     ):
         raise StructuredAudioProcessingError(
             "One provider identity is required per segment."
@@ -304,6 +310,9 @@ def create_structured_track_filename(
             track.schema_version
         ),
         "side": track.side,
+        **_track_extras(
+            track
+        ),
         "segments": [
             {
                 "provider_identity": dict(
@@ -332,7 +341,7 @@ def create_structured_track_filename(
                 ),
             }
             for segment, segment_identity in zip(
-                track.segments,
+                spoken_segments,
                 segment_identities,
             )
         ],
@@ -361,6 +370,48 @@ def create_structured_track_filename(
     )
 
 
+def _track_extras(
+    track,
+):
+    """What a schema-version-2 track adds to its identity; v1: none."""
+
+    if track.tempo is None:
+        return {}
+
+    return {
+        "stitch_version": STITCH_VERSION,
+        "tempo": {
+            "pause_factor": str(
+                track.tempo.pause_factor
+            ),
+            "min_pause_ms": track.tempo.min_pause_ms,
+            "max_pause_ms": track.tempo.max_pause_ms,
+            "boundary_pause_ms": (
+                track.tempo.boundary_pause_ms
+            ),
+        },
+    }
+
+
+def _pause_identity(
+    spec,
+):
+    if spec is None:
+        return None
+
+    return {
+        "kind": spec.kind,
+        "milliseconds": spec.milliseconds,
+        "scale": (
+            None
+            if spec.scale is None
+            else str(
+                spec.scale
+            )
+        ),
+    }
+
+
 def _track_segment_extras(
     segment,
 ):
@@ -374,6 +425,12 @@ def _track_segment_extras(
             segment
         ),
         "voice_provider": segment.voice_provider,
+        "pause_before": _pause_identity(
+            segment.pause_before
+        ),
+        "pause_after": _pause_identity(
+            segment.pause_after
+        ),
     }
 
 
@@ -399,7 +456,9 @@ def _prepare_track(
 ):
     statistics = empty_statistics()
 
-    if not track.segments:
+    # A segment with spoken false is in the plan for alignment only: no audio,
+    # no pause, no earcon, and no part in the track's identity.
+    if not track.spoken_segments:
         return (
             {
                 "filename": None,
@@ -414,7 +473,7 @@ def _prepare_track(
         _create_segment_request(
             segment
         )
-        for segment in track.segments
+        for segment in track.spoken_segments
     ]
 
     unique_requests = {}
@@ -483,6 +542,10 @@ def _prepare_track(
                 "pause_after_milliseconds": (
                     segment.pause_after_milliseconds
                 ),
+                **_stitch_extras(
+                    segment,
+                    track,
+                ),
             }
         )
 
@@ -510,6 +573,22 @@ def _prepare_track(
         },
         statistics,
     )
+
+
+def _stitch_extras(
+    segment,
+    track,
+):
+    """What the stitcher needs for a schema-version-2 segment; v1: none."""
+
+    if track.tempo is None:
+        return {}
+
+    return {
+        "pause_before": segment.pause_before,
+        "pause_after": segment.pause_after,
+        "tempo": track.tempo,
+    }
 
 
 def _create_segment_request(

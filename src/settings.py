@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from copy import deepcopy
 from dataclasses import asdict, dataclass, field
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -188,6 +189,126 @@ def merge_role_voices(
     return merged
 
 
+# One row per preset; the speech plan names a row and AnkiTTS resolves it. The
+# numbers are the design note's starting point, tuned by ear later (CA-37 (5)).
+DEFAULT_TEMPO_PROFILE = "default"
+
+DEFAULT_TEMPO_PROFILES = {
+    DEFAULT_TEMPO_PROFILE: {
+        "rate": 1.0,
+        "pauseFactor": 0.35,
+        "minPauseMs": 250,
+        "maxPauseMs": 1200,
+        "boundaryPauseMs": 700,
+    },
+    "deep-entry-study": {
+        "rate": 1.0,
+        "pauseFactor": 0.35,
+        "minPauseMs": 250,
+        "maxPauseMs": 1200,
+        "boundaryPauseMs": 900,
+    },
+    "deep-recall": {
+        "rate": 0.95,
+        "pauseFactor": 0.45,
+        "minPauseMs": 300,
+        "maxPauseMs": 1500,
+        "boundaryPauseMs": 900,
+    },
+    "sense-map": {
+        "rate": 1.0,
+        "pauseFactor": 0.3,
+        "minPauseMs": 200,
+        "maxPauseMs": 1000,
+        "boundaryPauseMs": 600,
+    },
+    "translation-group": {
+        "rate": 1.0,
+        "pauseFactor": 0.3,
+        "minPauseMs": 200,
+        "maxPauseMs": 1000,
+        "boundaryPauseMs": 600,
+    },
+    "example": {
+        "rate": 1.0,
+        "pauseFactor": 0.3,
+        "minPauseMs": 200,
+        "maxPauseMs": 1000,
+        "boundaryPauseMs": 600,
+    },
+    "sentence": {
+        "rate": 1.0,
+        "pauseFactor": 0.3,
+        "minPauseMs": 200,
+        "maxPauseMs": 1000,
+        "boundaryPauseMs": 600,
+    },
+}
+
+
+@dataclass(frozen=True)
+class TempoProfile:
+    """One resolved row of the tempo table."""
+
+    rate: Decimal
+    pause_factor: Decimal
+    min_pause_ms: int
+    max_pause_ms: int
+    boundary_pause_ms: int
+
+
+def merge_tempo_profiles(
+    loaded: Any,
+) -> dict[str, dict[str, Any]]:
+    """
+    Overlay loaded tempo profiles on the defaults, field by field.
+
+    A new name takes any field it leaves out from the "default" row.
+    """
+
+    merged = deepcopy(
+        DEFAULT_TEMPO_PROFILES
+    )
+
+    if loaded is None:
+        return merged
+
+    if not isinstance(
+        loaded,
+        dict,
+    ):
+        raise ValueError(
+            "tempo_profiles must be a dictionary."
+        )
+
+    for (
+        name,
+        fields,
+    ) in loaded.items():
+        if not isinstance(
+            fields,
+            dict,
+        ):
+            raise ValueError(
+                f'tempo_profiles["{name}"] must be a dictionary.'
+            )
+
+        merged.setdefault(
+            str(
+                name
+            ),
+            dict(
+                DEFAULT_TEMPO_PROFILES[
+                    DEFAULT_TEMPO_PROFILE
+                ]
+            ),
+        ).update(
+            fields
+        )
+
+    return merged
+
+
 def merge_provider_settings(
     loaded: Any,
 ) -> dict[str, dict[str, Any]]:
@@ -308,6 +429,55 @@ class AppSettings:
             DEFAULT_ROLE_VOICES
         )
     )
+
+    tempo_profiles: dict[str, dict[str, Any]] = field(
+        default_factory=lambda: deepcopy(
+            DEFAULT_TEMPO_PROFILES
+        )
+    )
+
+    def get_tempo_profile(
+        self,
+        name: str,
+    ) -> TempoProfile:
+        """Resolve a plan's tempo profile; an unknown name is "default"."""
+
+        row = merge_tempo_profiles(
+            self.tempo_profiles
+        )
+
+        fields = row.get(
+            name,
+            row[
+                DEFAULT_TEMPO_PROFILE
+            ],
+        )
+
+        return TempoProfile(
+            rate=Decimal(
+                str(
+                    fields[
+                        "rate"
+                    ]
+                )
+            ),
+            pause_factor=Decimal(
+                str(
+                    fields[
+                        "pauseFactor"
+                    ]
+                )
+            ),
+            min_pause_ms=fields[
+                "minPauseMs"
+            ],
+            max_pause_ms=fields[
+                "maxPauseMs"
+            ],
+            boundary_pause_ms=fields[
+                "boundaryPauseMs"
+            ],
+        )
 
     def get_role_voice(
         self,
@@ -573,6 +743,7 @@ class AppSettings:
             )
 
         self._validate_role_voices()
+        self._validate_tempo_profiles()
 
         if not isinstance(
             self.speech_profiles,
@@ -701,6 +872,114 @@ class AppSettings:
                     raise ValueError(
                         f"{path} is on Edge and needs a voice."
                     )
+
+    def _validate_tempo_profiles(self) -> None:
+        if not isinstance(
+            self.tempo_profiles,
+            dict,
+        ):
+            raise ValueError(
+                "tempo_profiles must be a dictionary."
+            )
+
+        for (
+            name,
+            fields,
+        ) in self.tempo_profiles.items():
+            path = f'tempo_profiles["{name}"]'
+
+            if (
+                not isinstance(
+                    name,
+                    str,
+                )
+                or not name.strip()
+            ):
+                raise ValueError(
+                    "Every tempo profile needs a name."
+                )
+
+            if not isinstance(
+                fields,
+                dict,
+            ):
+                raise ValueError(
+                    f"{path} must be a dictionary."
+                )
+
+            unknown = set(
+                fields
+            ) - set(
+                DEFAULT_TEMPO_PROFILES[
+                    DEFAULT_TEMPO_PROFILE
+                ]
+            )
+
+            if unknown:
+                raise ValueError(
+                    f"{path} has unknown field(s): "
+                    f"{', '.join(sorted(str(item) for item in unknown))}."
+                )
+
+            for field_name in (
+                "rate",
+                "pauseFactor",
+            ):
+                value = fields.get(
+                    field_name
+                )
+
+                if (
+                    isinstance(
+                        value,
+                        bool,
+                    )
+                    or not isinstance(
+                        value,
+                        (
+                            int,
+                            float,
+                        ),
+                    )
+                    or not value > 0
+                ):
+                    raise ValueError(
+                        f"{path}.{field_name} must be a positive number."
+                    )
+
+            for field_name in (
+                "minPauseMs",
+                "maxPauseMs",
+                "boundaryPauseMs",
+            ):
+                value = fields.get(
+                    field_name
+                )
+
+                if (
+                    isinstance(
+                        value,
+                        bool,
+                    )
+                    or not isinstance(
+                        value,
+                        int,
+                    )
+                    or value < 0
+                ):
+                    raise ValueError(
+                        f"{path}.{field_name} must be a whole number "
+                        "of milliseconds, zero or more."
+                    )
+
+            if fields[
+                "minPauseMs"
+            ] > fields[
+                "maxPauseMs"
+            ]:
+                raise ValueError(
+                    f"{path}: minPauseMs cannot exceed maxPauseMs."
+                )
 
     @classmethod
     def from_dict(
@@ -892,6 +1171,12 @@ class AppSettings:
         settings.role_voices = merge_role_voices(
             data.get(
                 "role_voices"
+            )
+        )
+
+        settings.tempo_profiles = merge_tempo_profiles(
+            data.get(
+                "tempo_profiles"
             )
         )
 

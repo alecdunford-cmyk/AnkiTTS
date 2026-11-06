@@ -5,11 +5,14 @@ from aqt.qt import (
     QDialogButtonBox,
     QFormLayout,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QLineEdit,
     QPushButton,
     QScrollArea,
     QSlider,
+    QTableWidget,
+    QTableWidgetItem,
     QTabWidget,
     Qt,
     QVBoxLayout,
@@ -22,7 +25,12 @@ from cache import (
     get_cache_statistics,
 )
 
-from settings import DEFAULT_ROLE_VOICES, PROVIDER_IDS, AppSettings
+from settings import (
+    DEFAULT_ROLE_VOICES,
+    DEFAULT_TEMPO_PROFILES,
+    PROVIDER_IDS,
+    AppSettings,
+)
 from voice_manager import VoiceManager, role_voice_choices
 
 
@@ -72,6 +80,39 @@ ROLE_VOICE_SLOTS = (
         "en",
         "English",
         "label",
+    ),
+)
+
+TEMPO_COLUMNS = (
+    (
+        "Profile",
+        None,
+        None,
+    ),
+    (
+        "Rate",
+        "rate",
+        float,
+    ),
+    (
+        "Pause factor",
+        "pauseFactor",
+        float,
+    ),
+    (
+        "Min pause (ms)",
+        "minPauseMs",
+        int,
+    ),
+    (
+        "Max pause (ms)",
+        "maxPauseMs",
+        int,
+    ),
+    (
+        "Section pause (ms)",
+        "boundaryPauseMs",
+        int,
     ),
 )
 
@@ -488,6 +529,8 @@ class SettingsDialog(QDialog):
             self.refresh_role_voice_providers,
         )
 
+        self.add_tempo_profile_controls()
+
         self.speech_plan_layout.addStretch()
 
         speech_plan_content.setLayout(
@@ -508,6 +551,219 @@ class SettingsDialog(QDialog):
             scroll_area,
             "Speech Plans",
         )
+
+    def add_tempo_profile_controls(
+        self,
+    ):
+        """Add the tempo table: one plain row per preset's profile."""
+
+        description = QLabel(
+            "<b>Tempo profiles</b><br>A plan names a profile; a name not "
+            "listed here uses the default row. A proportional pause is scale "
+            "x pause factor x the length of what was just said, kept between "
+            "the minimum and the maximum. The section pause is used at section "
+            "boundaries. A changed rate regenerates audio; every other column "
+            "only rebuilds the track from the cached audio."
+        )
+
+        description.setWordWrap(
+            True
+        )
+
+        self.tempo_table = QTableWidget(
+            0,
+            len(
+                TEMPO_COLUMNS
+            ),
+        )
+
+        self.tempo_table.setHorizontalHeaderLabels(
+            [
+                column[0]
+                for column in TEMPO_COLUMNS
+            ]
+        )
+
+        self.tempo_table.horizontalHeader().setSectionResizeMode(
+            QHeaderView.ResizeMode.ResizeToContents
+        )
+
+        self.tempo_table.verticalHeader().setVisible(
+            False
+        )
+
+        self.tempo_table.setMinimumHeight(
+            260
+        )
+
+        self.fill_tempo_table(
+            self.settings.tempo_profiles
+        )
+
+        add_button = QPushButton(
+            "Add Profile"
+        )
+
+        qconnect(
+            add_button.clicked,
+            self.add_tempo_profile_row,
+        )
+
+        reset_button = QPushButton(
+            "Reset Table to Defaults"
+        )
+
+        qconnect(
+            reset_button.clicked,
+            lambda _checked=False: self.fill_tempo_table(
+                DEFAULT_TEMPO_PROFILES
+            ),
+        )
+
+        button_layout = QHBoxLayout()
+
+        button_layout.addWidget(
+            add_button
+        )
+
+        button_layout.addWidget(
+            reset_button
+        )
+
+        button_layout.addStretch()
+
+        self.speech_plan_layout.addSpacing(
+            18
+        )
+
+        self.speech_plan_layout.addWidget(
+            description
+        )
+
+        self.speech_plan_layout.addWidget(
+            self.tempo_table
+        )
+
+        self.speech_plan_layout.addLayout(
+            button_layout
+        )
+
+    def fill_tempo_table(
+        self,
+        tempo_profiles,
+    ):
+        self.tempo_table.setRowCount(
+            0
+        )
+
+        for (
+            name,
+            fields,
+        ) in tempo_profiles.items():
+            self.add_tempo_profile_row(
+                name=name,
+                fields=fields,
+            )
+
+    def add_tempo_profile_row(
+        self,
+        _checked=False,
+        name="",
+        fields=None,
+    ):
+        """Add one row; a new row starts from the default profile's numbers."""
+
+        if fields is None:
+            fields = DEFAULT_TEMPO_PROFILES[
+                "default"
+            ]
+
+        row = self.tempo_table.rowCount()
+
+        self.tempo_table.insertRow(
+            row
+        )
+
+        for (
+            column,
+            (
+                _heading,
+                field_name,
+                _convert,
+            ),
+        ) in enumerate(
+            TEMPO_COLUMNS
+        ):
+            self.tempo_table.setItem(
+                row,
+                column,
+                QTableWidgetItem(
+                    name
+                    if field_name is None
+                    else str(
+                        fields[
+                            field_name
+                        ]
+                    )
+                ),
+            )
+
+    def build_tempo_profiles(
+        self,
+    ):
+        """Build tempo_profiles from the table; a row with no name is dropped."""
+
+        tempo_profiles = {}
+
+        for row in range(
+            self.tempo_table.rowCount()
+        ):
+            name = self.tempo_table.item(
+                row,
+                0,
+            ).text().strip()
+
+            if not name:
+                continue
+
+            fields = {}
+
+            for (
+                column,
+                (
+                    heading,
+                    field_name,
+                    convert,
+                ),
+            ) in enumerate(
+                TEMPO_COLUMNS
+            ):
+                if field_name is None:
+                    continue
+
+                text = self.tempo_table.item(
+                    row,
+                    column,
+                ).text().strip()
+
+                try:
+                    fields[
+                        field_name
+                    ] = convert(
+                        text
+                    )
+
+                except ValueError:
+                    raise ValueError(
+                        f'Tempo profile "{name}": {heading} is not a '
+                        f'number ("{text}").'
+                    ) from None
+
+            tempo_profiles[
+                name
+            ] = fields
+
+        return tempo_profiles
 
     def add_role_voice_controls(
         self,
@@ -1820,6 +2076,10 @@ class SettingsDialog(QDialog):
                 "role_voices"
             ] = self.build_role_voices()
 
+            config[
+                "tempo_profiles"
+            ] = self.build_tempo_profiles()
+
             validated_settings = (
                 AppSettings.from_dict(
                     config
@@ -1878,6 +2138,9 @@ class SettingsDialog(QDialog):
                 ),
                 "role_voices": (
                     validated_settings.role_voices
+                ),
+                "tempo_profiles": (
+                    validated_settings.tempo_profiles
                 ),
             }
         )

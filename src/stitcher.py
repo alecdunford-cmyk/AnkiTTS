@@ -1,9 +1,16 @@
 from contextlib import contextmanager
+from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 import subprocess
 
 from pydub import AudioSegment
 import pydub.utils
+
+from speech_plan import (
+    PAUSE_BOUNDARY,
+    PAUSE_FIXED,
+    PAUSE_PROPORTIONAL,
+)
 
 PAUSE_DURATIONS = {
     ";": 325,
@@ -217,15 +224,97 @@ def stitch_audio(
         )
 
 
+def resolve_pause_milliseconds(
+    spec,
+    speech_milliseconds,
+    tempo,
+):
+    """
+    How long one schema-version-2 pause is (P4). Only here is it known how long
+    the segment's audio is, so the plan says what kind of pause and this says
+    how long:
+
+      none          0
+      fixed         the plan's milliseconds, exactly
+      boundary      the tempo profile's section pause
+      proportional  scale x pauseFactor x this segment's speech, clamped to
+                    the tempo profile's minimum and maximum
+    """
+
+    if spec.kind == PAUSE_FIXED:
+        return spec.milliseconds
+
+    if spec.kind == PAUSE_BOUNDARY:
+        return tempo.boundary_pause_ms
+
+    if spec.kind == PAUSE_PROPORTIONAL:
+        proportional = int(
+            (
+                spec.scale
+                * tempo.pause_factor
+                * Decimal(
+                    speech_milliseconds
+                )
+            ).quantize(
+                Decimal(
+                    "1"
+                ),
+                rounding=ROUND_HALF_UP,
+            )
+        )
+
+        return max(
+            tempo.min_pause_ms,
+            min(
+                tempo.max_pause_ms,
+                proportional,
+            ),
+        )
+
+    return 0
+
+
+def _segment_pause(
+    segment,
+    position,
+    audio,
+):
+    """A segment's pause: its plan's kind if it has one, else exact (v1)."""
+
+    spec = segment.get(
+        f"pause_{position}"
+    )
+
+    if spec is None:
+        return segment[
+            f"pause_{position}_milliseconds"
+        ]
+
+    return resolve_pause_milliseconds(
+        spec,
+        len(
+            audio
+        ),
+        segment[
+            "tempo"
+        ],
+    )
+
+
 def stitch_structured_audio(
     segments,
     output_file,
 ):
     """
-    Stitch authoritative segments with exact surrounding pauses.
+    Stitch authoritative segments with their surrounding pauses.
 
     Unlike generic stitching, this path never infers silence from text.
     Export is published atomically only after the complete track succeeds.
+
+    Returns the timeline of the schema-version-2 segments: one {"kind",
+    "start_ms", "duration_ms"} per pause and clip, in order, measured before MP3
+    encoding. A version 1 segment (no "tempo") is stitched exactly as it always
+    was and adds nothing to it.
     """
 
     output_path = Path(
@@ -240,23 +329,45 @@ def stitch_structured_audio(
         temporary_path.unlink()
 
     combined = AudioSegment.empty()
+    timeline = []
+
+    def append(
+        kind,
+        audio,
+        recorded,
+    ):
+        nonlocal combined
+
+        if not recorded:
+            combined += audio
+            return
+
+        start = len(
+            combined
+        )
+
+        combined += audio
+
+        timeline.append(
+            {
+                "kind": kind,
+                "start_ms": start,
+                "duration_ms": (
+                    len(
+                        combined
+                    )
+                    - start
+                ),
+            }
+        )
 
     try:
         with hide_subprocess_windows():
             for segment in segments:
-                pause_before = segment[
-                    "pause_before_milliseconds"
-                ]
+                recorded = "tempo" in segment
 
-                pause_after = segment[
-                    "pause_after_milliseconds"
-                ]
-
-                if pause_before:
-                    combined += AudioSegment.silent(
-                        duration=pause_before
-                    )
-
+                # The pause before is computed from this segment's own audio
+                # (P4), so the clip is decoded first.
                 audio = AudioSegment.from_file(
                     segment[
                         "file"
@@ -267,11 +378,40 @@ def stitch_structured_audio(
                     audio
                 )
 
-                combined += audio
+                pause_before = _segment_pause(
+                    segment,
+                    "before",
+                    audio,
+                )
+
+                pause_after = _segment_pause(
+                    segment,
+                    "after",
+                    audio,
+                )
+
+                if pause_before:
+                    append(
+                        "pause_before",
+                        AudioSegment.silent(
+                            duration=pause_before
+                        ),
+                        recorded,
+                    )
+
+                append(
+                    "speech",
+                    audio,
+                    recorded,
+                )
 
                 if pause_after:
-                    combined += AudioSegment.silent(
-                        duration=pause_after
+                    append(
+                        "pause_after",
+                        AudioSegment.silent(
+                            duration=pause_after
+                        ),
+                        recorded,
                     )
 
             output_path.parent.mkdir(
@@ -294,3 +434,5 @@ def stitch_structured_audio(
             temporary_path.unlink()
 
         raise
+
+    return timeline

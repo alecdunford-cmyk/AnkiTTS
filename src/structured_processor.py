@@ -11,8 +11,10 @@ from settings import (
     AppSettings,
     DEFAULT_ROLE_VOICES,
     SpeechProfile,
+    TempoProfile,
 )
 from speech_plan import (
+    PauseSpec,
     SpeechPlan,
     SpeechPlanSegment,
 )
@@ -66,6 +68,9 @@ class ResolvedSpeechSegment:
     role: str | None = None
     voice_role: str | None = None
     voice_provider: str | None = None
+    pause_before: PauseSpec | None = None
+    pause_after: PauseSpec | None = None
+    spoken: bool = True
 
 
 @dataclass(frozen=True)
@@ -78,6 +83,22 @@ class ResolvedSpeechTrack:
         ResolvedSpeechSegment,
         ...,
     ]
+    tempo: TempoProfile | None = None
+
+    @property
+    def spoken_segments(
+        self,
+    ) -> tuple[
+        ResolvedSpeechSegment,
+        ...,
+    ]:
+        """The segments that produce audio, in plan order."""
+
+        return tuple(
+            segment
+            for segment in self.segments
+            if segment.spoken
+        )
 
 
 def resolve_speech_plan(
@@ -107,6 +128,14 @@ def resolve_speech_plan(
             "settings must be AppSettings."
         )
 
+    tempo = (
+        settings.get_tempo_profile(
+            plan.tempo_profile
+        )
+        if plan.tempo_profile is not None
+        else None
+    )
+
     resolved_segments = []
 
     for segment in plan.segments:
@@ -114,6 +143,7 @@ def resolve_speech_plan(
             resolve_speech_segment(
                 segment,
                 settings,
+                tempo,
             )
         )
 
@@ -123,14 +153,22 @@ def resolve_speech_plan(
         segments=tuple(
             resolved_segments
         ),
+        tempo=tempo,
     )
 
 
 def resolve_speech_segment(
     segment: SpeechPlanSegment,
     settings: AppSettings,
+    tempo: TempoProfile | None = None,
 ) -> ResolvedSpeechSegment:
-    """Resolve one parsed segment to a concrete AnkiTTS profile."""
+    """
+    Resolve one parsed segment to a concrete AnkiTTS profile.
+
+    A tempo profile's rate multiplies the segment's speakingRate. The resulting
+    rate is a synthesis input, in the key as every rate is; the profile's name
+    and its pause numbers are not (P5).
+    """
 
     if not isinstance(
         segment,
@@ -148,7 +186,12 @@ def resolve_speech_segment(
 
     edge_rate = compose_edge_rate(
         speech_profile.rate,
-        segment.speaking_rate,
+        (
+            segment.speaking_rate
+            * tempo.rate
+            if tempo is not None
+            else segment.speaking_rate
+        ),
     )
 
     voice, voice_provider = resolve_role_voice(
@@ -185,6 +228,9 @@ def resolve_speech_segment(
         role=segment.role,
         voice_role=segment.voice_role,
         voice_provider=voice_provider,
+        pause_before=segment.pause_before,
+        pause_after=segment.pause_after,
+        spoken=segment.spoken,
     )
 
 
