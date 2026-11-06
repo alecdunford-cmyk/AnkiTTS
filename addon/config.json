@@ -37,5 +37,27 @@
       "timeout_seconds": 60
     },
     "edge": {}
+  },
+  "role_voices": {
+    "fr": {
+      "content": {
+        "provider": "edge",
+        "voice": "fr-FR-VivienneMultilingualNeural"
+      },
+      "label": {
+        "provider": "edge",
+        "voice": "en-US-BrianMultilingualNeural"
+      }
+    },
+    "en": {
+      "content": {
+        "provider": "edge",
+        "voice": "de-DE-SeraphinaMultilingualNeural"
+      },
+      "label": {
+        "provider": "edge",
+        "voice": "en-US-AndrewNeural"
+      }
+    }
   }
 }

@@ -77,6 +77,117 @@ DEFAULT_PROVIDER_SETTINGS = {
 }
 
 
+# Ruling CA-41 (Alec, 2026-11-06): who speaks what in a schema-version-2 plan.
+# The language is the segment's, not the voice's locale: a multilingual voice
+# from another locale speaks the segment's language. A slot's voice is an Edge
+# voice; Pocket and Fish take their voice from their own provider settings, so
+# a slot on either of them leaves the voice empty.
+VOICE_ROLES = (
+    "content",
+    "label",
+)
+
+DEFAULT_ROLE_VOICES = {
+    "fr": {
+        "content": {
+            "provider": "edge",
+            "voice": "fr-FR-VivienneMultilingualNeural",
+        },
+        "label": {
+            "provider": "edge",
+            "voice": "en-US-BrianMultilingualNeural",
+        },
+    },
+    "en": {
+        "content": {
+            "provider": "edge",
+            "voice": "de-DE-SeraphinaMultilingualNeural",
+        },
+        "label": {
+            "provider": "edge",
+            "voice": "en-US-AndrewNeural",
+        },
+    },
+}
+
+
+def merge_role_voices(
+    loaded: Any,
+) -> dict[str, dict[str, dict[str, str]]]:
+    """
+    Overlay loaded role voices on the CA-41 defaults, slot by slot.
+
+    A config written before role voices existed loads with the defaults; a
+    malformed one is an error, as a malformed speech profile is.
+    """
+
+    merged = deepcopy(
+        DEFAULT_ROLE_VOICES
+    )
+
+    if loaded is None:
+        return merged
+
+    if not isinstance(
+        loaded,
+        dict,
+    ):
+        raise ValueError(
+            "role_voices must be a dictionary."
+        )
+
+    for (
+        language,
+        slots,
+    ) in loaded.items():
+        if not isinstance(
+            slots,
+            dict,
+        ):
+            raise ValueError(
+                f'role_voices["{language}"] must be a dictionary.'
+            )
+
+        for (
+            voice_role,
+            slot,
+        ) in slots.items():
+            if voice_role not in VOICE_ROLES:
+                raise ValueError(
+                    f'role_voices["{language}"] has an unknown voice '
+                    f'role "{voice_role}"; use content or label.'
+                )
+
+            if not isinstance(
+                slot,
+                dict,
+            ):
+                raise ValueError(
+                    f'role_voices["{language}"]["{voice_role}"] must '
+                    "be a dictionary."
+                )
+
+            merged.setdefault(
+                str(
+                    language
+                ),
+                {},
+            )[
+                voice_role
+            ] = {
+                "provider": slot.get(
+                    "provider",
+                    "edge",
+                ),
+                "voice": slot.get(
+                    "voice",
+                    "",
+                ),
+            }
+
+    return merged
+
+
 def merge_provider_settings(
     loaded: Any,
 ) -> dict[str, dict[str, Any]]:
@@ -191,6 +302,26 @@ class AppSettings:
             DEFAULT_PROVIDER_SETTINGS
         )
     )
+
+    role_voices: dict[str, dict[str, dict[str, str]]] = field(
+        default_factory=lambda: deepcopy(
+            DEFAULT_ROLE_VOICES
+        )
+    )
+
+    def get_role_voice(
+        self,
+        language: str,
+        voice_role: str,
+    ) -> dict[str, str] | None:
+        """Return one language's slot for a voice role, if it has one."""
+
+        return self.role_voices.get(
+            language,
+            {},
+        ).get(
+            voice_role
+        )
 
     def get_provider_settings(
         self,
@@ -441,6 +572,8 @@ class AppSettings:
                 "providers must map provider ids to dictionaries."
             )
 
+        self._validate_role_voices()
+
         if not isinstance(
             self.speech_profiles,
             dict,
@@ -505,6 +638,68 @@ class AppSettings:
                         f'speech_profiles["{language}"].'
                         f"{attribute_name} must be a "
                         "non-empty string."
+                    )
+
+    def _validate_role_voices(self) -> None:
+        if not isinstance(
+            self.role_voices,
+            dict,
+        ):
+            raise ValueError(
+                "role_voices must be a dictionary."
+            )
+
+        for (
+            language,
+            slots,
+        ) in self.role_voices.items():
+            if not isinstance(
+                slots,
+                dict,
+            ):
+                raise ValueError(
+                    f'role_voices["{language}"] must be a dictionary.'
+                )
+
+            for (
+                voice_role,
+                slot,
+            ) in slots.items():
+                path = f'role_voices["{language}"]["{voice_role}"]'
+
+                if voice_role not in VOICE_ROLES:
+                    raise ValueError(
+                        f"{path}: use content or label."
+                    )
+
+                provider_id = slot.get(
+                    "provider"
+                )
+
+                voice = slot.get(
+                    "voice"
+                )
+
+                if provider_id not in PROVIDER_IDS:
+                    raise ValueError(
+                        f"{path} has an unknown provider "
+                        f'"{provider_id}"; use pocket, fish or edge.'
+                    )
+
+                if not isinstance(
+                    voice,
+                    str,
+                ):
+                    raise ValueError(
+                        f"{path} needs a voice string."
+                    )
+
+                if (
+                    provider_id == "edge"
+                    and not voice.strip()
+                ):
+                    raise ValueError(
+                        f"{path} is on Edge and needs a voice."
                     )
 
     @classmethod
@@ -691,6 +886,12 @@ class AppSettings:
         settings.providers = merge_provider_settings(
             data.get(
                 "providers"
+            )
+        )
+
+        settings.role_voices = merge_role_voices(
+            data.get(
+                "role_voices"
             )
         )
 

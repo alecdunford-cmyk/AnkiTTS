@@ -9,6 +9,7 @@ import re
 
 from settings import (
     AppSettings,
+    DEFAULT_ROLE_VOICES,
     SpeechProfile,
 )
 from speech_plan import (
@@ -62,6 +63,9 @@ class ResolvedSpeechSegment:
     edge_rate: str
     volume: str
     pitch: str
+    role: str | None = None
+    voice_role: str | None = None
+    voice_provider: str | None = None
 
 
 @dataclass(frozen=True)
@@ -147,6 +151,12 @@ def resolve_speech_segment(
         segment.speaking_rate,
     )
 
+    voice, voice_provider = resolve_role_voice(
+        segment.voice_role,
+        speech_profile,
+        settings,
+    )
+
     return ResolvedSpeechSegment(
         sequence=segment.sequence,
         segment_id=segment.segment_id,
@@ -168,10 +178,85 @@ def resolve_speech_segment(
         resolved_profile_language=(
             speech_profile.language
         ),
-        voice=speech_profile.voice,
+        voice=voice,
         edge_rate=edge_rate,
         volume=speech_profile.volume,
         pitch=speech_profile.pitch,
+        role=segment.role,
+        voice_role=segment.voice_role,
+        voice_provider=voice_provider,
+    )
+
+
+def resolve_role_voice(
+    voice_role: str | None,
+    speech_profile: SpeechProfile,
+    settings: AppSettings,
+) -> tuple[
+    str,
+    str | None,
+]:
+    """
+    Return (Edge voice, preferred provider id) for one segment's voice role.
+
+    A segment with no voice role (schema version 1) keeps its speech
+    profile's voice and the plain chain, so its cache key cannot change (P3).
+    A language with no slot for the role also keeps the speech profile's voice.
+
+    Pocket and Fish use their own configured voice, so a slot on one of them
+    has no Edge voice of its own; the role's default is what Edge would speak
+    if the chain ever falls through to it.
+    """
+
+    if voice_role is None:
+        return (
+            speech_profile.voice,
+            None,
+        )
+
+    language_key = _language_profile_key(
+        speech_profile.language
+    )
+
+    slot = settings.get_role_voice(
+        language_key,
+        voice_role,
+    )
+
+    if slot is None:
+        return (
+            speech_profile.voice,
+            None,
+        )
+
+    if slot[
+        "provider"
+    ] == "edge":
+        return (
+            slot[
+                "voice"
+            ],
+            "edge",
+        )
+
+    default_slot = DEFAULT_ROLE_VOICES.get(
+        language_key,
+        {},
+    ).get(
+        voice_role
+    )
+
+    return (
+        (
+            default_slot[
+                "voice"
+            ]
+            if default_slot is not None
+            else speech_profile.voice
+        ),
+        slot[
+            "provider"
+        ],
     )
 
 

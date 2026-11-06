@@ -5,6 +5,7 @@ import hashlib
 import json
 from pathlib import Path
 
+from ankitts_log import get_logger
 from cache import get_structured_audio_path
 from card_processor import (
     combine_statistics,
@@ -14,6 +15,7 @@ from generator import (
     SynthesisFailed,
     create_audio,
 )
+from providers import registry
 from rce_contract import RCE_JOB_TYPE
 from settings import SpeechProfile
 from stitcher import stitch_structured_audio
@@ -32,6 +34,17 @@ OUTPUT_DIR.mkdir(
 )
 
 MAX_PARALLEL_SYNTHESIS = 3
+
+# In the cache identity of schema-version-2 segments only (P3 keeps version 1
+# byte-identical). Bump it whenever role -> voice resolution changes what is
+# cached, as with speech_text_version and loudness_version.
+ROLE_VOICE_VERSION = "1"
+
+OWN_VOICE = "own-voice"
+
+logger = get_logger(
+    "structured_audio"
+)
 
 
 class StructuredAudioProcessingError(
@@ -314,6 +327,9 @@ def create_structured_track_filename(
                 "pause_after_milliseconds": (
                     segment.pause_after_milliseconds
                 ),
+                **_track_segment_extras(
+                    segment
+                ),
             }
             for segment, segment_identity in zip(
                 track.segments,
@@ -343,6 +359,37 @@ def create_structured_track_filename(
     return (
         f"rce_{track.side}_{track_hash}.mp3"
     )
+
+
+def _track_segment_extras(
+    segment,
+):
+    """What a schema-version-2 segment adds to the track identity; v1: none."""
+
+    if segment.voice_role is None:
+        return {}
+
+    return {
+        **_role_identity(
+            segment
+        ),
+        "voice_provider": segment.voice_provider,
+    }
+
+
+def _role_identity(
+    segment,
+):
+    """The segment cache key's additions for schema version 2 (P5); v1: none."""
+
+    if segment.voice_role is None:
+        return {}
+
+    return {
+        "role": segment.role,
+        "voice_role": segment.voice_role,
+        "role_voice_version": ROLE_VOICE_VERSION,
+    }
 
 
 def _prepare_track(
@@ -486,6 +533,9 @@ def _create_segment_request(
             segment.language,
             segment.resolved_profile_key,
             profile,
+            segment.role,
+            segment.voice_role,
+            segment.voice_provider,
         ),
     }
 
@@ -566,6 +616,19 @@ def _synthesize_segment(
             ),
             **fields,
             **provider_fields,
+            **_role_identity(
+                segment
+            ),
+            **(
+                {
+                    "resolved_voice": (
+                        f"{identity['provider']}/"
+                        f"{fields.get('voice') or OWN_VOICE}"
+                    ),
+                }
+                if segment.voice_role is not None
+                else {}
+            ),
         )
 
     try:
@@ -577,6 +640,10 @@ def _synthesize_segment(
             ],
             cache_path_for=cache_path_for,
             settings=settings,
+            chain=_chain_for_segment(
+                segment,
+                settings,
+            ),
         )
 
     except SynthesisFailed as error:
@@ -594,6 +661,50 @@ def _synthesize_segment(
             "Synthesis failed for RCE segment "
             f'"{segment.segment_id}": {error}'
         ) from error
+
+
+def _chain_for_segment(
+    segment,
+    settings,
+):
+    """
+    The fallback chain for one voice role: the slot's provider first, then the
+    rest of the configured chain in order, so a label voice can stay on Edge
+    while content is on the primary. None means the plain chain (schema
+    version 1). A slot on a provider the chain does not enable is not honoured.
+    """
+
+    if segment.voice_provider is None:
+        return None
+
+    chain = registry.resolve_chain(
+        settings
+    )
+
+    preferred = [
+        provider
+        for provider in chain
+        if provider.provider_id
+        == segment.voice_provider
+    ]
+
+    if not preferred:
+        logger.warning(
+            "The %s voice for %s is on provider %s, which is not enabled; "
+            "using the provider chain.",
+            segment.voice_role,
+            segment.resolved_profile_language,
+            segment.voice_provider,
+        )
+
+        return chain
+
+    return preferred + [
+        provider
+        for provider in chain
+        if provider.provider_id
+        != segment.voice_provider
+    ]
 
 
 def _format_text_preview(

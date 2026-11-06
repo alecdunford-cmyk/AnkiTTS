@@ -22,8 +22,8 @@ from cache import (
     get_cache_statistics,
 )
 
-from settings import PROVIDER_IDS, AppSettings
-from voice_manager import VoiceManager
+from settings import DEFAULT_ROLE_VOICES, PROVIDER_IDS, AppSettings
+from voice_manager import VoiceManager, role_voice_choices
 
 
 LANGUAGES = {
@@ -51,6 +51,29 @@ SPEECH_PROFILE_OPTIONS = {
     "English": "en",
     "Japanese": "ja",
 }
+
+ROLE_VOICE_SLOTS = (
+    (
+        "fr",
+        "French",
+        "content",
+    ),
+    (
+        "fr",
+        "French",
+        "label",
+    ),
+    (
+        "en",
+        "English",
+        "content",
+    ),
+    (
+        "en",
+        "English",
+        "label",
+    ),
+)
 
 RATE_MINIMUM = -50
 RATE_MAXIMUM = 100
@@ -102,6 +125,7 @@ class SettingsDialog(QDialog):
         self.front_language_combo = QComboBox()
         self.speech_profile_controls = {}
         self.mapping_controls = {}
+        self.role_voice_controls = {}
 
         self.populate_language_combo()
 
@@ -128,6 +152,10 @@ class SettingsDialog(QDialog):
         self.create_field_mappings_tab()
 
         self.create_providers_tab()
+
+        self.create_speech_plan_tab(
+            voices_available=voices_available
+        )
 
         self.button_box = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Save
@@ -407,6 +435,318 @@ class SettingsDialog(QDialog):
             providers_tab,
             "Providers",
         )
+
+    def create_speech_plan_tab(
+        self,
+        voices_available,
+    ):
+        """Create the tab for what schema-version-2 speech plans resolve to."""
+
+        self.voices_available = voices_available
+
+        speech_plan_content = QWidget()
+        self.speech_plan_layout = QVBoxLayout()
+
+        description = QLabel(
+            "<b>Role voices</b><br>Speech plans from RCE name a role, content "
+            "or label, for each segment. Each language has one voice per "
+            "role, chosen here. The language is the segment's: any Edge voice "
+            "may be used, and the multilingual ones speak other languages "
+            "well. Changing a voice regenerates that role's audio on the next "
+            "run and nothing else. Plain notes and older plans keep using the "
+            "Speech Profiles tab."
+        )
+
+        description.setWordWrap(
+            True
+        )
+
+        self.speech_plan_layout.addWidget(
+            description
+        )
+
+        role_voice_form = QFormLayout()
+
+        for (
+            language_code,
+            language_name,
+            voice_role,
+        ) in ROLE_VOICE_SLOTS:
+            self.add_role_voice_controls(
+                role_voice_form,
+                language_code,
+                language_name,
+                voice_role,
+            )
+
+        self.speech_plan_layout.addLayout(
+            role_voice_form
+        )
+
+        qconnect(
+            self.provider_chain_edit.editingFinished,
+            self.refresh_role_voice_providers,
+        )
+
+        self.speech_plan_layout.addStretch()
+
+        speech_plan_content.setLayout(
+            self.speech_plan_layout
+        )
+
+        scroll_area = QScrollArea()
+
+        scroll_area.setWidgetResizable(
+            True
+        )
+
+        scroll_area.setWidget(
+            speech_plan_content
+        )
+
+        self.tab_widget.addTab(
+            scroll_area,
+            "Speech Plans",
+        )
+
+    def add_role_voice_controls(
+        self,
+        form_layout,
+        language_code,
+        language_name,
+        voice_role,
+    ):
+        """Add the provider and voice pickers for one role-voice slot."""
+
+        slot = self.settings.get_role_voice(
+            language_code,
+            voice_role,
+        )
+
+        provider_combo = QComboBox()
+        voice_combo = QComboBox()
+
+        controls = {
+            "provider": provider_combo,
+            "voice": voice_combo,
+            "edge_voice": (
+                slot[
+                    "voice"
+                ]
+                if slot[
+                    "provider"
+                ]
+                == "edge"
+                else DEFAULT_ROLE_VOICES[
+                    language_code
+                ][
+                    voice_role
+                ][
+                    "voice"
+                ]
+            ),
+        }
+
+        self.role_voice_controls[
+            (
+                language_code,
+                voice_role,
+            )
+        ] = controls
+
+        self.populate_role_voice_providers(
+            controls,
+            slot[
+                "provider"
+            ],
+        )
+
+        self.populate_role_voice_combo(
+            controls
+        )
+
+        qconnect(
+            provider_combo.currentIndexChanged,
+            lambda _index, slot_controls=controls: (
+                self.populate_role_voice_combo(
+                    slot_controls
+                )
+            ),
+        )
+
+        slot_layout = QHBoxLayout()
+
+        slot_layout.addWidget(
+            provider_combo
+        )
+
+        slot_layout.addWidget(
+            voice_combo,
+            1,
+        )
+
+        form_layout.addRow(
+            f"{language_name} {voice_role}:",
+            slot_layout,
+        )
+
+    def current_provider_chain(
+        self,
+    ):
+        """The provider ids currently typed in the Providers tab."""
+
+        return [
+            provider_id.strip().lower()
+            for provider_id in self.provider_chain_edit.text().split(
+                ","
+            )
+            if provider_id.strip().lower()
+            in PROVIDER_IDS
+        ]
+
+    def populate_role_voice_providers(
+        self,
+        controls,
+        current_provider,
+    ):
+        """
+        Offer the enabled providers. A slot already on a provider that is not
+        enabled keeps it, marked; such a slot uses the chain instead.
+        """
+
+        combo = controls[
+            "provider"
+        ]
+
+        enabled = self.current_provider_chain()
+
+        combo.blockSignals(
+            True
+        )
+
+        combo.clear()
+
+        for provider_id in enabled:
+            combo.addItem(
+                provider_id,
+                provider_id,
+            )
+
+        if current_provider not in enabled:
+            combo.addItem(
+                f"{current_provider} (not enabled)",
+                current_provider,
+            )
+
+        combo.setCurrentIndex(
+            combo.findData(
+                current_provider
+            )
+        )
+
+        combo.blockSignals(
+            False
+        )
+
+    def refresh_role_voice_providers(
+        self,
+    ):
+        """Follow edits to the provider order."""
+
+        for controls in self.role_voice_controls.values():
+            self.populate_role_voice_providers(
+                controls,
+                controls[
+                    "provider"
+                ].currentData(),
+            )
+
+    def populate_role_voice_combo(
+        self,
+        controls,
+    ):
+        """Fill one slot's voice picker for the provider it is on."""
+
+        combo = controls[
+            "voice"
+        ]
+
+        previous_voice = combo.currentData()
+
+        if previous_voice:
+            controls[
+                "edge_voice"
+            ] = previous_voice
+
+        combo.clear()
+
+        if controls[
+            "provider"
+        ].currentData() != "edge":
+            combo.addItem(
+                "(the voice set on the Providers tab)",
+                "",
+            )
+
+            combo.setEnabled(
+                False
+            )
+
+            return
+
+        combo.setEnabled(
+            True
+        )
+
+        catalogue = (
+            self.voice_manager.get_all_voices()
+            if self.voices_available
+            else []
+        )
+
+        self.fill_voice_combo(
+            combo,
+            role_voice_choices(
+                catalogue,
+                controls[
+                    "edge_voice"
+                ],
+            ),
+            controls[
+                "edge_voice"
+            ],
+        )
+
+    def build_role_voices(
+        self,
+    ):
+        """Build role_voices from the dialog's four slots."""
+
+        role_voices = {}
+
+        for (
+            (
+                language_code,
+                voice_role,
+            ),
+            controls,
+        ) in self.role_voice_controls.items():
+            role_voices.setdefault(
+                language_code,
+                {},
+            )[
+                voice_role
+            ] = {
+                "provider": controls[
+                    "provider"
+                ].currentData(),
+                "voice": controls[
+                    "voice"
+                ].currentData()
+                or "",
+            }
+
+        return role_voices
 
     def build_provider_settings(
         self,
@@ -773,6 +1113,8 @@ class SettingsDialog(QDialog):
         current_voice,
         voices_available,
     ):
+        choices = []
+
         if voices_available:
             matching_voices = (
                 self.voice_manager.get_voices(
@@ -781,14 +1123,39 @@ class SettingsDialog(QDialog):
             )
 
             for voice in matching_voices:
-                combo.addItem(
-                    self.voice_manager.get_display_name(
-                        voice
-                    ),
-                    voice[
-                        "ShortName"
-                    ],
+                choices.append(
+                    (
+                        self.voice_manager.get_display_name(
+                            voice
+                        ),
+                        voice[
+                            "ShortName"
+                        ],
+                    )
                 )
+
+        self.fill_voice_combo(
+            combo,
+            choices,
+            current_voice,
+        )
+
+    def fill_voice_combo(
+        self,
+        combo,
+        choices,
+        current_voice,
+    ):
+        """The one voice picker: (label, voice) rows, current voice selected."""
+
+        for (
+            display_name,
+            voice_name,
+        ) in choices:
+            combo.addItem(
+                display_name,
+                voice_name,
+            )
 
         current_index = combo.findData(
             current_voice
@@ -1449,6 +1816,10 @@ class SettingsDialog(QDialog):
                 ],
             ) = self.build_provider_settings()
 
+            config[
+                "role_voices"
+            ] = self.build_role_voices()
+
             validated_settings = (
                 AppSettings.from_dict(
                     config
@@ -1504,6 +1875,9 @@ class SettingsDialog(QDialog):
                 ),
                 "providers": (
                     validated_settings.providers
+                ),
+                "role_voices": (
+                    validated_settings.role_voices
                 ),
             }
         )

@@ -5,6 +5,101 @@ from typing import Any
 
 import edge_tts
 
+from settings import DEFAULT_ROLE_VOICES
+
+
+def role_voice_choices(
+    catalogue: list[dict[str, Any]],
+    current_voice: str = "",
+) -> list[tuple[str, str]]:
+    """
+    Return (label, voice) rows for one role-voice slot's picker.
+
+    A slot may hold any Edge voice, whatever its locale (CA-41 has a German
+    multilingual voice speaking English). The four CA-41 defaults always come
+    first, so they can be chosen with no network; then multilingual voices,
+    which suit a language not their own; then the rest of the live catalogue.
+    The slot's current voice is kept even if the catalogue no longer lists it.
+    """
+
+    by_name = {
+        voice.get(
+            "ShortName",
+            "",
+        ): voice
+        for voice in catalogue
+    }
+
+    def label(
+        name,
+    ):
+        voice = by_name.get(
+            name
+        )
+
+        return (
+            VoiceManager.get_display_name(
+                voice
+            )
+            if voice is not None
+            else name
+        )
+
+    default_names = [
+        slot[
+            "voice"
+        ]
+        for slots in DEFAULT_ROLE_VOICES.values()
+        for slot in slots.values()
+    ]
+
+    catalogue_names = sorted(
+        (
+            name
+            for name in by_name
+            if name
+        ),
+        key=lambda name: (
+            "Multilingual" not in name,
+            by_name[
+                name
+            ].get(
+                "Locale",
+                "",
+            ),
+            name,
+        ),
+    )
+
+    choices = []
+    seen = set()
+
+    for name in (
+        *default_names,
+        *catalogue_names,
+        current_voice,
+    ):
+        if (
+            not name
+            or name in seen
+        ):
+            continue
+
+        seen.add(
+            name
+        )
+
+        choices.append(
+            (
+                label(
+                    name
+                ),
+                name,
+            )
+        )
+
+    return choices
+
 
 class VoiceManager:
     """Retrieves, filters, and formats Edge TTS voices."""
