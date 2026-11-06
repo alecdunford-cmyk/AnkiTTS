@@ -5,6 +5,8 @@ the regression tests. Needs only the standard library. Behaviour by text:
 "QUIETTAIL" -> a loud tone, then 60 ms of a soft final syllable (about
 -38 dBFS RMS, 22 dB under the body), then 400 ms of digital silence. "QUIET30" -> 1.5 s of tone
 peaking at -30 dBFS (a quiet clip, for the loudness tests).
+"TONEMS:<milliseconds>:<hertz>" -> a tone of that length and pitch, then 200 ms
+of digital silence as real clips have (for the end-to-end stitching test).
 """
 
 import json
@@ -15,11 +17,11 @@ import sys
 import wave
 
 
-def write_tone(path, seconds=0.5, rate=24000):
+def write_tone(path, seconds=0.5, rate=24000, hertz=440, silence_seconds=0.0):
     frames = b"".join(
-        struct.pack("<h", int(8000 * math.sin(2 * math.pi * 440 * i / rate)))
+        struct.pack("<h", int(8000 * math.sin(2 * math.pi * hertz * i / rate)))
         for i in range(int(seconds * rate))
-    )
+    ) + b"\x00\x00" * int(silence_seconds * rate)
 
     with wave.open(path, "wb") as wav:
         wav.setnchannels(1)
@@ -114,6 +116,16 @@ def main():
                 elif text == "QUIET30":
                     write_quiet_clip(request["output"])
                     audio_seconds = QUIET_CLIP_SECONDS
+
+                elif text.startswith("TONEMS:"):
+                    _prefix, milliseconds, hertz = text.split(":")
+                    audio_seconds = int(milliseconds) / 1000
+                    write_tone(
+                        request["output"],
+                        seconds=audio_seconds,
+                        hertz=int(hertz),
+                        silence_seconds=0.2,
+                    )
 
                 else:
                     write_tone(request["output"])

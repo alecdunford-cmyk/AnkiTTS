@@ -1,0 +1,89 @@
+{
+  "_comment": "Hand-written to section 3 of the speech plan v2 design note. Invented sentences, no dictionary text. One plan per side field. Used by tests/test_speech_plan_v2_e2e.py.",
+  "deepStudyBack": {
+    "schemaVersion": 2,
+    "side": "back",
+    "preset": {"id": "deep-entry-study", "version": 11},
+    "tempoProfile": "deep-entry-study",
+    "segments": [
+      {"sequence": 1, "segmentId": "ds-01", "cueId": "headword", "contentNodeId": "entry:phare", "repetitionNumber": 1, "repetitionCount": 1, "text": "le phare", "language": "fr-FR", "voiceProfileId": "", "speakingRate": 1.0, "pauseBeforeMilliseconds": 0, "pauseAfterMilliseconds": 0,
+       "role": "headword", "voiceRole": "content", "earconBefore": "answerStart", "pauseAfter": {"kind": "fixed", "milliseconds": 900}},
+
+      {"sequence": 2, "segmentId": "ds-02", "cueId": "section-1", "contentNodeId": "entry:phare:1", "repetitionNumber": 1, "repetitionCount": 1, "text": "un", "language": "fr-FR", "voiceProfileId": "", "speakingRate": 1.0, "pauseBeforeMilliseconds": 0, "pauseAfterMilliseconds": 0,
+       "role": "sectionNumber", "voiceRole": "label", "earconBefore": "sectionBoundary", "pauseAfter": {"kind": "proportional", "scale": 1.0}},
+      {"sequence": 3, "segmentId": "ds-03", "cueId": "gloss-1", "contentNodeId": "entry:phare:1:gloss", "repetitionNumber": 1, "repetitionCount": 1, "text": "a lighthouse", "language": "en-US", "voiceProfileId": "", "speakingRate": 1.0, "pauseBeforeMilliseconds": 0, "pauseAfterMilliseconds": 0,
+       "role": "gloss", "voiceRole": "content", "pauseAfter": {"kind": "proportional", "scale": 1.0}},
+      {"sequence": 4, "segmentId": "ds-04", "cueId": "example-1", "contentNodeId": "entry:phare:1:example", "repetitionNumber": 1, "repetitionCount": 1, "text": "Le vieux phare guide les barques vers le port.", "language": "fr-FR", "voiceProfileId": "", "speakingRate": 1.0, "pauseBeforeMilliseconds": 0, "pauseAfterMilliseconds": 0,
+       "role": "exampleSource", "voiceRole": "content", "pauseAfter": {"kind": "proportional", "scale": 1.0}},
+      {"sequence": 5, "segmentId": "ds-05", "cueId": "example-1-target", "contentNodeId": "entry:phare:1:example", "repetitionNumber": 1, "repetitionCount": 1, "text": "The old lighthouse guides the boats to the harbour.", "language": "en-US", "voiceProfileId": "", "speakingRate": 1.0, "pauseBeforeMilliseconds": 0, "pauseAfterMilliseconds": 0,
+       "role": "exampleTarget", "voiceRole": "content", "pauseAfter": {"kind": "boundary"}},
+
+      {"sequence": 6, "segmentId": "ds-06", "cueId": "section-2", "contentNodeId": "entry:phare:2", "repetitionNumber": 1, "repetitionCount": 1, "text": "deux", "language": "fr-FR", "voiceProfileId": "", "speakingRate": 1.0, "pauseBeforeMilliseconds": 0, "pauseAfterMilliseconds": 0,
+       "role": "sectionNumber", "voiceRole": "label", "earconBefore": "sectionBoundary", "pauseAfter": {"kind": "proportional", "scale": 1.0}},
+      {"sequence": 7, "segmentId": "ds-07", "cueId": "label-2-fr", "contentNodeId": "entry:phare:2:label", "repetitionNumber": 1, "repetitionCount": 1, "text": "familier", "language": "fr-FR", "voiceProfileId": "", "speakingRate": 1.0, "pauseBeforeMilliseconds": 0, "pauseAfterMilliseconds": 0,
+       "role": "label", "voiceRole": "label", "pauseAfter": {"kind": "proportional", "scale": 1.0}},
+      {"sequence": 8, "segmentId": "ds-08", "cueId": "gloss-2", "contentNodeId": "entry:phare:2:gloss", "repetitionNumber": 1, "repetitionCount": 1, "text": "a headlamp", "language": "en-US", "voiceProfileId": "", "speakingRate": 1.0, "pauseBeforeMilliseconds": 0, "pauseAfterMilliseconds": 0,
+       "role": "gloss", "voiceRole": "content", "pauseAfter": {"kind": "proportional", "scale": 1.0}},
+      {"sequence": 9, "segmentId": "ds-09", "cueId": "label-2-en", "contentNodeId": "entry:phare:2:label", "repetitionNumber": 1, "repetitionCount": 1, "text": "informal", "language": "en-US", "voiceProfileId": "", "speakingRate": 1.0, "pauseBeforeMilliseconds": 0, "pauseAfterMilliseconds": 0,
+       "role": "label", "voiceRole": "label", "pauseAfter": {"kind": "proportional", "scale": 1.0}},
+      {"sequence": 10, "segmentId": "ds-10", "cueId": "example-2", "contentNodeId": "entry:phare:2:example", "repetitionNumber": 1, "repetitionCount": 1, "text": "Allume tes phares, il fait nuit.", "language": "fr-FR", "voiceProfileId": "", "speakingRate": 1.0, "pauseBeforeMilliseconds": 0, "pauseAfterMilliseconds": 0,
+       "role": "exampleSource", "voiceRole": "content", "pauseAfter": {"kind": "proportional", "scale": 1.0}},
+      {"sequence": 11, "segmentId": "ds-11", "cueId": "example-2-target", "contentNodeId": "entry:phare:2:example", "repetitionNumber": 1, "repetitionCount": 1, "text": "Turn your headlamps on, it is dark.", "language": "en-US", "voiceProfileId": "", "speakingRate": 1.0, "pauseBeforeMilliseconds": 0, "pauseAfterMilliseconds": 0,
+       "role": "exampleTarget", "voiceRole": "content", "pauseAfter": {"kind": "boundary"}},
+
+      {"sequence": 12, "segmentId": "ds-12", "cueId": "section-3", "contentNodeId": "entry:phare:3", "repetitionNumber": 1, "repetitionCount": 1, "text": "trois", "language": "fr-FR", "voiceProfileId": "", "speakingRate": 1.0, "pauseBeforeMilliseconds": 0, "pauseAfterMilliseconds": 0,
+       "role": "sectionNumber", "voiceRole": "label", "earconBefore": "sectionBoundary", "pauseAfter": {"kind": "proportional", "scale": 1.0}},
+      {"sequence": 13, "segmentId": "ds-13", "cueId": "idiom-3", "contentNodeId": "entry:phare:3:idiom", "repetitionNumber": 1, "repetitionCount": 1, "text": "un phare de la pensée", "language": "fr-FR", "voiceProfileId": "", "speakingRate": 1.0, "pauseBeforeMilliseconds": 0, "pauseAfterMilliseconds": 0,
+       "role": "idiomHead", "voiceRole": "content", "pauseAfter": {"kind": "proportional", "scale": 1.0}},
+      {"sequence": 14, "segmentId": "ds-14", "cueId": "translation-3", "contentNodeId": "entry:phare:3:idiom", "repetitionNumber": 1, "repetitionCount": 1, "text": "a leading light of thought", "language": "en-US", "voiceProfileId": "", "speakingRate": 1.0, "pauseBeforeMilliseconds": 0, "pauseAfterMilliseconds": 0,
+       "role": "translation", "voiceRole": "content", "pauseAfter": {"kind": "proportional", "scale": 1.0}},
+      {"sequence": 15, "segmentId": "ds-15", "cueId": "alternative-3", "contentNodeId": "entry:phare:3:idiom", "repetitionNumber": 1, "repetitionCount": 1, "text": "a guiding light", "language": "en-US", "voiceProfileId": "", "speakingRate": 1.0, "pauseBeforeMilliseconds": 0, "pauseAfterMilliseconds": 0,
+       "role": "alternative", "voiceRole": "content", "pauseAfter": {"kind": "proportional", "scale": 1.0}},
+      {"sequence": 16, "segmentId": "ds-16", "cueId": "example-3", "contentNodeId": "entry:phare:3:example", "repetitionNumber": 1, "repetitionCount": 1, "text": "Pendant des années, ce vieux professeur a été un véritable phare de la pensée pour tous les jeunes chercheurs de la petite ville portuaire.", "language": "fr-FR", "voiceProfileId": "", "speakingRate": 1.0, "pauseBeforeMilliseconds": 0, "pauseAfterMilliseconds": 0,
+       "role": "exampleSource", "voiceRole": "content", "pauseAfter": {"kind": "proportional", "scale": 1.0}},
+      {"sequence": 17, "segmentId": "ds-17", "cueId": "example-3-target", "contentNodeId": "entry:phare:3:example", "repetitionNumber": 1, "repetitionCount": 1, "text": "For years this old teacher was a leading light of thought.", "language": "en-US", "voiceProfileId": "", "speakingRate": 1.0, "pauseBeforeMilliseconds": 0, "pauseAfterMilliseconds": 0,
+       "role": "exampleTarget", "voiceRole": "content", "pauseAfter": {"kind": "proportional", "scale": 1.0}}
+    ]
+  },
+  "deepRecallBack": {
+    "schemaVersion": 2,
+    "side": "back",
+    "preset": {"id": "deep-recall", "version": 3},
+    "tempoProfile": "deep-recall",
+    "segments": [
+      {"sequence": 1, "segmentId": "dr-01", "cueId": "pair-1-source", "contentNodeId": "entry:phare:pair:1", "repetitionNumber": 1, "repetitionCount": 1, "text": "Le phare s'allume à la tombée de la nuit.", "language": "fr-FR", "voiceProfileId": "", "speakingRate": 1.0, "pauseBeforeMilliseconds": 0, "pauseAfterMilliseconds": 0,
+       "role": "exampleSource", "voiceRole": "content", "earconBefore": "answerStart", "pair": {"id": "pair-1", "position": "source"}, "pauseAfter": {"kind": "proportional", "scale": 1.0}},
+      {"sequence": 2, "segmentId": "dr-02", "cueId": "pair-1-target", "contentNodeId": "entry:phare:pair:1", "repetitionNumber": 1, "repetitionCount": 1, "text": "The lighthouse comes on at nightfall.", "language": "en-US", "voiceProfileId": "", "speakingRate": 1.0, "pauseBeforeMilliseconds": 0, "pauseAfterMilliseconds": 0,
+       "role": "exampleTarget", "voiceRole": "content", "earconBefore": "directionFlip", "pair": {"id": "pair-1", "position": "target"}, "pauseAfter": {"kind": "boundary"}},
+
+      {"sequence": 3, "segmentId": "dr-03", "cueId": "pair-2-source", "contentNodeId": "entry:phare:pair:2", "repetitionNumber": 1, "repetitionCount": 1, "text": "On voit le phare depuis la falaise.", "language": "fr-FR", "voiceProfileId": "", "speakingRate": 1.0, "pauseBeforeMilliseconds": 0, "pauseAfterMilliseconds": 0,
+       "role": "exampleSource", "voiceRole": "content", "earconBefore": "sectionBoundary", "pair": {"id": "pair-2", "position": "source"}, "pauseAfter": {"kind": "proportional", "scale": 1.0}},
+      {"sequence": 4, "segmentId": "dr-04", "cueId": "pair-2-target", "contentNodeId": "entry:phare:pair:2", "repetitionNumber": 1, "repetitionCount": 1, "text": "You can see the lighthouse from the cliff.", "language": "en-US", "voiceProfileId": "", "speakingRate": 1.0, "pauseBeforeMilliseconds": 0, "pauseAfterMilliseconds": 0,
+       "role": "exampleTarget", "voiceRole": "content", "earconBefore": "directionFlip", "pair": {"id": "pair-2", "position": "target"}, "pauseAfter": {"kind": "proportional", "scale": 1.0}}
+    ]
+  },
+  "atomFrontSourceToTarget": {
+    "schemaVersion": 2,
+    "side": "front",
+    "preset": {"id": "sense-map", "version": 9},
+    "tempoProfile": "sense-map",
+    "segments": [
+      {"sequence": 1, "segmentId": "st-01", "cueId": "headword", "contentNodeId": "entry:phare", "repetitionNumber": 1, "repetitionCount": 1, "text": "le phare", "language": "fr-FR", "voiceProfileId": "", "speakingRate": 1.0, "pauseBeforeMilliseconds": 0, "pauseAfterMilliseconds": 0,
+       "role": "headword", "voiceRole": "content", "pauseAfter": {"kind": "fixed", "milliseconds": 900}},
+      {"sequence": 2, "segmentId": "st-02", "cueId": "cue", "contentNodeId": "entry:phare:cue", "repetitionNumber": 1, "repetitionCount": 1, "text": "in English", "language": "en-US", "voiceProfileId": "", "speakingRate": 1.0, "pauseBeforeMilliseconds": 0, "pauseAfterMilliseconds": 0,
+       "role": "cue", "voiceRole": "label", "pauseAfter": {"kind": "proportional", "scale": 1.0}}
+    ]
+  },
+  "atomFrontTargetToSource": {
+    "schemaVersion": 2,
+    "side": "front",
+    "preset": {"id": "sense-map", "version": 9},
+    "tempoProfile": "sense-map",
+    "segments": [
+      {"sequence": 1, "segmentId": "ts-01", "cueId": "translation", "contentNodeId": "entry:phare:translation", "repetitionNumber": 1, "repetitionCount": 1, "text": "the lighthouse", "language": "en-US", "voiceProfileId": "", "speakingRate": 1.0, "pauseBeforeMilliseconds": 0, "pauseAfterMilliseconds": 0,
+       "role": "translation", "voiceRole": "content", "pauseAfter": {"kind": "proportional", "scale": 1.0}},
+      {"sequence": 2, "segmentId": "ts-02", "cueId": "cue", "contentNodeId": "entry:phare:cue", "repetitionNumber": 1, "repetitionCount": 1, "text": "en français", "language": "fr-FR", "voiceProfileId": "", "speakingRate": 1.0, "pauseBeforeMilliseconds": 0, "pauseAfterMilliseconds": 0,
+       "role": "cue", "voiceRole": "label", "pauseAfter": {"kind": "proportional", "scale": 1.0}}
+    ]
+  }
+}

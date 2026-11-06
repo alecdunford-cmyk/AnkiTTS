@@ -1,0 +1,71 @@
+{
+  "_comment": "Invented sentences. A schema-version-1 plan pair; its cache keys and track filenames are pinned in tests/test_speech_plan_v2_e2e.py (P3: v1 stays byte-identical).",
+  "front": {
+    "schemaVersion": 1,
+    "side": "front",
+    "segments": [
+      {
+        "sequence": 1,
+        "segmentId": "front-headword:repetition:1",
+        "cueId": "front-headword",
+        "contentNodeId": "entry:phare",
+        "repetitionNumber": 1,
+        "repetitionCount": 2,
+        "text": "le phare",
+        "language": "fr-FR",
+        "voiceProfileId": "",
+        "speakingRate": 1.0,
+        "pauseBeforeMilliseconds": 0,
+        "pauseAfterMilliseconds": 900
+      },
+      {
+        "sequence": 2,
+        "segmentId": "front-headword:repetition:2",
+        "cueId": "front-headword",
+        "contentNodeId": "entry:phare",
+        "repetitionNumber": 2,
+        "repetitionCount": 2,
+        "text": "le phare",
+        "language": "fr-FR",
+        "voiceProfileId": "french-primary",
+        "speakingRate": 0.9,
+        "pauseBeforeMilliseconds": 150,
+        "pauseAfterMilliseconds": 400
+      }
+    ]
+  },
+  "back": {
+    "schemaVersion": 1,
+    "side": "back",
+    "segments": [
+      {
+        "sequence": 1,
+        "segmentId": "back-translation:repetition:1",
+        "cueId": "back-translation",
+        "contentNodeId": "entry:phare:translation",
+        "repetitionNumber": 1,
+        "repetitionCount": 1,
+        "text": "the lighthouse",
+        "language": "en-US",
+        "voiceProfileId": "",
+        "speakingRate": 1.0,
+        "pauseBeforeMilliseconds": 0,
+        "pauseAfterMilliseconds": 500
+      },
+      {
+        "sequence": 2,
+        "segmentId": "back-example:repetition:1",
+        "cueId": "back-example",
+        "contentNodeId": "entry:phare:example",
+        "repetitionNumber": 1,
+        "repetitionCount": 1,
+        "text": "Le vieux phare repeint en jaune guide les barques.",
+        "language": "fr-FR",
+        "voiceProfileId": "",
+        "speakingRate": 1.0,
+        "pauseBeforeMilliseconds": 200,
+        "pauseAfterMilliseconds": 0
+      }
+    ]
+  }
+}
