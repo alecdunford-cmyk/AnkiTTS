@@ -32,6 +32,7 @@ from settings import (
     DEFAULT_ROLE_VOICES,
     DEFAULT_TEMPO_PROFILES,
     PROVIDER_IDS,
+    SETTINGS_VERSION,
     AppSettings,
 )
 from voice_manager import VoiceManager, role_voice_choices
@@ -355,7 +356,8 @@ class SettingsDialog(QDialog):
             "that is not configured, not reachable or fails hands the "
             "segment to the next. Ids: pocket (local voice clone), fish "
             "(Fish Audio, paid, key from FISH_API_KEY), edge (Microsoft "
-            "Edge voices)."
+            "Edge voices). A provider left out of the order is off; its "
+            "settings below are kept."
         )
 
         description.setWordWrap(
@@ -2254,6 +2256,7 @@ class SettingsDialog(QDialog):
                 "earcons": (
                     validated_settings.earcons
                 ),
+                "settings_version": SETTINGS_VERSION,
             }
         )
 

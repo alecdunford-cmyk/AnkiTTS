@@ -9,8 +9,6 @@
   "volume": "+0%",
   "pitch": "+0Hz",
   "provider_chain": [
-    "pocket",
-    "fish",
     "edge"
   ],
   "providers": {

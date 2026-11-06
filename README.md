@@ -23,8 +23,10 @@ Generate audio for one note or hundreds of selected notes directly from the Anki
 ## Features
 
 - 🎙 Automatic text-to-speech generation for Anki cards
-- 🧬 Local voice cloning with Kyutai Pocket TTS (French and English), from a short reference clip
-- 🔁 Provider fallback chain: Pocket TTS → Fish Audio → Microsoft Edge, configurable
+- 🗣 Microsoft Edge Neural voices by default, free
+- 🧬 Optional: local voice cloning with Kyutai Pocket TTS, and Fish Audio (both off by default)
+- 🔁 Configurable provider fallback chain
+- 🎭 RCE speech plans: a content voice and a label voice per language, proportional pauses, tempo profiles and earcons
 - 🌍 Automatic language detection for mixed-language text
 - 🇫🇷 French, 🇺🇸 English, and 🇯🇵 Japanese support out of the box (Japanese through Edge)
 - 🎚 Independent Speech Profiles for each language
@@ -72,7 +74,7 @@ Every segment is offered to the providers in order. A provider that is not confi
 | Fish Audio s2.1-pro | `fish` | cloud API, paid | your Fish voice model | any language with a voice id | applied after synthesis (0.5–2.0×) | ignored |
 | Microsoft Edge Neural | `edge` | cloud, free | Edge voice from the speech profile | French, English, Japanese and more | native | native |
 
-The default order is `pocket, fish, edge`. Without a Pocket engine or Fish key, AnkiTTS simply uses Edge as before. The design is in [docs/DESIGN-providers.md](docs/DESIGN-providers.md).
+The default order is just `edge`. Pocket and Fish stay installed and configured but off; add them to the order on the Providers tab to turn them on. A configuration saved with the old default order (`pocket, fish, edge`) moves to `edge` when loaded. The design is in [docs/DESIGN-providers.md](docs/DESIGN-providers.md).
 
 ---
 
@@ -142,6 +144,22 @@ RCE communicates these requests through managed `rce-audio::*` tags. AnkiTTS pol
 Successful notes receive `rce-audio::ready`. Failed notes retain `rce-audio::pending` and receive `rce-audio::failed`, so they remain recoverable from the Tools menu. User tags and non-audio RCE organizational tags are preserved throughout every transition.
 
 Cold-cache structured RCE jobs synthesize up to three distinct missing speech segments concurrently (the local Pocket engine takes them one at a time). Repeated segments that share an exact cache identity are generated once and reused. Track stitching, final media publication, and Anki note updates remain ordered and transactional. The completion message reports the measured batch duration alongside generated and cached segment counts so cold- and warm-cache performance can be compared directly.
+
+## Speech plans, version 2
+
+A version 2 plan from RCE names roles, never voices or engines. AnkiTTS resolves them from the **Speech Plans** tab in the settings:
+
+- **Role voices.** One voice per language for content and one for labels. Any Edge voice can fill any slot, whatever its locale, or another enabled provider can. Changing one regenerates that role's audio on the next run and nothing else.
+
+  | Language | Content | Label |
+  |---|---|---|
+  | French | `fr-FR-VivienneMultilingualNeural` | `en-US-BrianMultilingualNeural` |
+  | English | `de-DE-SeraphinaMultilingualNeural` | `en-US-AndrewNeural` |
+
+- **Tempo profiles.** A plain table, one row per card preset: rate, pause factor, minimum and maximum pause, section pause. Pauses follow the length of what was just said.
+- **Earcons.** Three short sounds: a section boundary, the start of the answer, and a change of direction. Default tones are generated once into `user_files/earcons`; any can be replaced by naming a file.
+
+Version 1 plans and plain notes are unaffected: they keep using the Speech Profiles tab. The design is in [docs/DESIGN-providers.md](docs/DESIGN-providers.md), section 18.
 
 ---
 

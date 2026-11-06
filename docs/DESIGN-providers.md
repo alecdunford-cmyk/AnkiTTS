@@ -4,15 +4,19 @@ Status: accepted design, built in stages B–H on 2026-11-01. This document is
 the durable home of the card-and-audio rulings CA-3 onward. CA-1 and CA-2 are
 in `D:\RCE-Project-Archive\Session-Handoffs\AnkiTTS-Card-Audio-Bakeoff-Plan-20261029.md`.
 The audio-defect fixes of the same day (ruling CA-21 and CA-22 to CA-28: the
-trim margin and speech-text preparation) are in section 15.
+trim margin and speech-text preparation) are in section 15, loudness in section
+17, and speech plan v2 with role voices (CA-41, CA-42 onward) in section 18.
 
 ## 1. Why
 
 Up to v1.0.0 and the structured-RCE commits, `generator.create_audio` called
 `edge_tts` directly. No other engine could plug in, and the generic path's
-cache key did not record which engine made a file. Ruling CA-3 makes Kyutai
+cache key did not record which engine made a file. Ruling CA-3 made Kyutai
 Pocket TTS the primary engine, Fish Audio the second provider and Edge the
-last resort. This design is the seam that makes that possible.
+last resort. This design is the seam that made that possible. **CA-38 (Alec,
+2026-11-06) reversed the order:** Edge is primary and the other two stay wired
+but off, which the seam made a change of one default (sections 3 and 18). This
+section and the ones after it describe the seam and hold for any order.
 
 The RCE↔AnkiTTS boundary (`src/rce_contract.py`) does not move. RCE still
 says *what* is spoken: text, language, voice profile id, speaking-rate
@@ -118,7 +122,11 @@ imported `edge_tts`.
 
 ## 3. Fallback
 
-- Settings key `provider_chain`, default `["pocket", "fish", "edge"]`.
+- Settings key `provider_chain`, default `["edge"]` since CA-38 (Alec,
+  2026-11-06), which reversed CA-3: Edge is primary, and Pocket and Fish stay
+  wired and configured but off. It was `["pocket", "fish", "edge"]`; a config
+  saved with that value moves on load (section 18, CA-45). The text below still
+  holds for any chain that lists them.
 - A provider that cannot serve the language, fails health or fails synthesis
   hands the segment to the next one, and the reason is logged.
 - **Cache precedence (CA-6):** for each provider in order, its cached file is
@@ -270,7 +278,8 @@ The live add-on reads **Anki's add-on config**, not `settings.json`
 (defaults) overlaid by `addon/meta.json["config"]` (what the dialog saved).
 `settings.json` at the repo root is a developer file read only by
 `SettingsManager` (dev scripts). The inventory's guess that the add-on reads
-`addon/settings.json` was wrong. New keys:
+`addon/settings.json` was wrong. New keys (the chain's default has since
+become `["edge"]`, and section 18 adds more):
 
 ```json
 "provider_chain": ["pocket", "fish", "edge"],
@@ -661,6 +670,8 @@ group; the voice question is parked (section 16).
   comma, so a listener hears where a section starts. Whether a heading or
   section marker is in the segment text at all is RCE's decision (below).
 
+Rulings CA-35 to CA-41 are in section 17, CA-42 onward in section 18.
+
 ## 16. Parked
 
 - **Qwen3-TTS** (0.6B / 1.7B). Trigger: "if Pocket's French ever disappoints
@@ -680,7 +691,10 @@ group; the voice question is parked (section 16).
   points at the limiter. Options then: a lower common target (about -18 LUFS
   makes every clip linear), or a gentler dynamics stage than a limiter.
 - **A different voice for notes, headings and labels, and spoken section
-  numbers** (Alec, 2026-11-01). Not built, because both halves need RCE:
+  numbers** (Alec, 2026-11-01). **Superseded by speech plan v2 (section 18):**
+  the plan carries `voiceRole` and `role`, and section numbers are their own
+  segments. It takes effect when RCE emits version 2 (card-4). The original
+  note, for the record: not built, because both halves need RCE:
   - *Who speaks what* is RCE's content. The speech plan already carries
     `voiceProfileId` per segment, and AnkiTTS already resolves a direct
     profile key or a logical alias to a profile. So RCE would emit, for
@@ -850,3 +864,250 @@ and normalisation combine; an existing MP3 is normalised in place; the Edge
 provider normalises what Edge wrote and caches nothing on failure. Identity
 tests for the three providers and the fakes carry `loudness_version`; the Fish
 test now supplies real MP3 bytes.
+
+## 18. Speech plan v2
+
+Schema version 2 of the speech plan: RCE names roles, and AnkiTTS maps them to
+voices, sounds and timings from its own settings. Design note:
+`D:\RCE-Project-Archive\Session-Handoffs\AnkiTTS-SpeechPlan-v2-Design-20261106.md`.
+What is built: its section 2 (the plan) and section 4 (what AnkiTTS resolves).
+Its section 3 (what RCE emits) is RCE's stage, card-4; the fixture here follows
+it.
+
+**Two sets of ruling numbers.** Alec's rulings in the card-and-audio plan
+(`AnkiTTS-Card-Audio-Bakeoff-Plan-20261029.md`) and this document's session
+rulings in section 17 both use CA-36 to CA-41, and they are different rulings.
+So in this section "CA-37", "CA-38", "CA-40" and "CA-41" mean Alec's, in that
+plan file, unless marked "section 17". Session rulings continue from CA-42.
+
+### Ruling CA-41 (Alec, 2026-11-06), verbatim
+
+```
+Basis: Stage 2 unblinded (AnkiTTS-VoiceSelection-Stage2-Unblinded-20261106.md) and Alec's addendum
+("My favorite voices were actually the female voices, so I'd rather hear the females speak the
+content and the males speak the labels"), which amends CA-40 (2): content voices are female,
+label voices male.
+1. French: content fr-FR-VivienneMultilingualNeural; label en-US-BrianMultilingualNeural.
+   English: content de-DE-SeraphinaMultilingualNeural (chosen over the tied Vivienne so that each
+   language has its own voice and the language switch is audible); label en-US-AndrewNeural.
+2. These four are the DEFAULTS. The settings panel exposes all four slots (content and label per
+   language), each switchable to any Edge voice from the live catalogue, or to another enabled
+   provider's voice, for real-study dissatisfaction or simply a change. A changed voice regenerates
+   that role's audio on the next run (the cache identity changes); nothing else refills.
+3. Normalisation finding carried forward: the bake-off's loudnorm fell back to dynamic mode on most
+   Edge files and plausibly caused the Stage 1 "crunchiness" notes; AnkiTTS's own normalisation
+   (explicit gain plus bounded limiter, CA-35) is unaffected and stays.
+```
+
+### The plan
+
+One JSON string per side field, as for version 1. `src/speech_plan.py` parses
+both versions; version 1 goes through exactly the path it always did.
+
+Plan fields: `schemaVersion` (2), `side`, `preset` (`{id, version}`,
+informational), `tempoProfile` (a name), `segments`. All required.
+
+Segment fields:
+
+| Field | Required | Values |
+|---|---|---|
+| the twelve version 1 fields | yes | as version 1 (P3: v2 removes none) |
+| `role` | yes | `headword`, `sectionNumber`, `label`, `gloss`, `idiomHead`, `exampleSource`, `exampleTarget`, `translation`, `cue`, `alternative`, `other` |
+| `voiceRole` | yes | `content`, `label` |
+| `pauseBefore`, `pauseAfter` | no | `{kind: "none"}`, `{kind: "fixed", milliseconds}`, `{kind: "proportional", scale}`, `{kind: "boundary"}` |
+| `earconBefore`, `earconAfter` | no | `sectionBoundary`, `answerStart`, `directionFlip` |
+| `pair` | no | `{id, position}`; `position` is `source` or `target` |
+| `spoken` | no | `true` (default), `false` |
+
+Validation is as strict as version 1: an unknown key is an error, including a
+key that does not belong to a pause's kind, and `null` is not "absent". A pause
+that is present replaces its version 1 millisecond field, which is otherwise
+ignored but still required; a pause that is absent uses it.
+
+### Field mapping: the design note's names and the code's
+
+JSON keys in a plan are spelled as the note spells them. Settings and code:
+
+| Design note | Code | Why it differs |
+|---|---|---|
+| `voices` (per language, content and label) | settings key `role_voices` | `voices` is already the legacy per-language key, still read |
+| `<provider+voice>` | `{"provider": ..., "voice": ...}` | a structured slot |
+| `tempoProfiles` | settings key `tempo_profiles`; its fields keep the note's names (`rate`, `pauseFactor`, `minPauseMs`, `maxPauseMs`, `boundaryPauseMs`) | settings keys are snake_case |
+| `earcons` | settings key `earcons` | same |
+| `voiceRole`, `tempoProfile`, `pauseBefore` and the rest | `voice_role`, `tempo_profile`, `pause_before` on the parsed dataclasses | Python attributes |
+| "section pause" | `boundaryPauseMs`, "Section pause (ms)" in the dialog | same thing |
+| v1 `pauseBeforeMilliseconds`, ... | unchanged, `pause_before_milliseconds` | as before |
+
+### What AnkiTTS resolves
+
+**Voices (`role_voices`).** A segment's language and voice role choose a slot.
+Defaults are CA-41's. The slot's provider is tried first, then the rest of
+`provider_chain` in order, so a label voice can stay on Edge while content is
+on another provider. The language is the segment's, not the voice's locale.
+A language with no slot (Japanese) uses its speech profile's voice.
+
+**Tempo (`tempo_profiles`).** The plan's name, or `default` if the name is
+unknown. Table as in the note, editable in the dialog.
+
+**Pauses**, at stitch time (P4), in `stitcher.resolve_pause_milliseconds`:
+
+| Kind | Length |
+|---|---|
+| `none` | 0 |
+| `fixed` | the plan's milliseconds, exactly |
+| `boundary` | the profile's `boundaryPauseMs` |
+| `proportional` | `clamp(scale x pauseFactor x speech, minPauseMs, maxPauseMs)`, where speech is this segment's own audio after the tail trim |
+
+**Earcons (`earcons`).** Role to file path; blank is the default tone, generated
+once into `<add-on>/user_files/earcons/` by `src/earcons.py`:
+
+| Role | Tone | Length |
+|---|---|---|
+| `sectionBoundary` | soft tick, 1320 Hz, decaying | 120 ms |
+| `answerStart` | rising, 523 to 784 Hz | 220 ms |
+| `directionFlip` | steady, 392 Hz | 180 ms |
+
+All -20 LUFS, measured looped because they are shorter than a BS.1770 block
+(section 17, its CA-40). A replacement file is used as it is; it is not
+normalised.
+
+**Layout of one segment:** pause before, earcon before, 120 ms, speech, 120 ms,
+earcon after, pause after. A segment with `spoken: false` contributes nothing:
+no audio, no pause, no earcon, no part in the track's identity.
+
+### Cache identity (P5)
+
+| Change | Segment audio | Track |
+|---|---|---|
+| Text, language, role, voice role, resolved voice | regenerates | new name |
+| Effective rate (including a tempo profile's `rate`) | regenerates | new name |
+| Pause kind, or a tempo profile's pause numbers | reused | new name |
+| Earcon use, or an earcon file's contents | reused | new name |
+| Tempo profile's name, if the rate is the same | reused | new name only if its pause numbers differ |
+
+A version 2 segment's key adds `role`, `voice_role`, `resolved_voice`
+(`<provider identity>/<voice>`, or `own-voice` for Pocket and Fish) and
+`role_voice_version` (`"1"`, `structured_audio.ROLE_VOICE_VERSION`). A version 2
+track's identity adds `stitch_version` (`"1"`), the tempo's pause numbers, the
+sha256 of each earcon it uses, and each segment's role, voice role, slot
+provider, pause kinds and earcon names. **A version 1 plan gets none of this**:
+its keys and track names are pinned against values recorded before version 2
+existed (`tests/test_speech_plan_v2_e2e.py`).
+
+### Settings and migration
+
+New keys, all merged over the defaults on load, so an older config loads with
+nothing to do and nothing is written until Save in the dialog:
+
+```json
+"provider_chain": ["edge"],
+"role_voices": {
+  "fr": {"content": {"provider": "edge", "voice": "fr-FR-VivienneMultilingualNeural"},
+         "label":   {"provider": "edge", "voice": "en-US-BrianMultilingualNeural"}},
+  "en": {"content": {"provider": "edge", "voice": "de-DE-SeraphinaMultilingualNeural"},
+         "label":   {"provider": "edge", "voice": "en-US-AndrewNeural"}}
+},
+"tempo_profiles": {"default": {"rate": 1.0, "pauseFactor": 0.35, "minPauseMs": 250, "maxPauseMs": 1200, "boundaryPauseMs": 700}},
+"earcons": {"sectionBoundary": "", "answerStart": "", "directionFlip": ""}
+```
+
+The dialog's **Speech Plans** tab has the four slots (the shared voice picker
+over the whole live catalogue, the four defaults always offered, even with no
+network), the tempo table and the earcon paths. `settings_version` is written
+only by the dialog's Save (CA-45).
+
+### Rulings (the implementing session, 2026-11-06)
+
+Option taken, then option not taken.
+
+- **CA-42 Version 1 plans and the generic path keep their speech profile's
+  voice.** The brief says a segment without `voiceRole` "is content", and also
+  that version 1 stays byte-identical on its cache keys (P1, P3). Both cannot
+  hold if "content" means the content slot: the voice is in the key. So such a
+  segment is content in meaning only and resolves as it always did. **The
+  consequence Alec will notice:** until card-4 emits version 2, real RCE cards
+  and plain notes speak in Denise and Jenny (his saved speech profiles), on Edge,
+  not in the CA-41 voices. *Not taken:* sending them
+  through the content slot, which would refill every version 1 card and change
+  plain notes' voices, against P1 and P3.
+- **CA-43 `role` is in the segment key as well as `voice_role`.** The brief
+  names voice role and resolved voice; P5 also names role. P5 is the design, so
+  it is followed: the same text as a `gloss` and as a `translation` is
+  synthesised twice. *Not taken:* voice role only, which would share that audio
+  but would need the design changed.
+- **CA-44 A tempo profile's `rate` is a synthesis input.** P5 says tempo is
+  stitch-time and never in a segment's key; section 4 of the same note says a
+  provider with native rate uses it and one without gets `atempo` after
+  synthesis, "as today". They conflict for `rate` alone. Taken: the rate
+  multiplies `speakingRate` and the result goes to the provider, so Edge speaks
+  it natively and the *effective* rate is in the key, as every rate already is.
+  The profile's name and pause numbers are not, so two profiles at the same rate
+  share audio. *Not taken:* `atempo` at stitch time for every provider, which is
+  P5's letter but processes Edge's audio for no reason and reports pauses from a
+  different duration.
+- **CA-45 The saved chain migrates.** `addon/meta.json` holds the whole dialog
+  config, including `["pocket", "fish", "edge"]`, and overlays `config.json`, so
+  changing the default alone would change nothing for Alec, who is to "set
+  nothing". On load, a config with exactly the old default and no
+  `settings_version` becomes `["edge"]`; nothing is written. Save writes
+  `settings_version: 2`, so choosing that order again afterwards sticks, and any
+  other saved order is respected. The marker is not in `config.json`, or Anki's
+  overlay would make every old config look current. *Not taken:* editing
+  `meta.json` (Anki's file, and it would not help anyone else); asking Alec to
+  change the order by hand.
+- **CA-46 A slot on Pocket or Fish names the provider only.** Both take their
+  voice from their own settings per language, and this stage leaves them
+  untouched, so content and label on Pocket are the same clone (split in the
+  cache by voice role). If the chain falls through to Edge, Edge speaks the
+  role's CA-41 default. A slot on a provider not in the chain is not honoured:
+  the chain is used and a warning logged; the dialog marks it "(not enabled)".
+  *Not taken:* a per-role clip or Fish id, a change to both providers that
+  nothing needs while both are off (CA-38 (2), CA-40 (3)).
+- **CA-47 Strict version 2.** `role`, `voiceRole`, `preset` and `tempoProfile`
+  are required; so are all twelve version 1 fields; a pause object has exactly
+  its kind's fields; `null` is not "absent". *Not taken:* defaulting a missing
+  `voiceRole` to content in version 2, which would hide an RCE serialiser defect
+  as the wrong voice on a card. RCE's serialiser must omit absent fields.
+- **CA-48 A proportional pause measures the speech after the tail trim.** Edge
+  clips end in about 800 ms of silence, which would otherwise add about 280 ms
+  to every pause and make the numbers mean something other than "what was just
+  said". `fixed` and `boundary` are not clamped. *Not taken:* the file's length.
+- **CA-49 An earcon stays 120 ms from its speech; the plan's pauses go outside
+  it.** So a section reads: previous speech, boundary pause, tick, 120 ms, new
+  speech. The 120 ms is a constant (`stitcher.EARCON_GAP_MS`, covered by
+  `stitch_version`), to be tuned by ear with the rest. *Not taken:* no gap (a
+  tone running into a word); a setting (a number nobody has asked to change).
+- **CA-50 Default earcons are computed with the standard library and calibrated
+  with ffmpeg**, stored as WAV. Nothing new for Anki's bundled Python to load,
+  and the brief's stop does not arise. A named file that has gone missing falls
+  back to the default with a warning (a moved sound should not stop a card); the
+  dialog refuses to save a path that does not exist. *Not taken:* numpy (not in
+  the vendored libs); MP3 defaults (an extra generation, and encoder padding
+  around a 120 ms tone).
+- **CA-51 The brief's "one refill" has nothing to refill.** Version 2 keys are
+  new, and version 1's must not move, so the identity change itself refills
+  nothing. The version fields exist so that a later change can refill once, as
+  `speech_text_version` and `loudness_version` did. Separately, CA-38's move to
+  Edge means a card regenerated now gets Edge audio: its key differs because the
+  provider does, as it always has. *Not taken:* bumping a version on version 1
+  keys.
+- **CA-52 These rulings are in this section.** The brief says section 15, whose
+  last ruling is CA-34; CA-35 to CA-41 went to section 17. Section 15 points
+  here. *Not taken:* splitting one design between two sections.
+- **CA-53 `CLAUDE.md`'s provider line is updated to CA-38**, as CA-18 did for
+  CA-3. *Not taken:* leaving project memory contradicting Alec's ruling.
+
+### Tests
+
+`tests/test_speech_plan_v2.py` (14 checks): every field, every rejection, version
+1 unaffected. `tests/test_role_voices.py` (22): defaults, migration, resolution,
+fallback, cache splits, one role regenerating, the picker's choices.
+`tests/test_tempo_pauses.py` (16): the note's table, the formula and clamp, the
+trimmed duration, what refills. `tests/test_earcons.py` (10): the tone
+specification, generated once, replacement, position, keys.
+`tests/test_speech_plan_v2_e2e.py` (7): the fixture in
+`tests/fixtures/speech_plan_v2.json` through parsing, resolution, the fake
+worker's protocol, normalisation, earcons, stitching and MP3 export; each voice
+is given its own pitch, and the decoded track is checked for who spoke, the
+earcons at their offsets and silence in the pauses. The version 1 fixture's keys
+and track names are pinned.

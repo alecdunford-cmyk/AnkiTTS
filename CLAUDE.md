@@ -19,12 +19,12 @@ additive, never a replacement for it.
   AnkiTTS owns speech-profile/voice resolution, synthesis, caching, trimming/
   stitching, and audio publication into Anki. Do not blur this boundary.
 - Requirements for the accepted ordinary path: Anki 26.x, Python 3.13+,
-  FFmpeg, Microsoft Edge Neural TTS. Since ruling CA-3 (2026-11-01) the
-  default provider chain is Kyutai Pocket TTS (local, separate engine venv)
-  → Fish Audio → Edge; with Pocket and Fish unconfigured the chain degrades
-  to Edge alone, so the ordinary path still needs nothing more. No other TTS
-  provider (e.g. ElevenLabs) belongs in the default configuration. Design and
-  rulings: `docs/DESIGN-providers.md`.
+  FFmpeg, Microsoft Edge Neural TTS. Since ruling CA-38 (2026-11-06, reversing
+  CA-3) the default provider chain is Edge alone; Kyutai Pocket TTS (local,
+  separate engine venv) and Fish Audio stay wired and configured but off, so the
+  ordinary path needs nothing more. No other TTS provider (e.g. ElevenLabs)
+  belongs in the default configuration. Design and rulings:
+  `docs/DESIGN-providers.md`; speech plan v2 and role voices are its section 18.
 - The live add-on reads Anki's add-on config (`addon/config.json` overlaid by
   `addon/meta.json["config"]`), not `settings.json`.
 - Keep Alec's personal `settings.json` untouched and unstaged unless he

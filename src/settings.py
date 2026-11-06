@@ -33,11 +33,24 @@ PROVIDER_IDS = (
     "edge",
 )
 
+# CA-38 (2): Edge is the primary provider. Pocket and Fish stay wired and keep
+# their settings; a provider not in the chain is off.
 DEFAULT_PROVIDER_CHAIN = [
+    "edge",
+]
+
+# The default before CA-38. Anki stores the whole dialog config in meta.json, so
+# a config saved then holds this chain whether or not anyone chose it. Such a
+# config (no settings_version) moves to the new default on load, and nothing is
+# written. Only the dialog's Save writes settings_version: if config.json held
+# it, Anki's overlay would make every old meta.json look current.
+LEGACY_DEFAULT_PROVIDER_CHAIN = [
     "pocket",
     "fish",
     "edge",
 ]
+
+SETTINGS_VERSION = 2
 
 REFERENCE_CLIP_DIRECTORY = (
     r"D:\RCE-Project-Archive\Milestones\Card-Audio\reference"
@@ -500,6 +513,8 @@ class AppSettings:
             DEFAULT_EARCONS
         )
     )
+
+    settings_version: int = SETTINGS_VERSION
 
     def get_tempo_profile(
         self,
@@ -1230,6 +1245,15 @@ class AppSettings:
             settings.provider_chain = chain or [
                 "edge"
             ]
+
+            if (
+                chain
+                == LEGACY_DEFAULT_PROVIDER_CHAIN
+                and "settings_version" not in data
+            ):
+                settings.provider_chain = list(
+                    DEFAULT_PROVIDER_CHAIN
+                )
 
         settings.providers = merge_provider_settings(
             data.get(

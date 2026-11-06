@@ -6,6 +6,30 @@ in a tagged release.
 
 ## Unreleased
 
+### Speech plan v2, role voices, earcons, proportional pauses (2026-11-06)
+
+Rulings CA-41 (Alec) and CA-42 to CA-53, `docs/DESIGN-providers.md`, section 18:
+
+- **Edge is the default provider** (Alec's CA-38). The default chain is `edge`;
+  Pocket and Fish stay wired and configured but off. A saved configuration that
+  holds the old default order moves on load, and nothing is written until the
+  settings are saved.
+- **Speech plan schema version 2**, parsed beside version 1: roles, voice roles,
+  pause kinds, earcons, pairs, a preset and a tempo profile.
+- **Role voices** (CA-41): one content and one label voice per language, with
+  Alec's four defaults, each switchable on the new Speech Plans tab. Changing one
+  regenerates that role's audio only.
+- **Tempo profiles and proportional pauses:** a pause is computed at stitch time
+  from the length of the speech it follows, clamped by the plan's tempo profile.
+- **Earcons:** three short default tones generated once into `user_files`, each
+  replaceable, placed where the plan says.
+- **Version 1 plans and plain notes are unchanged by the schema**: for a given
+  provider and voice, their cache keys and track names are byte for byte what
+  they were. They keep their speech profile voices until RCE emits version 2.
+  The move to Edge is a provider change, so a card regenerated now is Edge audio
+  in those voices, generated once if Edge has not made it before. Audio already
+  in Anki stays until its card is regenerated.
+
 ### Speech providers (2026-11-01)
 
 - **Provider seam.** Synthesis goes through a `Provider` interface

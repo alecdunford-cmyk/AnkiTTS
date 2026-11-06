@@ -978,6 +978,208 @@ def check_changed_voice_regenerates_only_that_role():
     )
 
 
+def check_default_chain_is_edge_with_the_others_kept_but_off():
+    settings = AppSettings()
+
+    assert settings.provider_chain == [
+        "edge",
+    ]
+
+    # CA-38 (2): nothing removed; their settings are still there and work.
+    assert set(
+        settings.providers
+    ) == {
+        "pocket",
+        "fish",
+        "edge",
+    }
+
+    assert settings.get_provider_settings(
+        "pocket"
+    )[
+        "models"
+    ][
+        "fr"
+    ] == "french"
+
+    assert settings.get_provider_settings(
+        "fish"
+    )[
+        "model"
+    ] == "s2.1-pro"
+
+    chain_on_again = AppSettings.from_dict(
+        {
+            "provider_chain": [
+                "pocket",
+                "edge",
+            ],
+        }
+    )
+
+    assert chain_on_again.provider_chain == [
+        "pocket",
+        "edge",
+    ]
+
+    with (
+        Path(__file__).resolve().parent.parent
+        / "addon"
+        / "config.json"
+    ).open(
+        encoding="utf-8",
+    ) as config_file:
+        config = json.load(
+            config_file
+        )
+
+    assert config[
+        "provider_chain"
+    ] == [
+        "edge",
+    ]
+
+    assert set(
+        config[
+            "providers"
+        ]
+    ) == {
+        "pocket",
+        "fish",
+        "edge",
+    }
+
+    # If config.json carried the marker, Anki's overlay would hide old configs.
+    assert "settings_version" not in config
+
+
+def check_saved_old_default_chain_migrates_to_edge():
+    # Alec's meta.json as it stands: the old default, saved by the dialog.
+    with TemporaryDirectory() as directory:
+        addon_dir = Path(
+            directory
+        )
+
+        (addon_dir / "config.json").write_text(
+            (
+                Path(__file__).resolve().parent.parent
+                / "addon"
+                / "config.json"
+            ).read_text(
+                encoding="utf-8"
+            ),
+            encoding="utf-8",
+        )
+
+        meta_text = json.dumps(
+            {
+                "config": {
+                    "voices": {
+                        "fr": "fr-FR-DeniseNeural",
+                    },
+                    "provider_chain": [
+                        "pocket",
+                        "fish",
+                        "edge",
+                    ],
+                    "providers": {
+                        "fish": {
+                            "reference_ids": {
+                                "fr": "kept-id",
+                            },
+                        },
+                    },
+                },
+            }
+        )
+
+        (addon_dir / "meta.json").write_text(
+            meta_text,
+            encoding="utf-8",
+        )
+
+        settings = SettingsManager.load_addon_config(
+            addon_dir
+        )
+
+        assert settings.provider_chain == [
+            "edge",
+        ]
+
+        assert settings.get_provider_settings(
+            "fish"
+        )[
+            "reference_ids"
+        ][
+            "fr"
+        ] == "kept-id"
+
+        # Migration happens on load: the file is not written.
+        assert (
+            (addon_dir / "meta.json").read_text(
+                encoding="utf-8"
+            )
+            == meta_text
+        )
+
+
+def check_chain_chosen_after_the_change_is_respected():
+    # The dialog's Save writes settings_version, so choosing the old order
+    # again sticks; any other saved order was always a choice.
+    assert AppSettings.from_dict(
+        {
+            "settings_version": 2,
+            "provider_chain": [
+                "pocket",
+                "fish",
+                "edge",
+            ],
+        }
+    ).provider_chain == [
+        "pocket",
+        "fish",
+        "edge",
+    ]
+
+    assert AppSettings.from_dict(
+        {
+            "provider_chain": [
+                "pocket",
+                "edge",
+            ],
+        }
+    ).provider_chain == [
+        "pocket",
+        "edge",
+    ]
+
+    # And it survives a round trip through asdict.
+    chosen = AppSettings.from_dict(
+        {
+            "settings_version": 2,
+            "provider_chain": [
+                "pocket",
+                "fish",
+                "edge",
+            ],
+        }
+    )
+
+    assert AppSettings.from_dict(
+        json.loads(
+            json.dumps(
+                asdict(
+                    chosen
+                )
+            )
+        )
+    ).provider_chain == [
+        "pocket",
+        "fish",
+        "edge",
+    ]
+
+
 def check_role_voice_choices_work_offline():
     choices = role_voice_choices(
         [],
@@ -1066,6 +1268,9 @@ def run():
         check_content_falls_back_through_the_chain_with_an_edge_voice,
         check_identity_gains_role_and_voice_and_splits_the_cache,
         check_changed_voice_regenerates_only_that_role,
+        check_default_chain_is_edge_with_the_others_kept_but_off,
+        check_saved_old_default_chain_migrates_to_edge,
+        check_chain_chosen_after_the_change_is_respected,
         check_role_voice_choices_work_offline,
         check_role_voice_choices_list_the_whole_catalogue,
     ]
