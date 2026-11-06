@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from decimal import Decimal
 from typing import Any
 
 
 SCHEMA_VERSION = 1
+SCHEMA_VERSION_2 = 2
+
 VALID_SIDES = {
     "front",
     "back",
@@ -33,11 +35,117 @@ SEGMENT_FIELDS = {
     "pauseAfterMilliseconds",
 }
 
+# Schema version 2 (docs/DESIGN-providers.md, section 18) adds fields and
+# removes none of version 1's: every field above is still required.
+PLAN_FIELDS_V2 = PLAN_FIELDS | {
+    "preset",
+    "tempoProfile",
+}
+
+SEGMENT_FIELDS_V2 = SEGMENT_FIELDS | {
+    "role",
+    "voiceRole",
+}
+
+SEGMENT_OPTIONAL_FIELDS_V2 = {
+    "pauseBefore",
+    "pauseAfter",
+    "earconBefore",
+    "earconAfter",
+    "pair",
+    "spoken",
+}
+
+VALID_ROLES = (
+    "headword",
+    "sectionNumber",
+    "label",
+    "gloss",
+    "idiomHead",
+    "exampleSource",
+    "exampleTarget",
+    "translation",
+    "cue",
+    "alternative",
+    "other",
+)
+
+VOICE_ROLE_CONTENT = "content"
+VOICE_ROLE_LABEL = "label"
+
+VALID_VOICE_ROLES = (
+    VOICE_ROLE_CONTENT,
+    VOICE_ROLE_LABEL,
+)
+
+PAUSE_NONE = "none"
+PAUSE_FIXED = "fixed"
+PAUSE_PROPORTIONAL = "proportional"
+PAUSE_BOUNDARY = "boundary"
+
+# Each kind has exactly these fields; anything else is rejected.
+PAUSE_FIELDS = {
+    PAUSE_NONE: {
+        "kind",
+    },
+    PAUSE_FIXED: {
+        "kind",
+        "milliseconds",
+    },
+    PAUSE_PROPORTIONAL: {
+        "kind",
+        "scale",
+    },
+    PAUSE_BOUNDARY: {
+        "kind",
+    },
+}
+
+EARCON_SECTION_BOUNDARY = "sectionBoundary"
+EARCON_ANSWER_START = "answerStart"
+EARCON_DIRECTION_FLIP = "directionFlip"
+
+VALID_EARCONS = (
+    EARCON_SECTION_BOUNDARY,
+    EARCON_ANSWER_START,
+    EARCON_DIRECTION_FLIP,
+)
+
+VALID_PAIR_POSITIONS = (
+    "source",
+    "target",
+)
+
 
 class SpeechPlanValidationError(
     ValueError
 ):
-    """Raised when structured speech-plan JSON violates schema version 1."""
+    """Raised when structured speech-plan JSON violates its schema version."""
+
+
+@dataclass(frozen=True)
+class PauseSpec:
+    """What kind of pause the plan asks for; AnkiTTS computes how long."""
+
+    kind: str
+    milliseconds: int | None = None
+    scale: Decimal | None = None
+
+
+@dataclass(frozen=True)
+class SpeechPlanPair:
+    """A segment's place in one of Deep Recall's interleaved pairs."""
+
+    id: str
+    position: str
+
+
+@dataclass(frozen=True)
+class SpeechPlanPreset:
+    """The blueprint and version that produced the plan (informational)."""
+
+    id: str
+    version: int
 
 
 @dataclass(frozen=True)
@@ -56,6 +164,14 @@ class SpeechPlanSegment:
     speaking_rate: Decimal
     pause_before_milliseconds: int
     pause_after_milliseconds: int
+    role: str | None = None
+    voice_role: str | None = None
+    pause_before: PauseSpec | None = None
+    pause_after: PauseSpec | None = None
+    earcon_before: str | None = None
+    earcon_after: str | None = None
+    pair: SpeechPlanPair | None = None
+    spoken: bool = True
 
 
 @dataclass(frozen=True)
@@ -68,6 +184,8 @@ class SpeechPlan:
         SpeechPlanSegment,
         ...,
     ]
+    preset: SpeechPlanPreset | None = None
+    tempo_profile: str | None = None
 
 
 def parse_speech_plan(
@@ -75,7 +193,7 @@ def parse_speech_plan(
     expected_side: str,
 ) -> SpeechPlan:
     """
-    Parse and validate one RCE schema-version-1 speech plan.
+    Parse and validate one RCE speech plan, schema version 1 or 2.
 
     Parsing is deliberately independent of Anki, TTS providers,
     language detection, text normalization, and audio processing.
@@ -115,9 +233,26 @@ def parse_speech_plan(
         "speech plan",
     )
 
+    is_version_2 = (
+        type(
+            plan_data.get(
+                "schemaVersion"
+            )
+        )
+        is int
+        and plan_data[
+            "schemaVersion"
+        ]
+        == SCHEMA_VERSION_2
+    )
+
     _require_exact_fields(
         plan_data,
-        PLAN_FIELDS,
+        (
+            PLAN_FIELDS_V2
+            if is_version_2
+            else PLAN_FIELDS
+        ),
         "speech plan",
     )
 
@@ -126,7 +261,10 @@ def parse_speech_plan(
         "schemaVersion",
     )
 
-    if schema_version != SCHEMA_VERSION:
+    if schema_version not in (
+        SCHEMA_VERSION,
+        SCHEMA_VERSION_2,
+    ):
         raise SpeechPlanValidationError(
             "Unsupported speech-plan schemaVersion: "
             f"{schema_version}."
@@ -165,9 +303,16 @@ def parse_speech_plan(
     ):
         path = f"segments[{index}]"
 
-        segment = _parse_segment(
-            raw_segment,
-            path,
+        segment = (
+            _parse_segment_v2(
+                raw_segment,
+                path,
+            )
+            if is_version_2
+            else _parse_segment(
+                raw_segment,
+                path,
+            )
         )
 
         expected_sequence = index + 1
@@ -200,6 +345,268 @@ def parse_speech_plan(
         side=side,
         segments=tuple(
             segments
+        ),
+        preset=(
+            _parse_preset(
+                plan_data[
+                    "preset"
+                ],
+                "preset",
+            )
+            if is_version_2
+            else None
+        ),
+        tempo_profile=(
+            _require_nonempty_string(
+                plan_data[
+                    "tempoProfile"
+                ],
+                "tempoProfile",
+            )
+            if is_version_2
+            else None
+        ),
+    )
+
+
+def _parse_preset(
+    value: Any,
+    path: str,
+) -> SpeechPlanPreset:
+    preset = _require_object(
+        value,
+        path,
+    )
+
+    _require_exact_fields(
+        preset,
+        {
+            "id",
+            "version",
+        },
+        path,
+    )
+
+    return SpeechPlanPreset(
+        id=_require_nonempty_string(
+            preset[
+                "id"
+            ],
+            f"{path}.id",
+        ),
+        version=_require_positive_integer(
+            preset[
+                "version"
+            ],
+            f"{path}.version",
+        ),
+    )
+
+
+def _parse_segment_v2(
+    value: Any,
+    path: str,
+) -> SpeechPlanSegment:
+    segment = _require_object(
+        value,
+        path,
+    )
+
+    _require_exact_fields(
+        segment,
+        SEGMENT_FIELDS_V2,
+        path,
+        optional_fields=SEGMENT_OPTIONAL_FIELDS_V2,
+    )
+
+    base = _parse_segment(
+        {
+            field_name: segment[
+                field_name
+            ]
+            for field_name in SEGMENT_FIELDS
+        },
+        path,
+    )
+
+    spoken = segment.get(
+        "spoken",
+        True,
+    )
+
+    if not isinstance(
+        spoken,
+        bool,
+    ):
+        raise SpeechPlanValidationError(
+            f"{path}.spoken must be true or false."
+        )
+
+    return replace(
+        base,
+        role=_require_listed(
+            segment[
+                "role"
+            ],
+            VALID_ROLES,
+            f"{path}.role",
+        ),
+        voice_role=_require_listed(
+            segment[
+                "voiceRole"
+            ],
+            VALID_VOICE_ROLES,
+            f"{path}.voiceRole",
+        ),
+        pause_before=_parse_optional_pause(
+            segment,
+            "pauseBefore",
+            path,
+        ),
+        pause_after=_parse_optional_pause(
+            segment,
+            "pauseAfter",
+            path,
+        ),
+        earcon_before=_parse_optional_earcon(
+            segment,
+            "earconBefore",
+            path,
+        ),
+        earcon_after=_parse_optional_earcon(
+            segment,
+            "earconAfter",
+            path,
+        ),
+        pair=(
+            _parse_pair(
+                segment[
+                    "pair"
+                ],
+                f"{path}.pair",
+            )
+            if "pair" in segment
+            else None
+        ),
+        spoken=spoken,
+    )
+
+
+def _parse_optional_pause(
+    segment: dict[str, Any],
+    field_name: str,
+    path: str,
+) -> PauseSpec | None:
+    if field_name not in segment:
+        return None
+
+    field_path = f"{path}.{field_name}"
+
+    pause = _require_object(
+        segment[
+            field_name
+        ],
+        field_path,
+    )
+
+    if "kind" not in pause:
+        raise SpeechPlanValidationError(
+            f"{field_path} is missing required field(s): kind."
+        )
+
+    kind = _require_listed(
+        pause[
+            "kind"
+        ],
+        tuple(
+            PAUSE_FIELDS
+        ),
+        f"{field_path}.kind",
+    )
+
+    _require_exact_fields(
+        pause,
+        PAUSE_FIELDS[
+            kind
+        ],
+        field_path,
+    )
+
+    if kind == PAUSE_FIXED:
+        return PauseSpec(
+            kind=kind,
+            milliseconds=_require_nonnegative_integer(
+                pause[
+                    "milliseconds"
+                ],
+                f"{field_path}.milliseconds",
+            ),
+        )
+
+    if kind == PAUSE_PROPORTIONAL:
+        return PauseSpec(
+            kind=kind,
+            scale=_require_positive_decimal(
+                pause[
+                    "scale"
+                ],
+                f"{field_path}.scale",
+            ),
+        )
+
+    return PauseSpec(
+        kind=kind,
+    )
+
+
+def _parse_optional_earcon(
+    segment: dict[str, Any],
+    field_name: str,
+    path: str,
+) -> str | None:
+    if field_name not in segment:
+        return None
+
+    return _require_listed(
+        segment[
+            field_name
+        ],
+        VALID_EARCONS,
+        f"{path}.{field_name}",
+    )
+
+
+def _parse_pair(
+    value: Any,
+    path: str,
+) -> SpeechPlanPair:
+    pair = _require_object(
+        value,
+        path,
+    )
+
+    _require_exact_fields(
+        pair,
+        {
+            "id",
+            "position",
+        },
+        path,
+    )
+
+    return SpeechPlanPair(
+        id=_require_nonempty_string(
+            pair[
+                "id"
+            ],
+            f"{path}.id",
+        ),
+        position=_require_listed(
+            pair[
+                "position"
+            ],
+            VALID_PAIR_POSITIONS,
+            f"{path}.position",
         ),
     )
 
@@ -319,10 +726,31 @@ def _require_object(
     return value
 
 
+def _require_listed(
+    value: Any,
+    allowed: tuple[str, ...],
+    path: str,
+) -> str:
+    if (
+        not isinstance(
+            value,
+            str,
+        )
+        or value not in allowed
+    ):
+        raise SpeechPlanValidationError(
+            f"{path} must be one of: "
+            f"{', '.join(allowed)}."
+        )
+
+    return value
+
+
 def _require_exact_fields(
     value: dict[str, Any],
     expected_fields: set[str],
     path: str,
+    optional_fields: set[str] = frozenset(),
 ) -> None:
     actual_fields = set(
         value
@@ -342,6 +770,7 @@ def _require_exact_fields(
     unexpected_fields = sorted(
         actual_fields
         - expected_fields
+        - optional_fields
     )
 
     if unexpected_fields:
