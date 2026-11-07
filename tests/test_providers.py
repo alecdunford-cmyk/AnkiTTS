@@ -653,6 +653,7 @@ def check_speech_text_version_is_in_every_identity():
         generator.get_edge_provider_identity(),
         speech_text_version=SPEECH_TEXT_VERSION,
         loudness_version=LOUDNESS_VERSION,
+        edge_language_version="1",
     )
     assert "speech_text_version" not in generator.get_edge_provider_identity()
     assert "loudness_version" not in generator.get_edge_provider_identity()

@@ -6,6 +6,26 @@ in a tagged release.
 
 ## Unreleased
 
+### Language to Edge's multilingual voices (2026-11-06)
+
+Rulings CA-55 (Alec) and CA-56 to CA-60, `docs/DESIGN-providers.md`, section 18:
+
+- **Short French and English segments are no longer read in the wrong language.**
+  Edge's multilingual voices pick a language from the text, so a headword, a
+  label or a word spelled alike in both languages came out English. The Edge
+  endpoint takes no language in SSML (a `<lang>` element returns no audio; a
+  top-level `xml:lang` changes the sound the same for any locale), so a segment
+  of one to four words is now spoken after a short sentence in its language,
+  and the sentence is cut off again using the word offsets Edge returns.
+- Only on multilingual voices, and only for French and English. Longer text,
+  monolingual voices and Japanese are unchanged. If the cut cannot be made the
+  segment is generated as before.
+- **Every Edge clip regenerates once** (`edge_language_version`), so the audio
+  already cached with the wrong reading refills. If the French slots on the
+  Speech Plans tab still name Denise and Henri (an earlier choice saved in the
+  dialog), they keep speaking as those voices do; pick the multilingual voices
+  there to use this.
+
 ### Speech plan v2, role voices, earcons, proportional pauses (2026-11-06)
 
 Rulings CA-41 (Alec) and CA-42 to CA-53, `docs/DESIGN-providers.md`, section 18:

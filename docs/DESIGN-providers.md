@@ -1023,6 +1023,91 @@ cards can use a CA-41 voice before card-4. This does not undo CA-42: a version 1
 key changes only if the user chooses a different voice, and each language then
 has one voice, with no label voice.
 
+### Language to the engine (CA-55, CA-56)
+
+Edge's multilingual voices choose the language of what they read from its text.
+A bare headword, a short label, or a word spelled alike in both languages is
+read as English, although the plan tags it `fr`. The cause, as the RCE chat
+found it: `edge-tts` writes `xml:lang='en-US'` into every request
+(`edge_tts.communicate.mkssml`) and escapes the text, so the plan's language
+never reaches the voice. CA-54 (in the plan file, not copied here) is the rule
+for RCE's planner, which already complied.
+
+**Ruling CA-55 (Alec, 2026-11-06, evening, relayed from the RCE chat), verbatim:**
+
+```
+Context: first listening of card-4 output with the CA-41 multilingual voices: headwords, short labels
+and words spelled alike in both languages are read as English although the plan tags every one fr.
+Cause (RCE chat): multilingual Edge voices detect the language from the text; edge-tts hard-codes
+xml:lang en-US and escapes the text, so the plan's language never reaches the voice. Monolingual fr
+voices read everything correctly. CA-54's premise (that RCE tagged the language wrong) was the card
+chat's error; CA-54 (1) stands as the rule for RCE's planner, which already complied.
+1. Keep the multilingual voices. AnkiTTS sends each segment's language to Edge as SSML: a
+   `<lang xml:lang="...">` element inside `<voice>`, the plan's language mapped to fr-FR / en-US
+   (and ja-JP for the existing profile).
+2. One probe call first proves the Edge endpoint honours `<lang>` on a multilingual voice; the
+   fallback is the top-level `xml:lang` set per segment instead of the hard-coded en-US.
+3. The language, as sent, joins the cache key (a version bump so the wrongly spoken audio refills).
+4. One AnkiTTS stage, Sonnet 5 high.
+5. Noted for a later RCE card stage: a bracketed placeholder inside an example is voiced as a label;
+   the headword's inflection marker on the own-page back is spoken.
+```
+
+**The probe (2026-11-06)** found neither route in items 1 and 2 works. With
+`fr-FR-VivienneMultilingualNeural`, a `<lang xml:lang='fr-FR'>` element returns
+no audio at all (`NoAudioReceived`), whether it wraps the text inside
+`<prosody>`, sits outside it, or stands alone in `<voice>`. The top-level
+`xml:lang` is accepted and changes the audio, but by the same amount and in the
+same way for `fr-FR`, `de-DE` and `en-GB`: over seven words spelled alike in both
+languages, none moved toward the voice's own French reading under any of the
+three locales (mean cepstral-distance margin -10.5 against -10.5 as before; a
+French reading would have moved it by about 19). `edge-tts` has no raw-SSML
+entry point either; the only seam is replacing the module-level `mkssml`.
+
+**What is sent instead (CA-56).** A short segment is spoken after a short
+sentence that is unmistakably in its language, and the sentence is cut off
+again. The request is the library's own SSML, unchanged; only the text differs:
+
+```
+fr  segment text "important"  ->  Écoutez bien le mot suivant : important
+en  segment text "table"      ->  Listen carefully to the following word: table
+```
+
+`Communicate(..., boundary="WordBoundary")` returns the start of every word in
+100 ns ticks. The carrier's words come first and are counted, so the segment's
+first word begins at the next event's offset. The audio is cut `0.02 s` before
+it into 24 kHz PCM (lossless) and goes through the same one loudness
+normalisation and MP3 encode as any Edge clip. Punctuation and dashes are not
+words and do not produce events; the carrier's last word is checked against its
+event before the offset is trusted.
+
+| | |
+|---|---|
+| Applies when | the voice's name contains `Multilingual`, the segment's primary language subtag is `fr` or `en` (`fr`, `fr-FR`, `en_US` all work), and the text has 1 to 4 words (tokens containing a letter or digit) |
+| Does not apply | monolingual voices (they read their own language whatever the text), `ja`, an unknown or missing language, longer text (recognised correctly on its own, and a carrier would only change its first intonation) |
+| Both paths | the generic path (language from detection) and the structured path (the plan's `language`) both reach `EdgeProvider.synthesize` with the language; nothing else changed |
+| Fallback | offsets that do not look like the carrier followed by a word, or a cut that fails: the segment is generated without a carrier, a warning is logged (never the text) |
+| Retry | the same as without a carrier: `NoAudioReceived` is retried 1, 2 and 4 s, then reported |
+| Rate, volume, pitch | unchanged; they apply to carrier and text together, and the offsets are measured, not assumed |
+| Cache | `edge_language_version` `"1"` in the Edge provider's identity (`providers.edge.EDGE_LANGUAGE_VERSION`) |
+
+Acceptance, through the real service with the CA-41 voices, on the version 2
+fixture plus two extra segments ("important" in the content voice and "Voir
+aussi" in the label voice): 26 Edge syntheses, 12 with a carrier (8 French, 4
+English), none fell back. The 8 French carrier segments' margin (distance to the
+voice's English-carrier reading minus distance to its French-carrier reading;
+positive is French) went from a mean of 3.7 without the carrier to 16.0 with it,
+against a separation between the two references of 17.2; "important" went from
+-12.2 to +23.6. This measure cannot hear, and the "after" clips are the same
+method as one of the references, so the "before" column is the independent
+evidence. The ear decided: Alec listened to the probe files (2026-11-06) and
+judged the carrier-and-cut readings "great".
+
+**Note on saved settings.** `addon/meta.json` holds what the settings dialog
+saved. If the French content and label slots there name a monolingual voice
+(Denise, Henri), the carrier is not used for them, by design, and the voice
+speaks as that voice does. The CA-41 defaults are multilingual.
+
 ### Rulings (the implementing session, 2026-11-06)
 
 Option taken, then option not taken.
@@ -1104,6 +1189,43 @@ Option taken, then option not taken.
 - **CA-53 `CLAUDE.md`'s provider line is updated to CA-38**, as CA-18 did for
   CA-3. *Not taken:* leaving project memory contradicting Alec's ruling.
 
+Rulings for the language stage (2026-11-06, evening). CA-54 and CA-55 are Alec's
+and live in the plan file (CA-55 is quoted above).
+
+- **CA-56 The language reaches the voice as a carrier sentence, not as SSML.**
+  CA-55 items 1 and 2 are exhausted by their own probe (above), and the ruling's
+  premise that the endpoint takes a language does not hold. After the probe the
+  files with the carrier cut were played to Alec, who answered: "1&2, 7&8, 11&12
+  indeed sound the same. 5 and 9 sound great. I still don't like Denise's voice
+  in 3". Files 5 and 9 were the carrier-and-cut sample, so the implementing
+  session read this as the choice of that route; Alec did not name it, and a
+  different decision from him replaces this ruling. *Not taken:* building the top-level `xml:lang` because the endpoint
+  accepts it (it does nothing for the defect); French monolingual voices for the
+  French slots (Alec rejected Denise's sound, and it would reverse CA-41).
+- **CA-57 A carrier is added only for a multilingual voice, French or English,
+  and one to four words.** Where the voice is monolingual it already reads its
+  own language; a longer segment is recognised on its own, and a carrier would
+  alter its first intonation and cost another second of audio. The limit is
+  `EDGE_CARRIER_MAX_WORDS`. *Not taken:* a carrier on every Edge segment (simpler,
+  but it changes what already sounds right).
+- **CA-58 The carrier sentences are the ones Alec heard.** French "Écoutez bien
+  le mot suivant :", English "Listen carefully to the following word:". The
+  English one covers the mirror case, an English gloss that looks French, on
+  Seraphina. The cut falls 20 ms before the first word's reported start, as in
+  the probe files, and the audio stays lossless until the one normalising
+  encode. *Not taken:* a shorter carrier (less audio, but it was not what was
+  judged); re-encoding the cut as MP3 (one more lossy generation).
+- **CA-59 A segment that cannot be cut is generated without a carrier.** If the
+  word offsets do not match, or ffmpeg fails, the previous behaviour applies and
+  a warning is logged; the card still gets audio. *Not taken:* failing the
+  segment, which would turn an unusual text into a missing card.
+- **CA-60 `edge_language_version` is in the Edge provider's identity only.** The
+  shared base identity that pins version 1 key shapes (`get_edge_provider_identity`)
+  is untouched, so those pins hold; every Edge segment, short or long, refills
+  once, because the identity does not know the voice. *Not taken:* a version
+  that only moves multilingual-voice segments, which needs the voice in
+  `identity()`.
+
 ### Tests
 
 `tests/test_speech_plan_v2.py` (14 checks): every field, every rejection, version
@@ -1117,4 +1239,7 @@ specification, generated once, replacement, position, keys.
 worker's protocol, normalisation, earcons, stitching and MP3 export; each voice
 is given its own pitch, and the decoded track is checked for who spoke, the
 earcons at their offsets and silence in the pauses. The version 1 fixture's keys
-and track names are pinned.
+and track names are pinned. `tests/test_edge_language.py` (11 checks): when a
+carrier applies and when it does not, the offsets, the cut, the fallbacks, the
+retry, the routing in `EdgeProvider.synthesize`, normalisation to a real MP3, and
+the identity change; no test reaches the service.
