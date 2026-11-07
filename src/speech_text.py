@@ -19,7 +19,11 @@ import re
 import unicodedata
 
 
-SPEECH_TEXT_VERSION = "3"
+SPEECH_TEXT_VERSION = "4"
+
+# What the spoken text treats as an apostrophe (a clitic such as 's, 'd, 'll,
+# 're, 've, 'm or n't starts after one).
+APOSTROPHES = "'’"
 
 # Alternatives are only rewritten in these languages (CA-21 points 2 and 3).
 ALTERNATIVE_WORDS = {
@@ -1176,6 +1180,93 @@ def _tidy(
     )
 
 
+def _attached_after(
+    text,
+    index,
+):
+    """True when the character at index continues a word (a letter, an
+    apostrophe, or a hyphen that joins two parts of a word)."""
+
+    character = text[
+        index : index + 1
+    ]
+
+    if not character:
+        return False
+
+    if (
+        character.isalpha()
+        or character in APOSTROPHES
+    ):
+        return True
+
+    return (
+        character == "-"
+        and text[
+            index + 1 : index + 2
+        ].isalnum()
+    )
+
+
+def _attached_before(
+    text,
+    index,
+):
+    """True when the character before index is the end of a word's start (a
+    letter, an apostrophe, or a hyphen that joins two parts of a word)."""
+
+    if index < 1:
+        return False
+
+    character = text[
+        index - 1
+    ]
+
+    if (
+        character.isalpha()
+        or character in APOSTROPHES
+    ):
+        return True
+
+    return (
+        character == "-"
+        and index >= 2
+        and text[
+            index - 2
+        ].isalnum()
+    )
+
+
+def _read_bracketed(
+    match,
+):
+    content = (
+        match.group(1)
+        or match.group(2)
+        or ""
+    ).strip()
+
+    leading = (
+        ""
+        if _attached_before(
+            match.string,
+            match.start(),
+        )
+        else " "
+    )
+
+    trailing = (
+        ""
+        if _attached_after(
+            match.string,
+            match.end(),
+        )
+        else " "
+    )
+
+    return leading + content + trailing
+
+
 def prepare_for_speech(
     text,
     language,
@@ -1184,7 +1275,9 @@ def prepare_for_speech(
     Return the text a provider should synthesize for one segment.
 
     1. Bracketed "[...]" and "{...}" labels are spoken, read in the flow of the sentence;
-       "≈" is dropped; "→" is a pause.
+       a bracket touching a letter, an apostrophe or a joining hyphen keeps no
+       space on that side ("[somebody]'s" is "somebody's", "[x]-like" is
+       "x-like"); "≈" is dropped; "→" is a pause.
     2. "=" and "+" are spoken ("égale", "plus" / "equals", "plus") between
        two pauses in English and French; "×" and a spaced "x" between numbers
        are "fois" / "times".
@@ -1212,11 +1305,11 @@ def prepare_for_speech(
 
     supported = lang in ALTERNATIVE_WORDS
 
-    # A label is read in the flow of the sentence, with no pause.
+    # A label is read in the flow of the sentence, with no pause. A bracket
+    # that touches a letter or an apostrophe is part of that word ("[somebody]'s"
+    # is "somebody's"), so it keeps no space on that side (CA-61 (9)).
     prepared = _BRACKETED.sub(
-        lambda match: " "
-        + (match.group(1) or match.group(2) or "").strip()
-        + " ",
+        _read_bracketed,
         text,
     )
 

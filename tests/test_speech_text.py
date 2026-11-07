@@ -197,6 +197,80 @@ def check_bracketed_labels_are_spoken():
         assert prepare_for_speech(text, language) == expected, text
 
 
+def check_a_bracket_touching_a_word_keeps_no_space():
+    # CA-61 (9): "[somebody]'s" is spoken "somebody's", and displayed without
+    # a space. A bracket that touches a letter, an apostrophe or a joining
+    # hyphen belongs to that word, on either side.
+    for text, language, expected in (
+        ("[somebody]'s", "en", "somebody's"),
+        ("[somebody]’s", "en", "somebody’s"),
+        ("go to [somebody]'s house", "en", "go to somebody's house"),
+        ("{somebody}'s", "en", "somebody's"),
+        ("[x]-like", "en", "x-like"),
+        ("like-[x]", "en", "like-x"),
+        ("l'[objet]", "fr", "l'objet"),
+        ("l’[objet]", "fr", "l’objet"),
+        ("[quelque chose]s", "fr", "quelque choses"),
+        ("pre[fix]ed", "en", "prefixed"),
+        ("[do]n't", "en", "don't"),
+    ):
+        assert prepare_for_speech(text, language) == expected, text
+
+    # A bracket followed (or preceded) by a space, a dash with spaces, or
+    # punctuation is read in the flow as before.
+    for text, language, expected in (
+        ("[verb] run", "en", "verb run"),
+        ("run [verb]", "en", "run verb"),
+        ("to give [someone] [something]", "en", "to give someone something"),
+        ("[quelqu'un] - [quelque chose]", "fr", "quelqu'un - quelque chose"),
+        ("see [x], then", "en", "see ex, then"),
+        ("[+ recrues] fr", "fr", "+ recrues fr"),
+    ):
+        assert prepare_for_speech(text, language) == expected, text
+
+
+def check_a_clitic_is_never_a_lone_letter():
+    # CA-61 (9): 's, 'd, 'll, 're, 've, 'm and n't after a word are part of
+    # it, never a letter to spell. With either apostrophe, and with the word
+    # coming from a bracket.
+    for apostrophe in ("'", "’"):
+        for word, clitic in (
+            ("somebody", "s"),
+            ("somebody", "d"),
+            ("somebody", "ll"),
+            ("they", "re"),
+            ("they", "ve"),
+            ("I", "m"),
+            ("do", "n" + apostrophe + "t"),
+        ):
+            joined = (
+                f"{word}{clitic}"
+                if clitic.startswith("n")
+                else f"{word}{apostrophe}{clitic}"
+            )
+
+            for text in (
+                joined,
+                f"so {joined} here",
+            ):
+                assert prepare_for_speech(text, "en") == text, text
+
+            if not clitic.startswith("n"):
+                assert (
+                    prepare_for_speech(f"[{word}]{apostrophe}{clitic}", "en")
+                    == joined
+                ), joined
+
+    # A real lone letter next to an unrelated word is still spelled.
+    assert prepare_for_speech("the letter x here", "en") == "the letter ex here"
+    assert prepare_for_speech("[x]", "en") == "ex"
+
+
+def check_the_speech_text_version_moved_with_the_bracket_rule():
+    # Every segment's audio refills once, on both paths (CA-61 (9)).
+    assert SPEECH_TEXT_VERSION == "4"
+
+
 def check_parentheses_are_kept():
     assert (
         prepare_for_speech("faire (quelque chose) = agir", "fr")
@@ -548,6 +622,9 @@ def run():
         check_preparation_is_idempotent,
         check_base_language,
         check_unusual_characters_are_counted_and_named,
+        check_a_bracket_touching_a_word_keeps_no_space,
+        check_a_clitic_is_never_a_lone_letter,
+        check_the_speech_text_version_moved_with_the_bracket_rule,
         check_version_is_a_nonempty_string,
     ]
 
