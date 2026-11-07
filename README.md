@@ -158,7 +158,8 @@ A version 2 plan from RCE names roles, never voices or engines. AnkiTTS resolves
   | French | `fr-FR-VivienneMultilingualNeural` | `en-US-BrianMultilingualNeural` |
   | English | `de-DE-SeraphinaMultilingualNeural` | `en-US-AndrewNeural` |
 
-- **Tempo profiles.** A plain table, one row per card preset: rate, pause factor, minimum and maximum pause, section pause. Pauses follow the length of what was just said.
+- **Tempo profiles.** A plain table, one row per card preset: rate, pause factor, minimum and maximum pause, section pause, and a short "tag / or" pause (120 ms). Pauses follow the length of what was just said.
+- **Tags and alternatives.** A tag or label the plan attaches to the word it qualifies is spoken close to it (the short pause, on the side facing that word). Between the translation alternatives of an example the content voice says "or" (or "ou" in French), once-synthesised and reused, between two short pauses.
 - **Earcons.** Three short sounds: a section boundary, the start of the answer, and a change of direction. Default tones are generated once into `user_files/earcons`; any can be replaced by naming a file.
 
 Version 1 plans and plain notes are unaffected: they keep using the Speech Profiles tab. The design is in [docs/DESIGN-providers.md](docs/DESIGN-providers.md), section 18.

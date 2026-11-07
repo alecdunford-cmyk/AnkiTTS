@@ -555,7 +555,7 @@ plan text stays the authority.
 | 1b | Not alternatives, left alone: digit/digit (`3/4`, `12/05/2026`), tokens containing `://`, two bare single letters (`n/a`, `A/C`). `km/h` and `m/s` are units (rule 7). | |
 | 2 | In a sentence-less segment of at most 12 words (a gloss list), a bare ` or ` / ` ou ` gets a comma before it, unless a comma, `;` or `:` already precedes it (or the word before it is `and`/`et`). A segment with a sentence end anywhere in it, or longer than 12 words, is left alone. Segments are never split. | `rouge ou bleu` → `rouge, ou bleu`; `Veux-tu du thé ou du café ?` unchanged |
 | 3 | No terminal full stop is added: the engine does it (diagnosis, suspect b). | |
-| 4 | `→` becomes a comma (a short pause) and `≈` is dropped, in any language. Bracketed `[...]` and `{...}` labels are **spoken in the flow of the sentence**, with no pause (CA-29, CA-34). Parentheses are kept. | `chat → cat` → `chat, cat`; `faire [quelque chose] à [quelqu'un]` → `faire quelque chose à quelqu'un` |
+| 4 | `→` becomes a comma (a short pause) and `≈` is dropped, in any language. Bracketed `[...]` and `{...}` labels are **spoken in the flow of the sentence**, with no pause (CA-29, CA-34). A bracket that touches a letter, an apostrophe or a hyphen joining two parts of a word keeps no space on that side, so it is part of that word (CA-61 (9), version 4). Parentheses are kept. | `chat → cat` → `chat, cat`; `faire [quelque chose] à [quelqu'un]` → `faire quelque chose à quelqu'un`; `[somebody]'s` → `somebody's`; `[x]-like` → `x-like`; `l'[objet]` → `l'objet` |
 | 5 | `=` and a `+` between words or numbers are spoken between two pauses, English and French only: `, equals, ` / `, égale, ` and `, plus, `. `×` and a spaced `x` between numbers are `times` / `fois` (no pauses). A leading sign (`+5`) is `plus 5`. `C++` and `B+` are left alone. In other languages `=` stays a plain comma and `+` is untouched (CA-29). | `de + le = du` → `de, plus, le, égale, du`; `2 x 3` → `deux fois trois` |
 | 6 | Currency signs `€ $ £ ¥` before or after a number become the currency word, singular for 1; `€20/month` gives `20 euros per month` (`par` in French). English and French. | `€20` → `20 euros`; `2,50 €` → `deux virgule cinquante euros` |
 | 7 | Unit abbreviations after a number become words, singular or plural by the number (English: anything but 1 is plural; French: 2 and above). Unambiguous units also expand with no number (`km`, `cm`, `mm`, `kg`, `mg`, `ml`, `cl`, `dl`, `kW`, `Hz`, ...), in the plural. Ambiguous single letters (`m g l s h`) need a number. `s` and `ms` need a space after the number (`the 1990s` is a decade). `m²` / `m2` / `m 2` after a number is square metres and `m³` cubic (CA-30). `%` is `percent` / `pour cent`; `°C`, `°F` and `°` are degrees. `km/h` and `m/s` are `per hour` / `per second` (`par heure`, `par seconde`). Before a noun, English `3-km` is singular (`3-kilometer`), and a slash after a unit followed by a number is a slash between alternatives (`3-km/3-hour walk` → `3-kilometer, or 3-hour walk`, CA-34). | `20 km` → `20 kilometers`; `6 m 2` → `six mètres carrés`; `14 h 30` → `quatorze heures trente`; `20 °C` → `vingt degrés Celsius` |
@@ -573,7 +573,7 @@ a comma), the original text is spoken and a warning is logged (CA-26).
 
 ### Cache identity: `speech_text_version`
 
-`speech_text.SPEECH_TEXT_VERSION` (currently `"3"`; rules 5 to 10 came with version 2, the no-pause labels and hyphenated units with version 3) is a field of the identity
+`speech_text.SPEECH_TEXT_VERSION` (currently `"4"`; rules 5 to 10 came with version 2, the no-pause labels and hyphenated units with version 3, the attached brackets of rule 4 with version 4) is a field of the identity
 of **every** provider (`EdgeProvider`, `PocketProvider`, `FishProvider`). Bump
 it whenever a rule changes what is spoken. Because the identity feeds the
 generic key, the structured key and the structured track filename, everything
@@ -918,9 +918,13 @@ Segment fields:
 | `earconBefore`, `earconAfter` | no | `sectionBoundary`, `answerStart`, `directionFlip` |
 | `pair` | no | `{id, position}`; `position` is `source` or `target` |
 | `spoken` | no | `true` (default), `false` |
+| `attachedTo` | no | a `segmentId` of the same plan, not the segment's own (CA-61 (7)); version 2 only |
 
 Validation is as strict as version 1: an unknown key is an error, including a
-key that does not belong to a pause's kind, and `null` is not "absent". A pause
+key that does not belong to a pause's kind, and `null` is not "absent". An
+`attachedTo` that is not a nonempty string, names the segment itself, or names
+no segment of the plan (before or after it) is an error, and a version 1 plan
+that carries one fails as any unknown field does. A pause
 that is present replaces its version 1 millisecond field, which is otherwise
 ignored but still required; a pause that is absent uses it.
 
@@ -932,10 +936,12 @@ JSON keys in a plan are spelled as the note spells them. Settings and code:
 |---|---|---|
 | `voices` (per language, content and label) | settings key `role_voices` | `voices` is already the legacy per-language key, still read |
 | `<provider+voice>` | `{"provider": ..., "voice": ...}` | a structured slot |
-| `tempoProfiles` | settings key `tempo_profiles`; its fields keep the note's names (`rate`, `pauseFactor`, `minPauseMs`, `maxPauseMs`, `boundaryPauseMs`) | settings keys are snake_case |
+| `tempoProfiles` | settings key `tempo_profiles`; its fields keep the note's names (`rate`, `pauseFactor`, `minPauseMs`, `maxPauseMs`, `boundaryPauseMs`, `tightPauseMs`) | settings keys are snake_case |
 | `earcons` | settings key `earcons` | same |
 | `voiceRole`, `tempoProfile`, `pauseBefore` and the rest | `voice_role`, `tempo_profile`, `pause_before` on the parsed dataclasses | Python attributes |
 | "section pause" | `boundaryPauseMs`, "Section pause (ms)" in the dialog | same thing |
+| "tight pause" | `tightPauseMs`, "Tag / or pause (ms)" in the dialog; `tight_pause_ms` on `TempoProfile` | CA-62 |
+| `attachedTo` | `attached_to` on the parsed segment; the resolver adds `attached_side` and `connective` | CA-61 (4), (7) |
 | v1 `pauseBeforeMilliseconds`, ... | unchanged, `pause_before_milliseconds` | as before |
 
 ### What AnkiTTS resolves
@@ -958,6 +964,9 @@ unknown. Table as in the note, editable in the dialog.
 | `boundary` | the profile's `boundaryPauseMs` |
 | `proportional` | `clamp(scale x pauseFactor x speech, minPauseMs, maxPauseMs)`, where speech is this segment's own audio after the tail trim |
 
+Two things reshape these pauses for a segment that is part of a tag or an
+alternative; both are in "Tags and alternatives" below.
+
 **Earcons (`earcons`).** Role to file path; blank is the default tone, generated
 once into `<add-on>/user_files/earcons/` by `src/earcons.py`:
 
@@ -972,7 +981,8 @@ All -20 LUFS, measured looped because they are shorter than a BS.1770 block
 normalised.
 
 **Layout of one segment:** pause before, earcon before, 120 ms, speech, 120 ms,
-earcon after, pause after. A segment with `spoken: false` contributes nothing:
+earcon after, pause after. An alternative that takes an "or" starts with the
+"or" block instead of its pause before (below). A segment with `spoken: false` contributes nothing:
 no audio, no pause, no earcon, no part in the track's identity.
 
 ### Cache identity (P5)
@@ -988,9 +998,11 @@ no audio, no pause, no earcon, no part in the track's identity.
 A version 2 segment's key adds `role`, `voice_role`, `resolved_voice`
 (`<provider identity>/<voice>`, or `own-voice` for Pocket and Fish) and
 `role_voice_version` (`"1"`, `structured_audio.ROLE_VOICE_VERSION`). A version 2
-track's identity adds `stitch_version` (`"1"`), the tempo's pause numbers, the
-sha256 of each earcon it uses, and each segment's role, voice role, slot
-provider, pause kinds and earcon names. **A version 1 plan gets none of this**:
+track's identity adds `stitch_version` (`"2"`, CA-68), the tempo's pause numbers
+(`tight_pause_ms` among them), the sha256 of each earcon it uses, and each
+segment's role, voice role, slot provider, pause kinds and earcon names, its
+attached side when it has one, and the identity, text, voice and rate of the
+"or" clip spoken before it when it has one. **A version 1 plan gets none of this**:
 its keys and track names are pinned against values recorded before version 2
 existed (`tests/test_speech_plan_v2_e2e.py`).
 
@@ -1007,7 +1019,7 @@ nothing to do and nothing is written until Save in the dialog:
   "en": {"content": {"provider": "edge", "voice": "de-DE-SeraphinaMultilingualNeural"},
          "label":   {"provider": "edge", "voice": "en-US-AndrewNeural"}}
 },
-"tempo_profiles": {"default": {"rate": 1.0, "pauseFactor": 0.35, "minPauseMs": 250, "maxPauseMs": 1200, "boundaryPauseMs": 700}},
+"tempo_profiles": {"default": {"rate": 1.0, "pauseFactor": 0.35, "minPauseMs": 250, "maxPauseMs": 1200, "boundaryPauseMs": 700, "tightPauseMs": 120}},
 "earcons": {"sectionBoundary": "", "answerStart": "", "directionFlip": ""}
 ```
 
@@ -1107,6 +1119,109 @@ judged the carrier-and-cut readings "great".
 saved. If the French content and label slots there name a monolingual voice
 (Denise, Henri), the carrier is not used for them, by design, and the voice
 speaks as that voice does. The CA-41 defaults are multilingual.
+
+### Tags and alternatives (CA-61, 2026-11-07)
+
+**Ruling CA-61 (Alec, 2026-11-07, 07:25-09:03, the card review of 16 French Deep
+Study rows), verbatim, from `AnkiTTS-Card-Audio-Bakeoff-Plan-20261029.md`.** This
+stage implements parts 4, 7 and 9. Parts 1 to 3, 5, 6, 8 and 10 are RCE's (its
+planner and card stage) and are copied here as context only.
+
+```
+Alec's design decisions, each stated on a card he reviewed against the GUI; the fidelity defects he
+found are listed separately in RCE-CardStage-List-20261107.md.
+1. Deep Study and Deep Recall fronts carry the headword alone (plus the part of speech where the
+   entry has one); everything else -- sense label, section letters, sub-labels, glosses, examples --
+   is on the back in dictionary order. These are listening decks, not recall tests.
+2. The inflection marker ("circonspect, e") is never spoken, on any card. Display unchanged.
+3. Cross-references ("voir ...", "Voir : ...") are never spoken, in any preset. Display unchanged.
+4. Between the translation alternatives of an EXAMPLE (the dictionary's "|"), the content voice
+   says ", or, " (", ou, " on a French-side translation), as a connective with a small pause each
+   side. A sense's gloss alternatives keep their small pauses with no "or".
+5. A bracketed PLACEHOLDER inside an example ([quelque chose], [quelqu'un], [somebody], [oneself])
+   is part of the sentence: content voice, read in the flow, brackets silent. A bracketed
+   ANNOTATION inside an example ([sujet : ...], [+ ...], a domain or register tag) is a label:
+   label voice, with its pauses, and typeset in the label font on the card.
+6. Object tags "[+ x]" are spoken "objet : x" on a French entry and "object: x" on an English one,
+   so that sujet-tags, objet-tags and the « near-synonyms » are audibly distinct. Display keeps "+".
+7. Pauses follow the dictionary's tree. Every tag or label is attached to the element it qualifies,
+   whichever side it is printed on; the pause is tight between a tag and its owner and a boundary
+   at the owner's edge. Inside a sense the pause is graded by depth: longer after the sense-level
+   label (e.g. /Militaire/) than after a sub-label (e.g. [+ recrues]), longer still between senses,
+   before an idiom block, and between a sense's translations and its examples. The lengths are
+   AnkiTTS's tempo table; the kinds are the plan's.
+8. The section earcon sounds only where a numbered or lettered section begins, immediately before
+   the section number or letter is spoken; a Sense card, which contains no section change, has no
+   section earcon.
+9. A "[somebody]'s" is spoken "somebody's" and displayed without a space.
+10. The engine finds and fixes the fidelity defects itself from the seed entries (terrain, prise,
+    jeter, clair, engager, rapporter, circonspect), as in CA-36, with the GUI PDFs as the reference.
+```
+
+**What AnkiTTS does with it (this stage).**
+
+| Part | Done by | What |
+|---|---|---|
+| 9 | `speech_text.prepare_for_speech` (rule 4) | A bracket touching a letter, an apostrophe (`'` or `’`) or a hyphen that joins two parts of a word keeps no space on that side. `[somebody]'s` is `somebody's`, `[x]-like` is `x-like`, `l'[objet]` is `l'objet`, `[quelque chose]s` is `quelque choses`. A bracket followed or preceded by a space is read as before. The clitics `'s 'd 'll 're 've 'm n't` after a word were already never a lone letter (the lone-letter rule skips a letter touching an apostrophe); a test now pins it, with either apostrophe and with the word coming from a bracket. The display is RCE's. |
+| 7 | `speech_plan` (`attachedTo`), `structured_processor` (the side), `stitcher` (the pause) | A tag names its owner. If the tag comes before its owner in the plan, the pause **after** the tag is the tight pause; if it comes after, the pause **before** the tag is. That side is the tempo profile's `tightPauseMs`, fixed, whatever the plan says there. Nothing else changes: the owner's own pauses, and the tag's pause on its outer side, are the plan's. |
+| 4 | `structured_processor` (who takes an "or"), `structured_audio` (the clip), `stitcher` (the layout) | An alternative that directly follows, among the spoken segments, a translation or an alternative of the same `contentNodeId` in the same base language is preceded by the content voice saying `or,` (English) or `ou,` (French). |
+| 7 (lengths) | `tempo_profiles` | The pause lengths are the tempo table below; the pause kinds stay the plan's. |
+
+**The "or" (part 4), exactly.** The condition, in order: the segment's role is
+`alternative`; the previous *spoken* segment's role is `translation` or
+`alternative`; both have the same nonempty `contentNodeId`; both have the same
+base language (`fr-FR` and `fr` are one), which is `en` or `fr`; the segment's
+`repetitionNumber` is 1. A role `gloss` never takes it, so a sense's gloss list
+keeps its small pauses. The word is `speech_text.ALTERNATIVE_WORDS` plus a comma:
+`or,` / `ou,`. It is a segment of its own, synthesised through the ordinary
+chain in the content voice of the alternative's language, at the speech
+profile's rate times the tempo profile's rate (the alternative's own
+`speakingRate` does not apply), with the role `connective` in its cache
+identity. So there is **one clip per language, content voice and effective
+rate**, found in the cache by every alternative that needs it, on this card and
+on any other. On a multilingual voice a one-word text is a carrier-sentence
+case (CA-57), so `ou,` is spoken as French. The plan's text is untouched.
+
+Layout: *tight pause, the clip, tight pause*, then the alternative's own earcon
+and speech. The block **replaces** the pause after the previous segment and the
+pause before the alternative (CA-63). Timeline kinds: `connective_pause_before`,
+`connective`, `connective_pause_after`.
+
+**The tempo table, with the new column.** The dialog's **Speech Plans** tab has
+the same columns; the new one is "Tag / or pause (ms)".
+
+| Profile | `rate` | `pauseFactor` | `minPauseMs` | `maxPauseMs` | `boundaryPauseMs` | `tightPauseMs` |
+|---|---|---|---|---|---|---|
+| default | 1.00 | 0.35 | 250 | 1200 | 700 | 120 |
+| deep-entry-study | 1.00 | 0.35 | 250 | 1200 | 900 | 120 |
+| deep-recall | 0.95 | 0.45 | 300 | 1500 | 900 | 120 |
+| sense-map | 1.00 | 0.30 | 200 | 1000 | 600 | 120 |
+| translation-group | 1.00 | 0.30 | 200 | 1000 | 600 | 120 |
+| example | 1.00 | 0.30 | 200 | 1000 | 600 | 120 |
+| sentence | 1.00 | 0.30 | 200 | 1000 | 600 | 120 |
+
+A saved table without the column resolves it from the default row, so no saved
+config needs migrating. `tightPauseMs` is a whole number of milliseconds, zero or
+more; zero makes the tag's side and the "or"'s two sides gaps of nothing. It
+changes the track and never a segment's audio.
+
+**What refills.**
+
+| Version | Now | Effect |
+|---|---|---|
+| `speech_text_version` | `"4"` | every segment's audio, on the generic and the structured path and for every provider, refills once (it is in each provider's identity). Only text with a bracket touching a word is spoken differently; the key moves for all text. |
+| `stitch_version` | `"2"` | every version 2 track is rebuilt from the cached audio once (and the tempo identity gains `tight_pause_ms`). No audio is synthesised for it, except the new "or" clips. |
+
+Version 1 plans, keys and track names are untouched (the pinned names in
+`tests/test_speech_plan_v2_e2e.py` still hold); a plan without `attachedTo` and
+without alternatives is stitched exactly as before.
+
+**What RCE must emit for the tags to be heard** (the next card stage; an "or" is already spoken for any plan of the shape below): `attachedTo`
+on a tag, with `{"kind": "none"}` as the *owner's* pause on the tag's side when
+the tag follows its owner (otherwise the owner's own pause after adds to the
+tight one), and `role: "alternative"` with the **same `contentNodeId` as the
+translation it follows** for each of an example's `|` alternatives, in the
+alternative's language, each with repetition number 1. See CA-64 and CA-66.
 
 ### Rulings (the implementing session, 2026-11-06)
 
@@ -1226,15 +1341,84 @@ and live in the plan file (CA-55 is quoted above).
   that only moves multilingual-voice segments, which needs the voice in
   `identity()`.
 
+Rulings for the review stage (2026-11-07). CA-61 is Alec's and lives in the plan
+file (quoted above). Option taken, then option not taken.
+
+- **CA-62 One tempo field, `tightPauseMs`, default 120 ms, serves both uses.**
+  The short pause between a tag and its owner and each side of the spoken "or"
+  are the same field, in all seven profiles, in the dialog as "Tag / or pause
+  (ms)". (The managing chat's term; the code had no reason to differ.) *Not
+  taken:* two fields; a pause that is a fraction of the segment.
+- **CA-63 The "or" replaces the pause between the two alternatives; it is not
+  added to it.** Ruling 4 says "a small pause each side". The plan gives the
+  previous translation a proportional pause after it (200 to 1200 ms), and
+  adding that to the tight pause would put the "or" far from the alternative it
+  follows, up to 1.3 s. So the block is tight, "or", tight, and the previous
+  segment's pause after and the alternative's pause before are not laid out.
+  Earcons stay where they are. *Not taken:* adding the plan's pauses to the
+  tight ones (the literal reading of "a pause each side" plus the plan).
+- **CA-64 Which alternative takes an "or" is decided from the plan alone, among
+  the spoken segments, and only where the plan is unambiguous.** Same nonempty
+  `contentNodeId`, same base language, language `en` or `fr` (a language with no
+  word has none), role `alternative` after `translation` or `alternative`, and
+  `repetitionNumber` 1 (the second repetition of an alternative is that
+  alternative again, not another one). An unspoken segment is not "between"
+  anything. *Not taken:* inferring alternatives from the text; an "or" for a
+  language we have no word for; an "or" before every repetition.
+- **CA-65 The "or" is a segment of its own with the text `or,` / `ou,`.** The
+  comma stays in the text (the engine pauses on it and the tail trim removes the
+  silence after it). It is synthesised in the content voice, whatever the voice
+  role of the alternative, at the speech profile's rate times the tempo
+  profile's rate, not at the alternative's `speakingRate`; its role in its
+  identity is `connective` (not a plan role). So it is shared by every
+  alternative of a language, voice and rate. *Not taken:* the alternative's own
+  rate (one clip per rate); a clip without the comma; adding `or` to the
+  alternative's text (it would change that clip's key).
+- **CA-66 A tag's tight pause overrides only the tag's own side; the owner's
+  pauses are not touched.** This is the managing chat's term C taken literally
+  ("No other pause changes"). The consequence for RCE: when a tag follows its
+  owner, the owner's pause after sits on the same gap as the tag's tight pause
+  before and adds to it, so the plan should give the owner `{"kind": "none"}`
+  there (the fixture does). *Not taken:* also zeroing the owner's pause on the
+  tag's side, which would make the tight gap hold whatever RCE emits.
+- **CA-67 `attachedTo` is validated as an id and no more.** It must name another
+  segment of the same plan, forward or backward, as the brief says. It may name
+  an unspoken segment or a segment that is itself a tag; in either case, or when
+  the tag itself is unspoken, there is no attached side and the plan's pauses
+  apply. *Not taken:* rejecting chains, cycles, or an unspoken owner (nothing in
+  the ruling needs the rule, and a plan that is wrong in that way is still
+  playable).
+- **CA-68 `stitch_version` is `"2"` and the track name carries the attached
+  side, not the owner.** Two tags on the same side of different owners give the
+  same track. The "or" clip's identity, text, voice and rate are in the name of
+  the track that uses it. Every version 2 track is rebuilt once, from the cached
+  audio. *Not taken:* leaving `"1"` and renaming only the tracks that use the
+  new features (the tempo identity gained a field, so every name moved anyway).
+- **CA-69 `speech_text_version` is `"4"`, and the clitic half of the brief needed
+  no code.** The bracket rule is the change; the version is global to every
+  provider's identity, so every segment's audio refills once, including text
+  with no bracket. A hyphen counts as joining only when a letter or digit is on
+  its other side (`[x]-like`, not `[x] - y`); a digit does not attach (`3[x]`).
+  The lone-letter rule already never spells a letter touching an apostrophe, so
+  `'s 'd 'll 're 've 'm n't` were safe; the tests pin it. *Not taken:* a second
+  rule for clitics; bumping only for text with brackets (a key cannot see the
+  text it keys).
+- **CA-70 The v2 fixture's idiom block now has an "or".** `ds-14` (translation)
+  and `ds-15` (alternative) already share a node and a language, so the rule
+  applies there as well; the fixture, which was written for roles and not for
+  this, was left as it was and the e2e check was changed to expect it. Section 4
+  was added for the new cases. *Not taken:* giving `ds-15` another node to keep
+  the old timeline.
+
 ### Tests
 
-`tests/test_speech_plan_v2.py` (14 checks): every field, every rejection, version
+`tests/test_speech_plan_v2.py` (17 checks): every field, every rejection, version
 1 unaffected. `tests/test_role_voices.py` (25): defaults, migration, resolution,
 fallback, cache splits, one role regenerating, both pickers' choices.
 `tests/test_tempo_pauses.py` (16): the note's table, the formula and clamp, the
 trimmed duration, what refills. `tests/test_earcons.py` (10): the tone
 specification, generated once, replacement, position, keys.
-`tests/test_speech_plan_v2_e2e.py` (7): the fixture in
+`tests/test_speech_plan_v2_e2e.py` (7; the fixture has a fourth section: a tag before its owner, an example with a translation and two alternatives, a tag after its owner, and the timeline is walked against the ruling restated in the test): the fixture in
 `tests/fixtures/speech_plan_v2.json` through parsing, resolution, the fake
 worker's protocol, normalisation, earcons, stitching and MP3 export; each voice
 is given its own pitch, and the decoded track is checked for who spoke, the
@@ -1242,4 +1426,10 @@ earcons at their offsets and silence in the pauses. The version 1 fixture's keys
 and track names are pinned. `tests/test_edge_language.py` (11 checks): when a
 carrier applies and when it does not, the offsets, the cut, the fallbacks, the
 retry, the routing in `EdgeProvider.synthesize`, normalisation to a real MP3, and
-the identity change; no test reaches the service.
+the identity change; no test reaches the service. `tests/test_speech_text.py`
+gained 3 checks (brackets that touch a word, the clitics, the version) and
+`tests/test_attached_and_alternatives.py` (15) is new: the `tightPauseMs` field,
+the attached side from a tag's place, the stitched pauses on both sides of an
+owner, who takes an "or" and who does not, the block's layout and what it
+replaces, one cached clip per language and voice, and what moves the track
+name. Total: 305 checks in 24 modules (284 in 23 before this stage).

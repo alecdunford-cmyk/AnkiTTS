@@ -6,6 +6,34 @@ in a tagged release.
 
 ## Unreleased
 
+### Tags, "or" between alternatives, "[somebody]'s" (2026-11-07)
+
+Ruling CA-61 (Alec; parts 4, 7 and 9) and CA-62 to CA-70,
+`docs/DESIGN-providers.md`, section 18:
+
+- **A tag is spoken close to the word it qualifies.** Speech plan v2 accepts an
+  optional `attachedTo` (the `segmentId` of the segment a tag or label
+  qualifies; version 1 plans reject it). The pause on the side of the tag that
+  faces its owner is a new tempo-profile field, `tightPauseMs` (120 ms, in the
+  Speech Plans table as "Tag / or pause (ms)"), whatever the plan says there.
+  Nothing else about the pauses changes.
+- **"or" between the translation alternatives of an example.** An alternative
+  that follows a translation or an alternative of the same example and
+  language is preceded by the content voice saying "or" ("ou" for French), with
+  a short pause each side in place of the pause the plan would have put there.
+  The word is one cached clip per language and voice. A sense's gloss list is
+  untouched.
+- **`[somebody]'s` is spoken `somebody's`** (and `[x]-like`, `l'[objet]`): a
+  bracket that touches a letter, an apostrophe or a joining hyphen keeps no
+  space on that side. Contractions and possessives were never spelled as
+  letters.
+- **What refills.** `speech_text_version` is now `"4"`, so every segment's audio
+  regenerates once on the next run. Every version 2 track is rebuilt once from
+  the cached audio (`stitch_version` `"2"`). Tags are attached only when a plan
+  carries `attachedTo`, which RCE's next card stage is to emit; an "or" is
+  spoken wherever a plan already has an `alternative` after a `translation` or
+  `alternative` of the same `contentNodeId` and language.
+
 ### Language to Edge's multilingual voices (2026-11-06)
 
 Rulings CA-55 (Alec) and CA-56 to CA-60, `docs/DESIGN-providers.md`, section 18:
