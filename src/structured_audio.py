@@ -46,7 +46,9 @@ ROLE_VOICE_VERSION = "1"
 
 # In the track identity of schema-version-2 tracks only. Bump it whenever the
 # stitcher's handling of version 2 pauses or earcons changes what is published.
-STITCH_VERSION = "1"
+# "2": attached tags have a tight pause on the attached side, and an alternative
+# is preceded by a spoken "or" (CA-61 (4), (7)).
+STITCH_VERSION = "2"
 
 OWN_VOICE = "own-voice"
 
@@ -268,6 +270,7 @@ def create_structured_track_filename(
     track,
     provider_identity,
     earcon_paths=None,
+    connective_identities=None,
 ):
     """
     Create a deterministic filename from schedule and synthesis inputs.
@@ -276,6 +279,8 @@ def create_structured_track_filename(
     with one identity per segment; a track may mix providers.
     earcon_paths maps the earcons a version 2 track uses to their files; their
     contents are hashed, so replacing a sound republishes the tracks using it.
+    connective_identities has one entry per spoken segment: the identity of the
+    clip of "or," / "ou," spoken before it, or None when it has none.
     """
 
     if not isinstance(
@@ -309,6 +314,25 @@ def create_structured_track_filename(
     ):
         raise StructuredAudioProcessingError(
             "One provider identity is required per segment."
+        )
+
+    connectives = (
+        list(
+            connective_identities
+        )
+        if connective_identities is not None
+        else [None] * len(
+            spoken_segments
+        )
+    )
+
+    if len(
+        connectives
+    ) != len(
+        spoken_segments
+    ):
+        raise StructuredAudioProcessingError(
+            "One connective identity (or None) is required per segment."
         )
 
     identity = {
@@ -345,12 +369,14 @@ def create_structured_track_filename(
                     segment.pause_after_milliseconds
                 ),
                 **_track_segment_extras(
-                    segment
+                    segment,
+                    connective_identity,
                 ),
             }
-            for segment, segment_identity in zip(
+            for segment, segment_identity, connective_identity in zip(
                 spoken_segments,
                 segment_identities,
+                connectives,
             )
         ],
     }
@@ -406,6 +432,7 @@ def _track_extras(
             "boundary_pause_ms": (
                 track.tempo.boundary_pause_ms
             ),
+            "tight_pause_ms": track.tempo.tight_pause_ms,
         },
     }
 
@@ -431,13 +458,14 @@ def _pause_identity(
 
 def _track_segment_extras(
     segment,
+    connective_identity=None,
 ):
     """What a schema-version-2 segment adds to the track identity; v1: none."""
 
     if segment.voice_role is None:
         return {}
 
-    return {
+    extras = {
         **_role_identity(
             segment
         ),
@@ -451,6 +479,31 @@ def _track_segment_extras(
         "earcon_before": segment.earcon_before,
         "earcon_after": segment.earcon_after,
     }
+
+    # Only what changes the published track: the attached side (not which
+    # segment it is attached to) and the clip spoken before the segment.
+    if segment.attached_side is not None:
+        extras[
+            "attached_side"
+        ] = segment.attached_side
+
+    if segment.connective is not None:
+        extras[
+            "connective"
+        ] = {
+            "provider_identity": dict(
+                connective_identity or {}
+            ),
+            "text": segment.connective.text,
+            "language": segment.connective.language,
+            "voice": segment.connective.voice,
+            "rate": segment.connective.edge_rate,
+            "voice_provider": (
+                segment.connective.voice_provider
+            ),
+        }
+
+    return extras
 
 
 def _role_identity(
@@ -495,9 +548,32 @@ def _prepare_track(
         for segment in track.spoken_segments
     ]
 
+    # The clip of "or," / "ou," before an alternative is a segment of its own
+    # (CA-61 (4)): one request per language and voice, shared by every
+    # alternative that needs it.
+    connective_requests = [
+        (
+            _create_segment_request(
+                request[
+                    "segment"
+                ].connective
+            )
+            if request[
+                "segment"
+            ].connective
+            is not None
+            else None
+        )
+        for request in segment_requests
+    ]
+
     unique_requests = {}
 
-    for request in segment_requests:
+    for request in segment_requests + [
+        request
+        for request in connective_requests
+        if request is not None
+    ]:
         unique_requests.setdefault(
             request[
                 "key"
@@ -521,18 +597,11 @@ def _prepare_track(
     counted_paths = set()
     audio_segments = []
     segment_identities = []
+    connective_identities = []
 
-    for request in segment_requests:
-        segment = request[
-            "segment"
-        ]
-
-        synthesis = results[
-            request[
-                "key"
-            ]
-        ]
-
+    def count(
+        synthesis,
+    ):
         if (
             synthesis.generated
             and synthesis.path
@@ -551,8 +620,47 @@ def _prepare_track(
             synthesis.path
         )
 
+    for request, connective_request in zip(
+        segment_requests,
+        connective_requests,
+    ):
+        segment = request[
+            "segment"
+        ]
+
+        synthesis = results[
+            request[
+                "key"
+            ]
+        ]
+
+        connective_synthesis = (
+            None
+            if connective_request is None
+            else results[
+                connective_request[
+                    "key"
+                ]
+            ]
+        )
+
+        if connective_synthesis is not None:
+            count(
+                connective_synthesis
+            )
+
+        count(
+            synthesis
+        )
+
         segment_identities.append(
             synthesis.identity
+        )
+
+        connective_identities.append(
+            None
+            if connective_synthesis is None
+            else connective_synthesis.identity
         )
 
         audio_segments.append(
@@ -570,6 +678,7 @@ def _prepare_track(
                     segment,
                     track,
                     earcon_paths,
+                    connective_synthesis,
                 ),
             }
         )
@@ -579,6 +688,7 @@ def _prepare_track(
         track,
         segment_identities,
         earcon_paths,
+        connective_identities,
     )
 
     final_path = OUTPUT_DIR / filename
@@ -641,6 +751,7 @@ def _stitch_extras(
     segment,
     track,
     earcon_paths,
+    connective_synthesis=None,
 ):
     """What the stitcher needs for a schema-version-2 segment; v1: none."""
 
@@ -669,6 +780,14 @@ def _stitch_extras(
         ),
         "earcon_after": earcon_file(
             segment.earcon_after
+        ),
+        "attached_side": segment.attached_side,
+        "connective_file": (
+            None
+            if connective_synthesis is None
+            else str(
+                connective_synthesis.path
+            )
         ),
     }
 

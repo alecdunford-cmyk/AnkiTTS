@@ -54,6 +54,7 @@ SEGMENT_OPTIONAL_FIELDS_V2 = {
     "earconAfter",
     "pair",
     "spoken",
+    "attachedTo",
 }
 
 VALID_ROLES = (
@@ -172,6 +173,8 @@ class SpeechPlanSegment:
     earcon_after: str | None = None
     pair: SpeechPlanPair | None = None
     spoken: bool = True
+    # CA-61 (7): on a tag or label, the segmentId of the segment it qualifies.
+    attached_to: str | None = None
 
 
 @dataclass(frozen=True)
@@ -340,6 +343,25 @@ def parse_speech_plan(
             segment
         )
 
+    for index, segment in enumerate(
+        segments
+    ):
+        if segment.attached_to is None:
+            continue
+
+        path = f"segments[{index}].attachedTo"
+
+        if segment.attached_to == segment.segment_id:
+            raise SpeechPlanValidationError(
+                f"{path} cannot name the segment itself."
+            )
+
+        if segment.attached_to not in segment_ids:
+            raise SpeechPlanValidationError(
+                f'{path} names "{segment.attached_to}", which is '
+                "not a segmentId in this plan."
+            )
+
     return SpeechPlan(
         schema_version=schema_version,
         side=side,
@@ -489,6 +511,16 @@ def _parse_segment_v2(
             else None
         ),
         spoken=spoken,
+        attached_to=(
+            _require_nonempty_string(
+                segment[
+                    "attachedTo"
+                ],
+                f"{path}.attachedTo",
+            )
+            if "attachedTo" in segment
+            else None
+        ),
     )
 
 

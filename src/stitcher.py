@@ -317,6 +317,20 @@ def stitch_structured_audio(
     A schema-version-2 segment is laid out as: pause before, earcon before,
     speech, earcon after, pause after.
 
+    Two things in a version 2 segment's dictionary reshape its pauses
+    (CA-61, docs/DESIGN-providers.md section 18):
+
+      attached_side  "after" or "before": this segment is a tag, and the pause
+                     on that side (the side facing its owner) is the tempo
+                     profile's tight pause, whatever the plan says there. The
+                     other side keeps the plan's pause.
+      connective_file  the clip of "or," / "ou," spoken before this segment
+                     (an example's translation alternative). It is laid out as
+                     tight pause, clip, tight pause, and takes the place of the
+                     pause after the segment before and the pause before this
+                     one, so the "or" sits close to both alternatives; earcons
+                     stay where they are.
+
     Returns the timeline of the version 2 segments: one {"kind", "start_ms",
     "duration_ms"} per pause, earcon and clip, in order, measured before MP3
     encoding. A version 1 segment (no "tempo") is stitched exactly as it always
@@ -369,7 +383,9 @@ def stitch_structured_audio(
 
     try:
         with hide_subprocess_windows():
-            for segment in segments:
+            for index, segment in enumerate(
+                segments
+            ):
                 recorded = "tempo" in segment
 
                 # The pause before is computed from this segment's own audio
@@ -395,6 +411,73 @@ def stitch_structured_audio(
                     "after",
                     audio,
                 )
+
+                attached_side = segment.get(
+                    "attached_side"
+                )
+
+                if attached_side == "before":
+                    pause_before = segment[
+                        "tempo"
+                    ].tight_pause_ms
+
+                elif attached_side == "after":
+                    pause_after = segment[
+                        "tempo"
+                    ].tight_pause_ms
+
+                connective_file = segment.get(
+                    "connective_file"
+                )
+
+                # The "or" before the next segment sits between the two
+                # alternatives in place of the pause that would have been.
+                if (
+                    index + 1 < len(
+                        segments
+                    )
+                    and segments[
+                        index + 1
+                    ].get(
+                        "connective_file"
+                    )
+                ):
+                    pause_after = 0
+
+                if connective_file:
+                    pause_before = 0
+
+                    tight = segment[
+                        "tempo"
+                    ].tight_pause_ms
+
+                    if tight:
+                        append(
+                            "connective_pause_before",
+                            AudioSegment.silent(
+                                duration=tight
+                            ),
+                            recorded,
+                        )
+
+                    append(
+                        "connective",
+                        trim_trailing_silence(
+                            AudioSegment.from_file(
+                                connective_file
+                            )
+                        ),
+                        recorded,
+                    )
+
+                    if tight:
+                        append(
+                            "connective_pause_after",
+                            AudioSegment.silent(
+                                duration=tight
+                            ),
+                            recorded,
+                        )
 
                 if pause_before:
                     append(

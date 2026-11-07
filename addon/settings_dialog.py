@@ -137,6 +137,11 @@ TEMPO_COLUMNS = (
         "boundaryPauseMs",
         int,
     ),
+    (
+        "Tag / or pause (ms)",
+        "tightPauseMs",
+        int,
+    ),
 )
 
 RATE_MINIMUM = -50
@@ -673,8 +678,11 @@ class SettingsDialog(QDialog):
             "listed here uses the default row. A proportional pause is scale "
             "x pause factor x the length of what was just said, kept between "
             "the minimum and the maximum. The section pause is used at section "
-            "boundaries. A changed rate regenerates audio; every other column "
-            "only rebuilds the track from the cached audio."
+            "boundaries. The tag / or pause is the short pause between a tag "
+            "and the word it qualifies, and each side of the spoken \"or\" "
+            "between an example's translation alternatives. A changed rate "
+            "regenerates audio; every other column only rebuilds the track "
+            "from the cached audio."
         )
 
         description.setWordWrap(
@@ -812,9 +820,14 @@ class SettingsDialog(QDialog):
                     name
                     if field_name is None
                     else str(
-                        fields[
-                            field_name
-                        ]
+                        fields.get(
+                            field_name,
+                            DEFAULT_TEMPO_PROFILES[
+                                "default"
+                            ][
+                                field_name
+                            ],
+                        )
                     )
                 ),
             )

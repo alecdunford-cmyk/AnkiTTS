@@ -499,8 +499,161 @@ def check_track_against_plan(
 
         return event
 
-    for segment in plan.segments:
+    segments = plan.segments
+
+    def is_alternative_of_previous(
+        index,
+    ):
+        """CA-61 (4), restated from the ruling: the oracle for the "or"."""
+
+        if index == 0:
+            return False
+
+        previous = segments[
+            index - 1
+        ]
+
+        segment = segments[
+            index
+        ]
+
+        return (
+            segment.role == "alternative"
+            and previous.role
+            in (
+                "translation",
+                "alternative",
+            )
+            and previous.content_node_id
+            == segment.content_node_id
+            and primary_language(
+                previous.language
+            )
+            == primary_language(
+                segment.language
+            )
+        )
+
+    def attached_side(
+        index,
+    ):
+        """CA-61 (7): the side of this tag that faces its owner."""
+
+        owner = segments[
+            index
+        ].attached_to
+
+        if owner is None:
+            return None
+
+        owner_index = next(
+            position
+            for position, candidate in enumerate(
+                segments
+            )
+            if candidate.segment_id == owner
+        )
+
+        return (
+            "after"
+            if index < owner_index
+            else "before"
+        )
+
+    def check_silent(
+        event,
+        label,
+    ):
+        assert interior(
+            track,
+            event,
+            margin=60,
+        ).dBFS < -55, f"{label}: pause not silent"
+
+    for index, segment in enumerate(
+        segments
+    ):
         assert segment.pause_before is None
+
+        side = attached_side(
+            index
+        )
+
+        if is_alternative_of_previous(
+            index
+        ):
+            tight_before = take(
+                "connective_pause_before"
+            )
+
+            assert within(
+                tight_before[
+                    "duration_ms"
+                ],
+                tempo.tight_pause_ms,
+            )
+
+            connective = take(
+                "connective"
+            )
+
+            assert within(
+                dominant_frequency(
+                    middle(
+                        track,
+                        connective,
+                    )
+                ),
+                VOICE_HERTZ[
+                    CA41_VOICES[
+                        (
+                            primary_language(
+                                segment.language
+                            ),
+                            "content",
+                        )
+                    ]
+                ],
+                tolerance=12,
+            ), f"{segment.segment_id}: the or was not in the content voice"
+
+            tight_after = take(
+                "connective_pause_after"
+            )
+
+            assert within(
+                tight_after[
+                    "duration_ms"
+                ],
+                tempo.tight_pause_ms,
+            )
+
+            check_silent(
+                tight_before,
+                segment.segment_id,
+            )
+
+            check_silent(
+                tight_after,
+                segment.segment_id,
+            )
+
+        elif side == "before":
+            attached = take(
+                "pause_before"
+            )
+
+            assert within(
+                attached[
+                    "duration_ms"
+                ],
+                tempo.tight_pause_ms,
+            ), f"{segment.segment_id}: {attached['duration_ms']}"
+
+            check_silent(
+                attached,
+                segment.segment_id,
+            )
 
         if segment.earcon_before is not None:
             earcon = take(
@@ -550,11 +703,41 @@ def check_track_against_plan(
 
         assert segment.earcon_after is None
 
+        # The "or" before the next segment sits in place of the pause here.
+        if index + 1 < len(
+            segments
+        ) and is_alternative_of_previous(
+            index + 1
+        ):
+            continue
+
+        kind = segment.pause_after.kind
+
+        if side == "after":
+            pause = take(
+                "pause_after"
+            )
+
+            assert within(
+                pause[
+                    "duration_ms"
+                ],
+                tempo.tight_pause_ms,
+            ), f"{segment.segment_id}: {pause['duration_ms']}"
+
+            check_silent(
+                pause,
+                segment.segment_id,
+            )
+
+            continue
+
+        if kind == "none":
+            continue
+
         pause = take(
             "pause_after"
         )
-
-        kind = segment.pause_after.kind
 
         if kind == "fixed":
             assert within(
@@ -661,9 +844,11 @@ def check_fixture_parses_and_follows_section_3():
                     900,
                 )
             else:
+                # "none" is the pause after the owner of a tag that follows it.
                 assert segment.pause_after.kind in (
                     "proportional",
                     "boundary",
+                    "none",
                 )
 
     backs = (
@@ -709,7 +894,7 @@ def check_fixture_parses_and_follows_section_3():
         ][
             "segments"
         ]
-    ) == 3
+    ) == 4
 
     # Deep Recall: two pairs, each source then target with a flip between.
     assert [
@@ -906,10 +1091,65 @@ def check_deep_study_and_atom_front_end_to_end():
             "deep-entry-study",
         )
 
-        # The clamp bit at both ends on this fixture: "un" and the long example.
+        # CA-61 (4), (7) on the published back: three alternatives take an
+        # "or" (the idiom's, and the new example's two), spoken by one clip
+        # synthesised once, each between two tight pauses; the two tags have
+        # a tight pause on the side facing their owner.
         tempo = AppSettings().get_tempo_profile(
             "deep-entry-study"
         )
+
+        back_timeline = timeline_of(
+            e2e,
+            result[
+                "back"
+            ],
+        )
+
+        kinds = [
+            event[
+                "kind"
+            ]
+            for event in back_timeline
+        ]
+
+        assert kinds.count(
+            "connective"
+        ) == 3
+
+        assert kinds.count(
+            "connective_pause_before"
+        ) == 3
+
+        assert kinds.count(
+            "connective_pause_after"
+        ) == 3
+
+        assert [
+            call[0]
+            for call in e2e.edge.calls
+        ].count(
+            "or,"
+        ) == 1
+
+        # 25 segments: 25 speech events. The pauses after are 25 less the owner
+        # whose pause after is none (1) and the 3 that an "or" replaces; one
+        # pause before: the tight pause of the tag that follows its owner.
+        assert kinds.count(
+            "speech"
+        ) == 25
+
+        assert kinds.count(
+            "pause_before"
+        ) == 1
+
+        assert kinds.count(
+            "pause_after"
+        ) == 25 - 1 - 3
+
+        assert tempo.tight_pause_ms == 120
+
+        # The clamp bit at both ends on this fixture: "un" and the long example.
 
         assert tempo.min_pause_ms in pauses
         assert tempo.max_pause_ms in pauses
@@ -1136,13 +1376,17 @@ def check_changed_voice_regenerates_that_role_only_end_to_end():
             ),
         )
 
-        # The French label segments: un, deux, trois, familier. Nothing else.
+        # The French label segments: un, deux, trois, quatre, familier, figuré.
+        # Nothing else: not the "or" (English content voice), not the English
+        # label "informal".
         assert sorted(
             call[0]
             for call in e2e.edge.calls
         ) == [
             "deux",
             "familier",
+            "figuré",
+            "quatre",
             "trois",
             "un",
         ]
@@ -1154,11 +1398,12 @@ def check_changed_voice_regenerates_that_role_only_end_to_end():
             "fr-FR-HenriNeural",
         }
 
+        # 27 segments (2 on the front, 25 on the back) and 3 spoken "or"s.
         assert changed[
             "statistics"
         ] == {
-            "generated": 4,
-            "cached": 15,
+            "generated": 6,
+            "cached": 24,
             "skipped": 0,
         }
 
@@ -1399,6 +1644,7 @@ def check_v1_fixture_is_deaf_to_every_new_setting():
                     "default": {
                         "rate": 0.8,
                         "boundaryPauseMs": 1,
+                        "tightPauseMs": 1,
                     },
                 },
                 "earcons": {

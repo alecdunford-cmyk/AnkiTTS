@@ -525,6 +525,129 @@ def check_spoken_must_be_boolean():
     )
 
 
+def check_attached_to_names_another_segment_of_the_plan():
+    # A tag may come before its owner or after it; the field is optional.
+    plan = parse(
+        create_plan_data(
+            segments=[
+                create_segment(
+                    sequence=1,
+                    segmentId="tag-before",
+                    role="label",
+                    voiceRole="label",
+                    attachedTo="owner",
+                ),
+                create_segment(
+                    sequence=2,
+                    segmentId="owner",
+                ),
+                create_segment(
+                    sequence=3,
+                    segmentId="tag-after",
+                    role="label",
+                    voiceRole="label",
+                    attachedTo="owner",
+                ),
+                create_segment(
+                    sequence=4,
+                    segmentId="plain",
+                ),
+            ]
+        )
+    )
+
+    assert [
+        segment.attached_to
+        for segment in plan.segments
+    ] == [
+        "owner",
+        None,
+        "owner",
+        None,
+    ]
+
+
+def check_attached_to_cannot_name_itself_or_a_missing_segment():
+    expect_error(
+        create_plan_data(
+            segments=[
+                create_segment(
+                    segmentId="tag",
+                    attachedTo="tag",
+                )
+            ]
+        ),
+        "attachedTo cannot name the segment itself",
+    )
+
+    expect_error(
+        create_plan_data(
+            segments=[
+                create_segment(
+                    sequence=1,
+                    segmentId="tag",
+                    attachedTo="nowhere",
+                ),
+                create_segment(
+                    sequence=2,
+                    segmentId="owner",
+                ),
+            ]
+        ),
+        'names "nowhere", which is not a segmentId in this plan',
+    )
+
+    # Not a string, or empty: the same strictness as every other id.
+    for bad in (
+        3,
+        None,
+        "",
+        "   ",
+        ["owner"],
+    ):
+        expect_error(
+            create_plan_data(
+                segments=[
+                    create_segment(
+                        sequence=1,
+                        segmentId="tag",
+                        attachedTo=bad,
+                    ),
+                    create_segment(
+                        sequence=2,
+                        segmentId="owner",
+                    ),
+                ]
+            ),
+            "attachedTo",
+        )
+
+
+def check_attached_to_is_rejected_in_a_v1_plan():
+    segment = {
+        key: value
+        for key, value in create_segment().items()
+        if key
+        not in (
+            "role",
+            "voiceRole",
+        )
+    }
+
+    segment["attachedTo"] = "anything"
+
+    expect_error(
+        {
+            "schemaVersion": 1,
+            "side": "back",
+            "segments": [
+                segment
+            ],
+        },
+        "unexpected field(s): attachedTo",
+    )
+
+
 def check_v1_rules_still_apply_inside_v2():
     # All twelve v1 fields stay required (P3: v2 removes none of them).
     segment = create_segment()
@@ -694,6 +817,9 @@ def run():
         check_earcon_validation,
         check_pair_position_present_iff_id,
         check_spoken_must_be_boolean,
+        check_attached_to_names_another_segment_of_the_plan,
+        check_attached_to_cannot_name_itself_or_a_missing_segment,
+        check_attached_to_is_rejected_in_a_v1_plan,
         check_v1_rules_still_apply_inside_v2,
         check_v2_fields_are_rejected_in_a_v1_plan,
         check_v1_plan_parses_to_v1_defaults,

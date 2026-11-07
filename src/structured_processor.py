@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import (
+    dataclass,
+    replace,
+)
 from decimal import (
     Decimal,
     ROUND_HALF_UP,
@@ -17,6 +20,11 @@ from speech_plan import (
     PauseSpec,
     SpeechPlan,
     SpeechPlanSegment,
+    VOICE_ROLE_CONTENT,
+)
+from speech_text import (
+    ALTERNATIVE_WORDS,
+    base_language,
 )
 
 
@@ -35,6 +43,19 @@ LOGICAL_PROFILE_ALIASES = {
 EDGE_RATE_PATTERN = re.compile(
     r"^([+-])(\d+)%$"
 )
+
+# CA-61 (4): between the translation alternatives of an example the content
+# voice says "or," / "ou," (the wording follows the segment's language). This
+# is the role of that clip in its cache identity; it is not a plan role.
+ROLE_CONNECTIVE = "connective"
+
+ALTERNATIVE_AFTER_ROLES = (
+    "translation",
+    "alternative",
+)
+
+ATTACHED_BEFORE = "before"
+ATTACHED_AFTER = "after"
 
 
 class StructuredSpeechProcessingError(
@@ -73,6 +94,16 @@ class ResolvedSpeechSegment:
     earcon_before: str | None = None
     earcon_after: str | None = None
     spoken: bool = True
+    # CA-61 (7): the segmentId this tag qualifies, and which side of this
+    # segment is the attached one (its pause there is the tight pause):
+    # "after" when the tag comes before its owner, "before" when it follows.
+    # No side when the tag or its owner is not spoken.
+    attached_to: str | None = None
+    attached_side: str | None = None
+    # CA-61 (4): for an alternative that follows a translation or another
+    # alternative of the same example, the clip of "or," / "ou," spoken
+    # before it, as a segment to synthesise in the content voice.
+    connective: ResolvedSpeechSegment | None = None
 
 
 @dataclass(frozen=True)
@@ -147,6 +178,13 @@ def resolve_speech_plan(
                 settings,
                 tempo,
             )
+        )
+
+    if tempo is not None:
+        resolved_segments = _relate_segments(
+            resolved_segments,
+            settings,
+            tempo,
         )
 
     return ResolvedSpeechTrack(
@@ -235,6 +273,182 @@ def resolve_speech_segment(
         earcon_before=segment.earcon_before,
         earcon_after=segment.earcon_after,
         spoken=segment.spoken,
+        attached_to=segment.attached_to,
+    )
+
+
+def _relate_segments(
+    segments: list[ResolvedSpeechSegment],
+    settings: AppSettings,
+    tempo: TempoProfile,
+) -> list[ResolvedSpeechSegment]:
+    """
+    Resolve what one segment says about its neighbours (CA-61 (4) and (7)).
+
+    Only a schema-version-2 track gets here. The text, order and pauses of the
+    plan are not changed; a segment gains which of its sides is tight (a tag
+    next to its owner) and, for an alternative, the connective spoken before it.
+    """
+
+    position = {
+        segment.segment_id: index
+        for index, segment in enumerate(
+            segments
+        )
+    }
+
+    related = []
+
+    for index, segment in enumerate(
+        segments
+    ):
+        side = None
+
+        if segment.attached_to is not None:
+            owner_index = position[
+                segment.attached_to
+            ]
+
+            if (
+                segment.spoken
+                and segments[
+                    owner_index
+                ].spoken
+            ):
+                side = (
+                    ATTACHED_AFTER
+                    if index < owner_index
+                    else ATTACHED_BEFORE
+                )
+
+        related.append(
+            replace(
+                segment,
+                attached_side=side,
+            )
+        )
+
+    previous = None
+
+    for index, segment in enumerate(
+        related
+    ):
+        if not segment.spoken:
+            continue
+
+        if _takes_connective(
+            previous,
+            segment,
+        ):
+            segment = replace(
+                segment,
+                connective=_connective_for(
+                    segment,
+                    settings,
+                    tempo,
+                ),
+            )
+
+            related[
+                index
+            ] = segment
+
+        previous = segment
+
+    return related
+
+
+def _takes_connective(
+    previous: ResolvedSpeechSegment | None,
+    segment: ResolvedSpeechSegment,
+) -> bool:
+    """
+    True for an alternative that directly follows (among the spoken segments)
+    a translation or an alternative of the same content node in the same base
+    language. A repeat of an alternative (repetitionNumber above 1) is not
+    another alternative, and a node with no id says nothing about who belongs
+    to it. A language with no wording has no connective.
+    """
+
+    if (
+        previous is None
+        or segment.role != "alternative"
+        or previous.role not in ALTERNATIVE_AFTER_ROLES
+        or segment.repetition_number != 1
+        or not segment.content_node_id
+        or previous.content_node_id != segment.content_node_id
+    ):
+        return False
+
+    language = base_language(
+        segment.language
+    )
+
+    return (
+        language in ALTERNATIVE_WORDS
+        and language
+        == base_language(
+            previous.language
+        )
+    )
+
+
+def _connective_for(
+    segment: ResolvedSpeechSegment,
+    settings: AppSettings,
+    tempo: TempoProfile,
+) -> ResolvedSpeechSegment:
+    """
+    The clip of "or," / "ou," for the language of an alternative, in the
+    content voice of that language, at the tempo profile's own rate.
+
+    It does not depend on the alternative's text, speakingRate, pauses or
+    earcons, so every alternative of a language and voice shares one clip.
+    """
+
+    language = base_language(
+        segment.language
+    )
+
+    speech_profile = settings.get_speech_profile(
+        segment.resolved_profile_key
+    )
+
+    voice, voice_provider = resolve_role_voice(
+        VOICE_ROLE_CONTENT,
+        speech_profile,
+        settings,
+    )
+
+    return ResolvedSpeechSegment(
+        sequence=segment.sequence,
+        segment_id=f"{segment.segment_id}.connective",
+        cue_id=segment.cue_id,
+        content_node_id=segment.content_node_id,
+        repetition_number=1,
+        repetition_count=1,
+        text=f"{ALTERNATIVE_WORDS[language]},",
+        language=language,
+        voice_profile_id=segment.voice_profile_id,
+        speaking_rate=Decimal(
+            "1"
+        ),
+        pause_before_milliseconds=0,
+        pause_after_milliseconds=0,
+        resolved_profile_key=segment.resolved_profile_key,
+        resolved_profile_language=(
+            segment.resolved_profile_language
+        ),
+        voice=voice,
+        edge_rate=compose_edge_rate(
+            speech_profile.rate,
+            tempo.rate,
+        ),
+        volume=speech_profile.volume,
+        pitch=speech_profile.pitch,
+        role=ROLE_CONNECTIVE,
+        voice_role=VOICE_ROLE_CONTENT,
+        voice_provider=voice_provider,
     )
 
 

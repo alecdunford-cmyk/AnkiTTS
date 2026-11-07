@@ -59,13 +59,13 @@
     }
   },
   "tempo_profiles": {
-    "default": {"rate": 1.0, "pauseFactor": 0.35, "minPauseMs": 250, "maxPauseMs": 1200, "boundaryPauseMs": 700},
-    "deep-entry-study": {"rate": 1.0, "pauseFactor": 0.35, "minPauseMs": 250, "maxPauseMs": 1200, "boundaryPauseMs": 900},
-    "deep-recall": {"rate": 0.95, "pauseFactor": 0.45, "minPauseMs": 300, "maxPauseMs": 1500, "boundaryPauseMs": 900},
-    "sense-map": {"rate": 1.0, "pauseFactor": 0.3, "minPauseMs": 200, "maxPauseMs": 1000, "boundaryPauseMs": 600},
-    "translation-group": {"rate": 1.0, "pauseFactor": 0.3, "minPauseMs": 200, "maxPauseMs": 1000, "boundaryPauseMs": 600},
-    "example": {"rate": 1.0, "pauseFactor": 0.3, "minPauseMs": 200, "maxPauseMs": 1000, "boundaryPauseMs": 600},
-    "sentence": {"rate": 1.0, "pauseFactor": 0.3, "minPauseMs": 200, "maxPauseMs": 1000, "boundaryPauseMs": 600}
+    "default": {"rate": 1.0, "pauseFactor": 0.35, "minPauseMs": 250, "maxPauseMs": 1200, "boundaryPauseMs": 700, "tightPauseMs": 120},
+    "deep-entry-study": {"rate": 1.0, "pauseFactor": 0.35, "minPauseMs": 250, "maxPauseMs": 1200, "boundaryPauseMs": 900, "tightPauseMs": 120},
+    "deep-recall": {"rate": 0.95, "pauseFactor": 0.45, "minPauseMs": 300, "maxPauseMs": 1500, "boundaryPauseMs": 900, "tightPauseMs": 120},
+    "sense-map": {"rate": 1.0, "pauseFactor": 0.3, "minPauseMs": 200, "maxPauseMs": 1000, "boundaryPauseMs": 600, "tightPauseMs": 120},
+    "translation-group": {"rate": 1.0, "pauseFactor": 0.3, "minPauseMs": 200, "maxPauseMs": 1000, "boundaryPauseMs": 600, "tightPauseMs": 120},
+    "example": {"rate": 1.0, "pauseFactor": 0.3, "minPauseMs": 200, "maxPauseMs": 1000, "boundaryPauseMs": 600, "tightPauseMs": 120},
+    "sentence": {"rate": 1.0, "pauseFactor": 0.3, "minPauseMs": 200, "maxPauseMs": 1000, "boundaryPauseMs": 600, "tightPauseMs": 120}
   },
   "earcons": {
     "sectionBoundary": "",

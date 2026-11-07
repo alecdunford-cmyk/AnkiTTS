@@ -1,5 +1,5 @@
 {
-  "_comment": "Hand-written to section 3 of the speech plan v2 design note. Invented sentences, no dictionary text. One plan per side field. Used by tests/test_speech_plan_v2_e2e.py.",
+  "_comment": "Hand-written to section 3 of the speech plan v2 design note. Invented sentences, no dictionary text. One plan per side field. deepStudyBack section 4 (CA-61): a tag before its owner (ds-19 -> ds-20), an example with a translation and two alternatives (ds-22..24), and a tag after its owner (ds-25 -> ds-24, whose own pause after is none). Used by tests/test_speech_plan_v2_e2e.py.",
   "deepStudyBack": {
     "schemaVersion": 2,
     "side": "back",
@@ -42,7 +42,24 @@
       {"sequence": 16, "segmentId": "ds-16", "cueId": "example-3", "contentNodeId": "entry:phare:3:example", "repetitionNumber": 1, "repetitionCount": 1, "text": "Pendant des années, ce vieux professeur a été un véritable phare de la pensée pour tous les jeunes chercheurs de la petite ville portuaire.", "language": "fr-FR", "voiceProfileId": "", "speakingRate": 1.0, "pauseBeforeMilliseconds": 0, "pauseAfterMilliseconds": 0,
        "role": "exampleSource", "voiceRole": "content", "pauseAfter": {"kind": "proportional", "scale": 1.0}},
       {"sequence": 17, "segmentId": "ds-17", "cueId": "example-3-target", "contentNodeId": "entry:phare:3:example", "repetitionNumber": 1, "repetitionCount": 1, "text": "For years this old teacher was a leading light of thought.", "language": "en-US", "voiceProfileId": "", "speakingRate": 1.0, "pauseBeforeMilliseconds": 0, "pauseAfterMilliseconds": 0,
-       "role": "exampleTarget", "voiceRole": "content", "pauseAfter": {"kind": "proportional", "scale": 1.0}}
+       "role": "exampleTarget", "voiceRole": "content", "pauseAfter": {"kind": "proportional", "scale": 1.0}},
+
+      {"sequence": 18, "segmentId": "ds-18", "cueId": "section-4", "contentNodeId": "entry:phare:4", "repetitionNumber": 1, "repetitionCount": 1, "text": "quatre", "language": "fr-FR", "voiceProfileId": "", "speakingRate": 1.0, "pauseBeforeMilliseconds": 0, "pauseAfterMilliseconds": 0,
+       "role": "sectionNumber", "voiceRole": "label", "earconBefore": "sectionBoundary", "pauseAfter": {"kind": "proportional", "scale": 1.0}},
+      {"sequence": 19, "segmentId": "ds-19", "cueId": "label-4", "contentNodeId": "entry:phare:4:label", "repetitionNumber": 1, "repetitionCount": 1, "text": "figuré", "language": "fr-FR", "voiceProfileId": "", "speakingRate": 1.0, "pauseBeforeMilliseconds": 0, "pauseAfterMilliseconds": 0,
+       "role": "label", "voiceRole": "label", "attachedTo": "ds-20", "pauseAfter": {"kind": "proportional", "scale": 1.0}},
+      {"sequence": 20, "segmentId": "ds-20", "cueId": "gloss-4", "contentNodeId": "entry:phare:4:gloss", "repetitionNumber": 1, "repetitionCount": 1, "text": "a signal", "language": "en-US", "voiceProfileId": "", "speakingRate": 1.0, "pauseBeforeMilliseconds": 0, "pauseAfterMilliseconds": 0,
+       "role": "gloss", "voiceRole": "content", "pauseAfter": {"kind": "proportional", "scale": 1.0}},
+      {"sequence": 21, "segmentId": "ds-21", "cueId": "example-4", "contentNodeId": "entry:phare:4:example", "repetitionNumber": 1, "repetitionCount": 1, "text": "Il lève la lampe.", "language": "fr-FR", "voiceProfileId": "", "speakingRate": 1.0, "pauseBeforeMilliseconds": 0, "pauseAfterMilliseconds": 0,
+       "role": "exampleSource", "voiceRole": "content", "pauseAfter": {"kind": "proportional", "scale": 1.0}},
+      {"sequence": 22, "segmentId": "ds-22", "cueId": "example-4-target", "contentNodeId": "entry:phare:4:example", "repetitionNumber": 1, "repetitionCount": 1, "text": "He raises the lamp.", "language": "en-US", "voiceProfileId": "", "speakingRate": 1.0, "pauseBeforeMilliseconds": 0, "pauseAfterMilliseconds": 0,
+       "role": "translation", "voiceRole": "content", "pauseAfter": {"kind": "proportional", "scale": 1.0}},
+      {"sequence": 23, "segmentId": "ds-23", "cueId": "example-4-alt-1", "contentNodeId": "entry:phare:4:example", "repetitionNumber": 1, "repetitionCount": 1, "text": "He lifts the lamp.", "language": "en-US", "voiceProfileId": "", "speakingRate": 1.0, "pauseBeforeMilliseconds": 0, "pauseAfterMilliseconds": 0,
+       "role": "alternative", "voiceRole": "content", "pauseAfter": {"kind": "proportional", "scale": 1.0}},
+      {"sequence": 24, "segmentId": "ds-24", "cueId": "example-4-alt-2", "contentNodeId": "entry:phare:4:example", "repetitionNumber": 1, "repetitionCount": 1, "text": "He holds the lamp up.", "language": "en-US", "voiceProfileId": "", "speakingRate": 1.0, "pauseBeforeMilliseconds": 0, "pauseAfterMilliseconds": 0,
+       "role": "alternative", "voiceRole": "content", "pauseAfter": {"kind": "none"}},
+      {"sequence": 25, "segmentId": "ds-25", "cueId": "tag-4", "contentNodeId": "entry:phare:4:example:tag", "repetitionNumber": 1, "repetitionCount": 1, "text": "informal", "language": "en-US", "voiceProfileId": "", "speakingRate": 1.0, "pauseBeforeMilliseconds": 0, "pauseAfterMilliseconds": 0,
+       "role": "label", "voiceRole": "label", "attachedTo": "ds-24", "pauseAfter": {"kind": "boundary"}}
     ]
   },
   "deepRecallBack": {

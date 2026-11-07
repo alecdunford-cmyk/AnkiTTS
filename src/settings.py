@@ -206,6 +206,10 @@ def merge_role_voices(
 # numbers are the design note's starting point, tuned by ear later (CA-37 (5)).
 DEFAULT_TEMPO_PROFILE = "default"
 
+# The pause between a tag and the word it qualifies, and each side of the
+# spoken "or" between an example's translation alternatives (CA-61 (4), (7)).
+DEFAULT_TIGHT_PAUSE_MS = 120
+
 DEFAULT_TEMPO_PROFILES = {
     DEFAULT_TEMPO_PROFILE: {
         "rate": 1.0,
@@ -213,6 +217,7 @@ DEFAULT_TEMPO_PROFILES = {
         "minPauseMs": 250,
         "maxPauseMs": 1200,
         "boundaryPauseMs": 700,
+        "tightPauseMs": 120,
     },
     "deep-entry-study": {
         "rate": 1.0,
@@ -220,6 +225,7 @@ DEFAULT_TEMPO_PROFILES = {
         "minPauseMs": 250,
         "maxPauseMs": 1200,
         "boundaryPauseMs": 900,
+        "tightPauseMs": 120,
     },
     "deep-recall": {
         "rate": 0.95,
@@ -227,6 +233,7 @@ DEFAULT_TEMPO_PROFILES = {
         "minPauseMs": 300,
         "maxPauseMs": 1500,
         "boundaryPauseMs": 900,
+        "tightPauseMs": 120,
     },
     "sense-map": {
         "rate": 1.0,
@@ -234,6 +241,7 @@ DEFAULT_TEMPO_PROFILES = {
         "minPauseMs": 200,
         "maxPauseMs": 1000,
         "boundaryPauseMs": 600,
+        "tightPauseMs": 120,
     },
     "translation-group": {
         "rate": 1.0,
@@ -241,6 +249,7 @@ DEFAULT_TEMPO_PROFILES = {
         "minPauseMs": 200,
         "maxPauseMs": 1000,
         "boundaryPauseMs": 600,
+        "tightPauseMs": 120,
     },
     "example": {
         "rate": 1.0,
@@ -248,6 +257,7 @@ DEFAULT_TEMPO_PROFILES = {
         "minPauseMs": 200,
         "maxPauseMs": 1000,
         "boundaryPauseMs": 600,
+        "tightPauseMs": 120,
     },
     "sentence": {
         "rate": 1.0,
@@ -255,6 +265,7 @@ DEFAULT_TEMPO_PROFILES = {
         "minPauseMs": 200,
         "maxPauseMs": 1000,
         "boundaryPauseMs": 600,
+        "tightPauseMs": 120,
     },
 }
 
@@ -268,6 +279,8 @@ class TempoProfile:
     min_pause_ms: int
     max_pause_ms: int
     boundary_pause_ms: int
+    # CA-62: the short fixed pause of an attached tag and of the spoken "or".
+    tight_pause_ms: int = DEFAULT_TIGHT_PAUSE_MS
 
 
 def merge_tempo_profiles(
@@ -556,6 +569,9 @@ class AppSettings:
             ],
             boundary_pause_ms=fields[
                 "boundaryPauseMs"
+            ],
+            tight_pause_ms=fields[
+                "tightPauseMs"
             ],
         )
 
@@ -1035,6 +1051,7 @@ class AppSettings:
                 "minPauseMs",
                 "maxPauseMs",
                 "boundaryPauseMs",
+                "tightPauseMs",
             ):
                 value = fields.get(
                     field_name
