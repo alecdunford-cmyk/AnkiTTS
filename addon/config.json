@@ -70,6 +70,9 @@
   "earcons": {
     "sectionBoundary": "",
     "answerStart": "",
-    "directionFlip": ""
+    "directionFlip": "",
+    "sectionNumber": "",
+    "sectionLetter": "",
+    "idiomHeading": ""
   }
 }

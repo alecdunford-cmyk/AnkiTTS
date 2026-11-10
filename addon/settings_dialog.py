@@ -104,6 +104,19 @@ EARCON_LABELS = (
         "directionFlip",
         "Direction flip",
     ),
+    # CA-71 (1): the three kinds a plan places before what they mark.
+    (
+        "sectionNumber",
+        "Numbered section (before)",
+    ),
+    (
+        "sectionLetter",
+        "Lettered sub-section (before)",
+    ),
+    (
+        "idiomHeading",
+        "Idiom block heading (before)",
+    ),
 )
 
 TEMPO_COLUMNS = (

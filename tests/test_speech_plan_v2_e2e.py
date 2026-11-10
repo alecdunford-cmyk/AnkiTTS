@@ -69,6 +69,21 @@ EARCON_HERTZ = {
         350,
         440,
     ),
+    # CA-71 (1), from the design of each tone as the ruling's stage states it:
+    # a falling A5-D5 step (about 730 Hz across its middle), a rising G5-C6
+    # step (about 915 Hz), a low A4-E4 glide (about 385 Hz).
+    "sectionNumber": (
+        640,
+        830,
+    ),
+    "sectionLetter": (
+        790,
+        1060,
+    ),
+    "idiomHeading": (
+        330,
+        440,
+    ),
 }
 
 EDGE_IDENTITY = {
@@ -884,17 +899,59 @@ def check_fixture_parses_and_follows_section_3():
         "le phare",
     ]
 
-    assert sum(
+    # CA-71 (1): the four numbered sections carry the numbered-section earcon,
+    # the one lettered sub-section its own, the one idiom block's heading its
+    # own; none of the old section earcon is left in this plan.
+    back_earcons = [
         segment.get(
             "earconBefore"
         )
-        == "sectionBoundary"
         for segment in fixture[
             "deepStudyBack"
         ][
             "segments"
         ]
+    ]
+
+    assert back_earcons.count(
+        "sectionNumber"
     ) == 4
+
+    assert back_earcons.count(
+        "sectionLetter"
+    ) == 1
+
+    assert back_earcons.count(
+        "idiomHeading"
+    ) == 1
+
+    assert "sectionBoundary" not in back_earcons
+
+    for segment in fixture[
+        "deepStudyBack"
+    ][
+        "segments"
+    ]:
+        if segment.get(
+            "earconBefore"
+        ) in (
+            "sectionNumber",
+            "sectionLetter",
+            "idiomHeading",
+        ):
+            assert "earconAfter" not in segment
+
+            assert segment[
+                "role"
+            ] == {
+                "sectionNumber": "sectionNumber",
+                "sectionLetter": "sectionNumber",
+                "idiomHeading": "idiomHead",
+            }[
+                segment[
+                    "earconBefore"
+                ]
+            ]
 
     # Deep Recall: two pairs, each source then target with a flip between.
     assert [
@@ -1132,12 +1189,12 @@ def check_deep_study_and_atom_front_end_to_end():
             "or,"
         ) == 1
 
-        # 25 segments: 25 speech events. The pauses after are 25 less the owner
+        # 27 segments: 27 speech events. The pauses after are 27 less the owner
         # whose pause after is none (1) and the 3 that an "or" replaces; one
         # pause before: the tight pause of the tag that follows its owner.
         assert kinds.count(
             "speech"
-        ) == 25
+        ) == 27
 
         assert kinds.count(
             "pause_before"
@@ -1145,7 +1202,17 @@ def check_deep_study_and_atom_front_end_to_end():
 
         assert kinds.count(
             "pause_after"
-        ) == 25 - 1 - 3
+        ) == 27 - 1 - 3
+
+        # CA-71 (1): one earcon before each of the 4 numbered sections, the
+        # lettered sub-section and the idiom heading, plus the answer start.
+        assert kinds.count(
+            "earcon_before"
+        ) == 1 + 4 + 1 + 1
+
+        assert kinds.count(
+            "earcon_after"
+        ) == 0
 
         assert tempo.tight_pause_ms == 120
 
@@ -1376,13 +1443,14 @@ def check_changed_voice_regenerates_that_role_only_end_to_end():
             ),
         )
 
-        # The French label segments: un, deux, trois, quatre, familier, figuré.
-        # Nothing else: not the "or" (English content voice), not the English
-        # label "informal".
+        # The French label segments: un, deux, trois, quatre, familier, figuré
+        # and the lettered sub-section's letter. Nothing else: not the "or"
+        # (English content voice), not the English label "informal".
         assert sorted(
             call[0]
             for call in e2e.edge.calls
         ) == [
+            "bé",
             "deux",
             "familier",
             "figuré",
@@ -1398,12 +1466,13 @@ def check_changed_voice_regenerates_that_role_only_end_to_end():
             "fr-FR-HenriNeural",
         }
 
-        # 27 segments (2 on the front, 25 on the back) and 3 spoken "or"s.
+        # 29 segments (2 on the front, 27 on the back) and 3 spoken "or"s: 32
+        # clips placed, 7 of them regenerated.
         assert changed[
             "statistics"
         ] == {
-            "generated": 6,
-            "cached": 24,
+            "generated": 7,
+            "cached": 25,
             "skipped": 0,
         }
 

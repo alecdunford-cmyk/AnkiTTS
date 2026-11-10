@@ -467,6 +467,139 @@ def check_earcon_validation():
             )
 
 
+# CA-71 (1): the three kinds Alec's ruling decides, restated here by name.
+NEW_EARCONS = (
+    "sectionNumber",
+    "sectionLetter",
+    "idiomHeading",
+)
+
+LEGACY_EARCONS = (
+    "sectionBoundary",
+    "answerStart",
+    "directionFlip",
+)
+
+
+def check_the_three_new_earcons_are_accepted_before_a_segment():
+    segments = [
+        create_segment(
+            sequence=number,
+            segmentId=f"seg-{number}",
+            earconBefore=name,
+        )
+        for number, name in enumerate(
+            NEW_EARCONS,
+            start=1,
+        )
+    ]
+
+    plan = parse(
+        create_plan_data(
+            segments=segments,
+        )
+    )
+
+    assert tuple(
+        segment.earcon_before
+        for segment in plan.segments
+    ) == NEW_EARCONS
+
+    assert all(
+        segment.earcon_after is None
+        for segment in plan.segments
+    )
+
+
+def check_a_new_earcon_after_a_segment_is_a_validation_error():
+    # Before the thing it marks, never after (Alec, CA-71 (1)).
+    for name in NEW_EARCONS:
+        expect_error(
+            create_plan_data(
+                segments=[
+                    create_segment(
+                        earconAfter=name,
+                    )
+                ]
+            ),
+            "earconAfter",
+        )
+
+        # The same name is fine before, in the same plan shape.
+        parse(
+            create_plan_data(
+                segments=[
+                    create_segment(
+                        earconBefore=name,
+                    )
+                ]
+            )
+        )
+
+
+def check_a_plan_with_the_old_earcon_names_still_parses():
+    # RCE stops emitting these in card-8; a plan that still carries one must
+    # not fail, before or after.
+    plan = parse(
+        create_plan_data(
+            segments=[
+                create_segment(
+                    sequence=1,
+                    segmentId="old-1",
+                    earconBefore="sectionBoundary",
+                    earconAfter="directionFlip",
+                ),
+                create_segment(
+                    sequence=2,
+                    segmentId="old-2",
+                    earconBefore="answerStart",
+                    earconAfter="sectionBoundary",
+                ),
+                create_segment(
+                    sequence=3,
+                    segmentId="old-3",
+                    earconBefore="directionFlip",
+                    earconAfter="answerStart",
+                ),
+            ]
+        )
+    )
+
+    assert [
+        (
+            segment.earcon_before,
+            segment.earcon_after,
+        )
+        for segment in plan.segments
+    ] == [
+        (
+            "sectionBoundary",
+            "directionFlip",
+        ),
+        (
+            "answerStart",
+            "sectionBoundary",
+        ),
+        (
+            "directionFlip",
+            "answerStart",
+        ),
+    ]
+
+    # Every legacy name is accepted in both places.
+    for name in LEGACY_EARCONS:
+        parse(
+            create_plan_data(
+                segments=[
+                    create_segment(
+                        earconBefore=name,
+                        earconAfter=name,
+                    )
+                ]
+            )
+        )
+
+
 def check_pair_position_present_iff_id():
     for pair, fragment in (
         (
@@ -815,6 +948,9 @@ def run():
         check_plan_level_fields_are_required_and_typed,
         check_pause_validation,
         check_earcon_validation,
+        check_the_three_new_earcons_are_accepted_before_a_segment,
+        check_a_new_earcon_after_a_segment_is_a_validation_error,
+        check_a_plan_with_the_old_earcon_names_still_parses,
         check_pair_position_present_iff_id,
         check_spoken_must_be_boolean,
         check_attached_to_names_another_segment_of_the_plan,

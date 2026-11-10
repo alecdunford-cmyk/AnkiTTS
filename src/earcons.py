@@ -1,5 +1,7 @@
 """
-The three short sounds a schema-version-2 plan can ask for (CA-37 (4)).
+The short sounds a schema-version-2 plan can ask for (CA-37 (4)): the original
+three, and the three of CA-71 (1) -- a numbered section, a lettered
+sub-section and an idiom block's heading, each played before what it marks.
 
 Defaults are generated once into the add-on's user_files, which Anki keeps
 across updates, and any of them can be replaced by a file named in settings.
@@ -41,10 +43,18 @@ TICK_ATTACK_MILLISECONDS = 3
 
 @dataclass(frozen=True)
 class EarconTone:
+    """
+    One default tone: a sweep from start_hz to end_hz, or, when notes is given,
+    a run of steady notes (hz, milliseconds) joined end to end, each with its
+    own soft edges (milliseconds is then their total).
+    """
+
     milliseconds: int
     start_hz: float
     end_hz: float
     tick: bool = False
+    notes: tuple[tuple[float, int], ...] = ()
+    fade_milliseconds: int = FADE_MILLISECONDS
 
 
 DEFAULT_TONES = {
@@ -66,6 +76,39 @@ DEFAULT_TONES = {
         milliseconds=180,
         start_hz=392.0,
         end_hz=392.0,
+    ),
+    # CA-71 (1), played BEFORE the thing each marks. Told apart from each other
+    # and from the three above by direction, pitch and length (test_earcons).
+    #
+    # A numbered section: a falling two-note step, A5 then D5, the longest and
+    # most definite of the three ("ding-dong").
+    "sectionNumber": EarconTone(
+        milliseconds=220,
+        start_hz=880.0,
+        end_hz=587.33,
+        notes=(
+            (880.0, 110),
+            (587.33, 110),
+        ),
+    ),
+    # A lettered sub-section: the lighter sibling, a short rising two-note
+    # step, G5 then C6, higher and half as long ("ti-ding").
+    "sectionLetter": EarconTone(
+        milliseconds=130,
+        start_hz=783.99,
+        end_hz=1046.5,
+        notes=(
+            (783.99, 65),
+            (1046.5, 65),
+        ),
+        fade_milliseconds=12,
+    ),
+    # The heading of an idiom block inside a sense: a low, slow falling glide,
+    # A4 down to E4, in the register none of the other five uses.
+    "idiomHeading": EarconTone(
+        milliseconds=240,
+        start_hz=440.0,
+        end_hz=329.63,
     ),
 }
 
@@ -135,6 +178,26 @@ def _tone_samples(
 ) -> list[float]:
     """One tone at full scale: its sweep under its envelope."""
 
+    if tone.notes:
+        samples = []
+
+        for (
+            hz,
+            milliseconds,
+        ) in tone.notes:
+            samples.extend(
+                _tone_samples(
+                    EarconTone(
+                        milliseconds=milliseconds,
+                        start_hz=hz,
+                        end_hz=hz,
+                        fade_milliseconds=tone.fade_milliseconds,
+                    )
+                )
+            )
+
+        return samples
+
     frame_count = int(
         EARCON_SAMPLE_RATE
         * tone.milliseconds
@@ -143,7 +206,7 @@ def _tone_samples(
 
     fade_frames = int(
         EARCON_SAMPLE_RATE
-        * FADE_MILLISECONDS
+        * tone.fade_milliseconds
         / 1000
     )
 

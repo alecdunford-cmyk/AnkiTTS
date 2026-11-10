@@ -106,11 +106,28 @@ EARCON_SECTION_BOUNDARY = "sectionBoundary"
 EARCON_ANSWER_START = "answerStart"
 EARCON_DIRECTION_FLIP = "directionFlip"
 
-VALID_EARCONS = (
+# CA-71 (1): the three kinds Alec decided, each played BEFORE the thing it marks.
+EARCON_SECTION_NUMBER = "sectionNumber"
+EARCON_SECTION_LETTER = "sectionLetter"
+EARCON_IDIOM_HEADING = "idiomHeading"
+
+# The first three are kept accepted wherever they were, so a plan that still
+# carries one does not fail; RCE stops emitting them in card-8.
+VALID_EARCONS_AFTER = (
     EARCON_SECTION_BOUNDARY,
     EARCON_ANSWER_START,
     EARCON_DIRECTION_FLIP,
 )
+
+# The new kinds are accepted in earconBefore only (CA-71 (1): before, not after).
+VALID_EARCONS_BEFORE = VALID_EARCONS_AFTER + (
+    EARCON_SECTION_NUMBER,
+    EARCON_SECTION_LETTER,
+    EARCON_IDIOM_HEADING,
+)
+
+# Every name that exists, in either place.
+VALID_EARCONS = VALID_EARCONS_BEFORE
 
 VALID_PAIR_POSITIONS = (
     "source",
@@ -603,7 +620,11 @@ def _parse_optional_earcon(
         segment[
             field_name
         ],
-        VALID_EARCONS,
+        (
+            VALID_EARCONS_BEFORE
+            if field_name == "earconBefore"
+            else VALID_EARCONS_AFTER
+        ),
         f"{path}.{field_name}",
     )
 

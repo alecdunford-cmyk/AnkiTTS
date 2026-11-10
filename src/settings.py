@@ -335,12 +335,15 @@ def merge_tempo_profiles(
     return merged
 
 
-# The three sounds a plan can ask for (CA-37 (4)). An empty path means the
-# default tone generated into user_files (src/earcons.py).
+# The sounds a plan can ask for (CA-37 (4); the last three, CA-71 (1)). An empty
+# path means the default tone generated into user_files (src/earcons.py).
 EARCON_ROLES = (
     "sectionBoundary",
     "answerStart",
     "directionFlip",
+    "sectionNumber",
+    "sectionLetter",
+    "idiomHeading",
 )
 
 DEFAULT_EARCONS = {
