@@ -538,6 +538,8 @@ def check_track_against_plan(
             in (
                 "translation",
                 "alternative",
+                "exampleSource",
+                "exampleTarget",
             )
             and previous.content_node_id
             == segment.content_node_id

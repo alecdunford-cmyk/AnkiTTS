@@ -1480,6 +1480,420 @@ def check_the_track_name_changes_only_with_what_is_stitched():
     assert structured_audio.STITCH_VERSION == "2"
 
 
+# CA-71 / review batch 2, item B: an alternative that continues an example line
+# (a French exampleSource, an exampleTarget) takes the same "or" as one that
+# continues a translation. The word still follows the alternative's language.
+
+
+def check_an_alternative_after_an_example_line_takes_the_or_in_its_language():
+    # A French example line continued by a French alternative: "ou,".
+    french = resolved(
+        [
+            v2_segment(
+                1,
+                "Il lève la lampe.",
+                "fr-FR",
+                "content",
+                role="exampleSource",
+                contentNodeId="node-ex",
+            ),
+            v2_segment(
+                2,
+                "Il soulève la lampe.",
+                "fr-FR",
+                "content",
+                role="alternative",
+                contentNodeId="node-ex",
+            ),
+        ]
+    )
+
+    assert connectives(
+        french
+    ) == [
+        None,
+        "ou,",
+    ]
+
+    clip = french.segments[
+        1
+    ].connective
+
+    assert (
+        clip.role,
+        clip.voice_role,
+        clip.language,
+        clip.voice,
+    ) == (
+        ROLE_CONNECTIVE,
+        "content",
+        "fr",
+        CA41[
+            (
+                "fr",
+                "content",
+            )
+        ],
+    )
+
+    # An English example target continued by an English alternative: "or,".
+    english = resolved(
+        [
+            v2_segment(
+                1,
+                "He lifts the lamp.",
+                "en-US",
+                "content",
+                role="exampleTarget",
+                contentNodeId="node-ex",
+            ),
+            v2_segment(
+                2,
+                "He raises the lamp.",
+                "en",
+                "content",
+                role="alternative",
+                contentNodeId="node-ex",
+            ),
+        ]
+    )
+
+    assert connectives(
+        english
+    ) == [
+        None,
+        "or,",
+    ]
+
+    assert english.segments[
+        1
+    ].connective.language == "en"
+
+    # A run: source, its alternatives, target, its alternatives, in order.
+    run_of_four = resolved(
+        [
+            v2_segment(
+                1,
+                "Il lève la lampe.",
+                "fr-FR",
+                "content",
+                role="exampleSource",
+                contentNodeId="node-ex",
+            ),
+            v2_segment(
+                2,
+                "Il soulève la lampe.",
+                "fr-FR",
+                "content",
+                role="alternative",
+                contentNodeId="node-ex",
+            ),
+            v2_segment(
+                3,
+                "He lifts the lamp.",
+                "en-US",
+                "content",
+                role="exampleTarget",
+                contentNodeId="node-ex",
+            ),
+            v2_segment(
+                4,
+                "He raises the lamp.",
+                "en-US",
+                "content",
+                role="alternative",
+                contentNodeId="node-ex",
+            ),
+        ]
+    )
+
+    assert connectives(
+        run_of_four
+    ) == [
+        None,
+        "ou,",
+        None,
+        "or,",
+    ]
+
+
+def check_a_gloss_and_a_changed_language_after_an_example_line_take_no_or():
+    track = resolved(
+        [
+            # A gloss after an example line: never.
+            v2_segment(
+                1,
+                "He lifts the lamp.",
+                "en-US",
+                "content",
+                role="exampleTarget",
+                contentNodeId="node-a",
+            ),
+            v2_segment(
+                2,
+                "a beacon",
+                "en-US",
+                "content",
+                role="gloss",
+                contentNodeId="node-a",
+            ),
+            # An alternative after a gloss: the gloss is not in the set.
+            v2_segment(
+                3,
+                "a signal",
+                "en-US",
+                "content",
+                role="alternative",
+                contentNodeId="node-a",
+            ),
+            # The alternative's language differs from its predecessor's:
+            # French example line, English alternative, and the reverse.
+            v2_segment(
+                4,
+                "Il lève la lampe.",
+                "fr-FR",
+                "content",
+                role="exampleSource",
+                contentNodeId="node-b",
+            ),
+            v2_segment(
+                5,
+                "He lifts the lamp.",
+                "en-US",
+                "content",
+                role="alternative",
+                contentNodeId="node-b",
+            ),
+            v2_segment(
+                6,
+                "He raises the lamp.",
+                "en-US",
+                "content",
+                role="exampleTarget",
+                contentNodeId="node-c",
+            ),
+            v2_segment(
+                7,
+                "Il lève la lampe.",
+                "fr-FR",
+                "content",
+                role="alternative",
+                contentNodeId="node-c",
+            ),
+            # Another node: an example line of one node, an alternative of
+            # another.
+            v2_segment(
+                8,
+                "He holds the lamp.",
+                "en-US",
+                "content",
+                role="exampleTarget",
+                contentNodeId="node-d",
+            ),
+            v2_segment(
+                9,
+                "He grips the lamp.",
+                "en-US",
+                "content",
+                role="alternative",
+                contentNodeId="node-e",
+            ),
+            # The second reading of an alternative is the same alternative.
+            v2_segment(
+                10,
+                "He lifts it.",
+                "en-US",
+                "content",
+                role="exampleTarget",
+                contentNodeId="node-f",
+            ),
+            v2_segment(
+                11,
+                "He raises it.",
+                "en-US",
+                "content",
+                role="alternative",
+                contentNodeId="node-f",
+                repetitionNumber=2,
+                repetitionCount=2,
+            ),
+            # A node with no id says nothing about who belongs to it.
+            v2_segment(
+                12,
+                "He lifts them.",
+                "en-US",
+                "content",
+                role="exampleTarget",
+                contentNodeId="",
+            ),
+            v2_segment(
+                13,
+                "He raises them.",
+                "en-US",
+                "content",
+                role="alternative",
+                contentNodeId="",
+            ),
+        ]
+    )
+
+    assert connectives(
+        track
+    ) == [None] * 13
+
+
+def check_the_or_after_an_example_line_replaces_the_pauses_of_the_gap():
+    def action():
+        registry.set_override_chain(
+            [
+                RecordingEdge(),
+            ]
+        )
+
+        captured = {}
+        real_stitch = structured_audio.stitch_structured_audio
+
+        def capture(
+            segments,
+            output_file,
+        ):
+            captured[
+                Path(
+                    output_file
+                ).name
+            ] = segments
+
+            real_stitch(
+                segments,
+                output_file,
+            )
+
+        structured_audio.stitch_structured_audio = capture
+
+        result = process_structured_job(
+            create_rce_speech_plan_job(
+                v2_note(
+                    [],
+                    [
+                        v2_segment(
+                            1,
+                            "Il lève la lampe.",
+                            "fr-FR",
+                            "content",
+                            role="exampleSource",
+                            contentNodeId="node-ex",
+                            pauseAfter={
+                                "kind": "fixed",
+                                "milliseconds": 700,
+                            },
+                        ),
+                        v2_segment(
+                            2,
+                            "Il soulève la lampe.",
+                            "fr-FR",
+                            "content",
+                            role="alternative",
+                            contentNodeId="node-ex",
+                            pauseBefore={
+                                "kind": "fixed",
+                                "milliseconds": 500,
+                            },
+                            pauseAfter={
+                                "kind": "boundary",
+                            },
+                        ),
+                    ],
+                )
+            ),
+            AppSettings(),
+        )
+
+        segments = captured[
+            f".{result['back']}.pending"
+        ]
+
+        # The hand-off: only the alternative carries the "ou," clip.
+        assert segments[
+            0
+        ].get(
+            "connective_file"
+        ) is None
+
+        assert segments[
+            1
+        ][
+            "connective_file"
+        ]
+
+        # Lay the same hand-off out with tones for the files, so the pauses
+        # can be measured (the fake worker's audio is not real audio).
+        with TemporaryDirectory() as directory:
+            root = Path(
+                directory
+            )
+
+            laid_out = [
+                dict(
+                    segment,
+                    file=tone_file(
+                        root / f"s{index}.mp3",
+                        800,
+                    ),
+                    connective_file=(
+                        None
+                        if segment.get(
+                            "connective_file"
+                        )
+                        is None
+                        else tone_file(
+                            root / "ou.mp3",
+                            300,
+                            hertz=880,
+                        )
+                    ),
+                )
+                for index, segment in enumerate(
+                    segments
+                )
+            ]
+
+            timeline = stitch_structured_audio(
+                laid_out,
+                root / "track.mp3",
+            )
+
+        # CA-63 again: the 700 ms and the 500 ms are replaced by tight, the
+        # clip, tight, and not added to them.
+        assert kinds(
+            timeline
+        ) == [
+            "speech",
+            "connective_pause_before",
+            "connective",
+            "connective_pause_after",
+            "speech",
+            "pause_after",
+        ]
+
+        assert within(
+            timeline[1][
+                "duration_ms"
+            ],
+            TIGHT,
+        )
+
+        assert within(
+            timeline[3][
+                "duration_ms"
+            ],
+            TIGHT,
+        )
+
+    with_directories(
+        action
+    )
+
+
 def run():
     checks = [
         check_tight_pause_is_a_tempo_profile_field_defaulting_to_120,
@@ -1497,6 +1911,9 @@ def run():
         check_the_or_is_one_cached_clip_per_language_and_voice,
         check_attached_and_alternatives_move_the_track_and_never_the_segments,
         check_the_track_name_changes_only_with_what_is_stitched,
+        check_an_alternative_after_an_example_line_takes_the_or_in_its_language,
+        check_a_gloss_and_a_changed_language_after_an_example_line_take_no_or,
+        check_the_or_after_an_example_line_replaces_the_pauses_of_the_gap,
     ]
 
     for check in checks:

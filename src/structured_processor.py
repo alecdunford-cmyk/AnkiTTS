@@ -49,9 +49,15 @@ EDGE_RATE_PATTERN = re.compile(
 # is the role of that clip in its cache identity; it is not a plan role.
 ROLE_CONNECTIVE = "connective"
 
+# What an alternative can continue: a translation or another alternative
+# (CA-64), and, since review batch 2 (CA-73), the example line it is an
+# alternative of: a source-language example (French "ou,") or a target-language
+# one ("or,"). A gloss is not here: a sense's gloss list keeps its small pauses.
 ALTERNATIVE_AFTER_ROLES = (
     "translation",
     "alternative",
+    "exampleSource",
+    "exampleTarget",
 )
 
 ATTACHED_BEFORE = "before"
@@ -364,8 +370,8 @@ def _takes_connective(
 ) -> bool:
     """
     True for an alternative that directly follows (among the spoken segments)
-    a translation or an alternative of the same content node in the same base
-    language. A repeat of an alternative (repetitionNumber above 1) is not
+    a translation, an alternative or an example line (exampleSource,
+    exampleTarget) of the same content node in the same base language. A repeat of an alternative (repetitionNumber above 1) is not
     another alternative, and a node with no id says nothing about who belongs
     to it. A language with no wording has no connective.
     """
