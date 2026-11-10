@@ -1410,6 +1410,40 @@ file (quoted above). Option taken, then option not taken.
   was added for the new cases. *Not taken:* giving `ds-15` another node to keep
   the old timeline.
 
+### Earcons, the connective after an example, the audio audit (CA-71, 2026-11-09)
+
+**Ruling CA-71 (Alec, 2026-11-09, Denver, after reviewing every deck following
+RCE's card-6 install), verbatim.** The managing chat's reading follows the quote
+and is its own, not Alec's.
+
+```
+(1) THE EARCONS (Alec, 19:17): "A note on the earcons ― There should be a unique
+earcon for: 1. Marking the start of a numbered section 2. Marking the start of a lettered
+sub-section. As discussed, these should occur before the number or letter and not after. There
+should be no other earcons, unless I'm missing an important point of demarcation that you think
+would warrant its own unique earcon?"
+(2) THE IDIOM BLOCK (Alec, 19:19; the one idiom heading he named is omitted, as card text):
+"I agree with the idiom block, but we need to make
+sure that it truly is for idioms such as [an idiom heading] that appear within a sense. If we're
+looking at a "set phrase", "locution", "compound word", or "mots composés" section, I absolutely
+do not want or need an earcon before every individual item in those sections."
+(3) NEVER SILENT (Alec, 19:08, said of a Deep Study card whose front carried a speech plan with no
+segments and so no audio): "This should never ever happen for any reason on any card in any deck."
+```
+
+The managing chat's reading of the three parts (its own): (1) and (2) decide
+three earcons -- a numbered section's start, a lettered sub-section's start, the
+heading of an idiom block inside a sense (once per block, never per item) -- each
+BEFORE the thing it marks, and no other; (3) decides that a side whose plan has
+spoken segments must have audio. The prevention is RCE's (card-8's contract test
+that a side with text has a plan with segments; card-7's visible "no audio" mark
+on the template); this add-on's part is the net under it, the audio audit, so
+that any silence that still occurs is reported and not discovered in review.
+
+What this stage does about it: item A the three earcon kinds, item B the
+connective after an example, item C the audit, item D (read only) the pause
+lengths. The session's own rulings follow in "Rulings for review batch 2" below.
+
 ### Tests
 
 `tests/test_speech_plan_v2.py` (17 checks): every field, every rejection, version
