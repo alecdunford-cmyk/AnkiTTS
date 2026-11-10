@@ -6,6 +6,30 @@ in a tagged release.
 
 ## Unreleased
 
+### Three earcons, the "or" after an example, the audio audit (2026-11-09)
+
+Ruling CA-71 (Alec, 2026-11-09) and CA-72 to CA-80,
+`docs/DESIGN-providers.md`, section 18:
+
+- **Three new earcons, each played before what it marks.** `sectionNumber` (a
+  numbered section), `sectionLetter` (a lettered sub-section) and `idiomHeading`
+  (an idiom block's heading inside a sense) are accepted in a plan's
+  `earconBefore` only; in `earconAfter` they are a validation error. The old
+  three (`sectionBoundary`, `answerStart`, `directionFlip`) are still accepted
+  in both places. Default tones are generated into `user_files/earcons` and can
+  be replaced by a file in the earcons map; the dialog's earcon list has a row
+  for each.
+- **"or" / "ou" after an example line.** An alternative that continues an
+  example's source or target line (not only a translation) is preceded by the
+  content voice saying "ou" after a French line and "or" after an English one,
+  with a short pause each side.
+- **Audio audit.** Every run now reports, as counts and note ids and never card
+  text: silent sides (speech in the plan, no audio), empty sides (a plan with
+  nothing to speak) and rejected plans. Quiet (`0 silent sides`) when clean; a
+  banner and a warning box when not; a warning for an unattended run.
+- **What refills.** Nothing: no cache version moved. A track changes only if it
+  now has an "or" or one of the new earcons.
+
 ### Tags, "or" between alternatives, "[somebody]'s" (2026-11-07)
 
 Ruling CA-61 (Alec; parts 4, 7 and 9) and CA-62 to CA-70,

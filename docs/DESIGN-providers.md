@@ -915,7 +915,8 @@ Segment fields:
 | `role` | yes | `headword`, `sectionNumber`, `label`, `gloss`, `idiomHead`, `exampleSource`, `exampleTarget`, `translation`, `cue`, `alternative`, `other` |
 | `voiceRole` | yes | `content`, `label` |
 | `pauseBefore`, `pauseAfter` | no | `{kind: "none"}`, `{kind: "fixed", milliseconds}`, `{kind: "proportional", scale}`, `{kind: "boundary"}` |
-| `earconBefore`, `earconAfter` | no | `sectionBoundary`, `answerStart`, `directionFlip` |
+| `earconBefore` | no | `sectionBoundary`, `answerStart`, `directionFlip`, and, since CA-71, `sectionNumber`, `sectionLetter`, `idiomHeading` |
+| `earconAfter` | no | `sectionBoundary`, `answerStart`, `directionFlip` only: a CA-71 kind after a segment is a validation error |
 | `pair` | no | `{id, position}`; `position` is `source` or `target` |
 | `spoken` | no | `true` (default), `false` |
 | `attachedTo` | no | a `segmentId` of the same plan, not the segment's own (CA-61 (7)); version 2 only |
@@ -975,6 +976,14 @@ once into `<add-on>/user_files/earcons/` by `src/earcons.py`:
 | `sectionBoundary` | soft tick, 1320 Hz, decaying | 120 ms |
 | `answerStart` | rising, 523 to 784 Hz | 220 ms |
 | `directionFlip` | steady, 392 Hz | 180 ms |
+| `sectionNumber` | falling two-note step, 880 then 587 Hz (A5, D5), 110 ms each | 220 ms |
+| `sectionLetter` | rising two-note step, 784 then 1046 Hz (G5, C6), 65 ms each | 130 ms |
+| `idiomHeading` | low falling glide, 440 to 330 Hz (A4 to E4) | 240 ms |
+
+The first three are the original sounds (CA-37 (4)); RCE stops emitting them in
+card-8 but a plan that still does must not fail. The last three are CA-71 (1)
+and are played *before* the thing they mark, never after (see "Earcons, the
+connective after an example, the audio audit" below).
 
 All -20 LUFS, measured looped because they are shorter than a BS.1770 block
 (section 17, its CA-40). A replacement file is used as it is; it is not
@@ -1020,7 +1029,7 @@ nothing to do and nothing is written until Save in the dialog:
          "label":   {"provider": "edge", "voice": "en-US-AndrewNeural"}}
 },
 "tempo_profiles": {"default": {"rate": 1.0, "pauseFactor": 0.35, "minPauseMs": 250, "maxPauseMs": 1200, "boundaryPauseMs": 700, "tightPauseMs": 120}},
-"earcons": {"sectionBoundary": "", "answerStart": "", "directionFlip": ""}
+"earcons": {"sectionBoundary": "", "answerStart": "", "directionFlip": "", "sectionNumber": "", "sectionLetter": "", "idiomHeading": ""}
 ```
 
 The dialog's **Speech Plans** tab has the four slots (the shared voice picker
@@ -1168,8 +1177,10 @@ found are listed separately in RCE-CardStage-List-20261107.md.
 | 7 (lengths) | `tempo_profiles` | The pause lengths are the tempo table below; the pause kinds stay the plan's. |
 
 **The "or" (part 4), exactly.** The condition, in order: the segment's role is
-`alternative`; the previous *spoken* segment's role is `translation` or
-`alternative`; both have the same nonempty `contentNodeId`; both have the same
+`alternative`; the previous *spoken* segment's role is `translation`,
+`alternative`, `exampleSource` or `exampleTarget` (the last two since review
+batch 2, CA-76: an alternative that continues an example line); both have the
+same nonempty `contentNodeId`; both have the same
 base language (`fr-FR` and `fr` are one), which is `en` or `fr`; the segment's
 `repetitionNumber` is 1. A role `gloss` never takes it, so a sense's gloss list
 keeps its small pauses. The word is `speech_text.ALTERNATIVE_WORDS` plus a comma:
@@ -1444,6 +1455,153 @@ What this stage does about it: item A the three earcon kinds, item B the
 connective after an example, item C the audit, item D (read only) the pause
 lengths. The session's own rulings follow in "Rulings for review batch 2" below.
 
+**A. The three earcon kinds.** The plan's `earconBefore` accepts `sectionNumber`
+(the start of a numbered section), `sectionLetter` (the start of a lettered
+sub-section) and `idiomHeading` (the heading of an idiom block inside a sense,
+once per block and never per item), beside the original three, which stay
+accepted in `earconBefore` and `earconAfter`. A new kind in `earconAfter` is a
+validation error for the whole plan. The layout is unchanged: pause before,
+earcon, the fixed 120 ms gap, speech. Which segments carry the kinds is RCE's
+(card-8). Each has a default tone (table under "Earcons" above), generated into
+the same `user_files/earcons` folder, calibrated to -20 LUFS, and replaceable by
+a file in the `earcons` map (`config.json`, `settings.py`, and a row each in the
+dialog's earcon list); a blank path is the default.
+
+**B. The connective after an example line.** An `alternative` whose previous
+spoken segment is an `exampleSource` or an `exampleTarget` of the same
+`contentNodeId` and the same base language takes the same "or" block as one
+after a translation: `ou,` after a French line, `or,` after an English one, the
+block replacing the two pauses on the gap (CA-63). A gloss still never takes it
+and an alternative whose language differs from its predecessor's takes none
+(CA-64 unchanged). RCE marks the dictionary's `|`, an inline "ou" / "or" inside
+one translation or example and the "/" between alternatives inside one phrase
+as role `alternative` on the same node, in that segment's language, with the
+marker dropped from the text.
+
+**C. The audio audit** (`src/audio_audit.py`; reported by
+`anki_integration/browser.process_note_ids`). After every generation run, the
+sides that carry a schema-version-2 plan are audited and reported as counts with
+note ids, never a segment's text:
+
+| Count | Meaning | Reasons (fixed phrases) |
+|---|---|---|
+| silent sides | the plan has spoken segments, no audio was produced or attached | no track was produced; the track file is missing from Anki's media folder; the audio field is empty; the track could not be copied into Anki's media folder; synthesis failed |
+| empty sides | the plan has no spoken segment (no segments, or every one `spoken: false`): RCE's defect | the plan has no spoken segment |
+| rejected plans | the validator refused the plan | the plan was refused by the validator |
+
+Where: the run's result message (the information box of a browser run, or its
+returned message), as `Audio audit: 0 silent sides, 0 empty sides, 0 rejected
+plans.` when clean, and as a banner (`*** AUDIO AUDIT: n SIDES WITHOUT AUDIO THAT
+SHOULD HAVE SOME ***`) with the three counts and the notes when not, in a
+warning box instead of an information box. A failed run carries it at the end of
+its failure message. The add-on's log gets one line of counts and ids. An
+unattended run (the immediate-audio poll) shows a warning dialog when the audit
+is not clean; a watched run (Tools > Generate Pending RCE Audio) shows it inside
+its own result.
+
+**D. The pause lengths, read only.** No file under `src/providers` and no pause,
+tempo, carrier, voice or provider code changed for this item.
+
+| Kind | What it yields (every profile) |
+|---|---|
+| `none` | 0 ms |
+| `fixed` | the plan's milliseconds, exactly, in every profile |
+| `boundary` | default 700; deep-entry-study 900; deep-recall 900; sense-map, translation-group, example, sentence 600 |
+| `tight` (a tag's side, an "or"'s two sides) | 120 in all seven profiles |
+| `proportional` at scale 1 | `0.35 x speech` clamped 250 to 1200 (default, deep-entry-study); `0.45 x speech` clamped 300 to 1500 (deep-recall); `0.30 x speech` clamped 200 to 1000 (the other four). For a one-second headword: 350, 350, 450, 300 ms |
+| a head-line value | none exists in the table. The head line's pause is the plan's: RCE emits `fixed 900` after the headword (the design note, section 3) on every side, so it is 900 ms in every profile and the tempo table cannot move it |
+
+What would make the Sense Map front's pause brief, touching no other pause: RCE
+(card-8) emitting `{"kind": "proportional", "scale": 1.0}` instead of
+`{"kind": "fixed", "milliseconds": 900}` after the front's head line. That kind
+reads as brief: in the `sense-map` profile it is 0.30 of the headword's speech
+clamped to 200 to 1000 ms (about 200 to 400 ms for a headword of a second or
+two). `tight` (120 ms) is shorter than a pause between a headword and a gloss
+wants to be, and `boundary` (600 ms in `sense-map`) is the long one. The back's
+head line takes `boundary` (900 ms in `deep-entry-study` and `deep-recall`, 600
+in `sense-map`). No add-on change is needed for either. If a separate "brief"
+length that is not tied to the headword's duration is wanted later, it would be
+a new tempo field (like `tightPauseMs`), which is an add-on change and has not
+been made.
+
+### Rulings for review batch 2 (2026-11-09)
+
+CA-71 is Alec's (above). The session's own calls, option taken, then option not
+taken. Taken unattended, on the session's own read of the code.
+
+- **CA-72 `stitch_version` stays `"2"`; no track refills for A or B except the
+  ones that use the new features.** The track identity records each segment's
+  earcon name and the sha256 of each earcon file *used*, and the "or" clip of a
+  segment that has one; a track using only the old three names has the same name
+  as before (the legacy fixture plan, front and back, gave the identical file
+  names before and after this stage), a track using a new name could not exist
+  before (the plan was refused), and a track that now gets an "or" differs by
+  that clip alone. *Not taken:* stepping to `"3"`, which would rebuild every
+  version 2 track once for no change.
+- **CA-73 The three names are `sectionNumber`, `sectionLetter`, `idiomHeading`,
+  as suggested; `VALID_EARCONS_BEFORE` has six, `VALID_EARCONS_AFTER` the old
+  three, `VALID_EARCONS` is the six.** The old names stay accepted in both
+  places because a plan that still carries one must not fail. *Not taken:*
+  other names; accepting the new names in both places and only documenting
+  "before".
+- **CA-74 A lettered sub-section's role stays `sectionNumber`.** The contract
+  has no role for a letter (the design note and CA-61 (8) treat numbers and
+  letters together, both label voice), so the segment of a letter is a
+  `sectionNumber` segment whose `earconBefore` is `sectionLetter`. The earcon
+  kind, not the role, tells a number from a letter. *Not taken:* a new role
+  `sectionLetter`, a contract change RCE would have to follow, with no effect on
+  what is heard.
+- **CA-75 The tones.** `sectionNumber`: a falling two-note step (A5 then D5, 110
+  ms each, 220 ms), the longest and most definite. `sectionLetter`: the lighter
+  sibling, a rising two-note step (G5 then C6, 65 ms each, 130 ms), higher and
+  about half as long. `idiomHeading`: a low falling glide (A4 to E4, 240 ms), in
+  the register none of the other five uses. Told apart by direction, pitch and
+  length, which `test_earcons.py` measures from the generated audio for every
+  pair of the six (measured: 731.8 Hz falling / 915.4 Hz rising / 383.3 Hz
+  falling, against 1316.7 flat, 654.5 rising and 388.9 flat). `EarconTone` gains
+  `notes` (steady notes joined end to end, each with soft edges) and
+  `fade_milliseconds`; `EARCON_VERSION` stays `"1"` because the original three
+  tones are unchanged and a new tone has its own file name. *Not taken:* trains
+  of pulses with silent gaps (the e2e frequency probe reads them unreliably);
+  bumping the tone version.
+- **CA-76 The previous-role set gains `exampleSource` and `exampleTarget`** and
+  nothing else about CA-64 changes (same nonempty node, same base language,
+  repetition 1, `en` or `fr`). The word follows the alternative's language
+  (CA-65). *Not taken:* `gloss` (a sense's gloss list keeps its small pauses);
+  letting an English alternative continue a French example line.
+- **CA-77 The audit reports in the run's own result, and reports only.** It adds
+  no tag, withholds no "ready" tag and fails no run by itself: a silent side is
+  reported (banner, warning box, log line, and a warning for an unattended run)
+  and the notes are published as before. *Not taken:* refusing to mark a note
+  ready while a side is silent, which would change which cards the automation
+  treats as done on Alec's say-so, and which this stage was not asked for.
+- **CA-78 The run stays all-or-nothing, but every refused plan is counted.** The
+  contract reads both sides of a plan (the message is still the first refusal's)
+  and the browser path scans the whole selection before it stops, so a batch
+  with three refused plans reports three. *Not taken:* skipping the refused notes
+  and processing the rest, a change to the run's transaction that nobody asked
+  for.
+- **CA-79 The audit's scope and its reasons.** Only schema version 2 sides are
+  audited (a version 1 plan has no `spoken` flag; the generic path is not the
+  audit's); a refused plan is counted whatever its version because it cannot be
+  read. When a run fails at a note, that note's spoken sides are reported silent
+  with the reason "synthesis failed" (or, if the copy into Anki's media failed,
+  every audited note's, with its own reason); the notes after the failing one
+  are not named, because the run never reached them. Reasons are fixed phrases:
+  an exception's text can hold a segment's text and is never put in a report or
+  the log.
+- **CA-80 Item D is read only** and its finding is in the table above: a head
+  line's pause is the plan's `fixed 900`, so the tempo table has no value for it;
+  `proportional` reads as brief and `boundary` as long, and the change is RCE's.
+
+**What refills.** Nothing, for these three items: no version moved
+(`speech_text_version` `"4"`, `stitch_version` `"2"`, `edge_language_version`
+`"1"`, `role_voice_version` `"1"`, `loudness_version` `"1"`, `EARCON_VERSION`
+`"1"`). The three new tones are generated into `user_files/earcons` the first time
+a plan asks for one. A track gets a new name only if its plan changes, or if it
+now has an "or" it did not have (an alternative after a French or English
+example line).
+
 ### Tests
 
 `tests/test_speech_plan_v2.py` (17 checks): every field, every rejection, version
@@ -1466,4 +1624,20 @@ gained 3 checks (brackets that touch a word, the clitics, the version) and
 the attached side from a tag's place, the stitched pauses on both sides of an
 owner, who takes an "or" and who does not, the block's layout and what it
 replaces, one cached clip per language and voice, and what moves the track
-name. Total: 305 checks in 24 modules (284 in 23 before this stage).
+name. Total after review batch 1: 305 checks in 24 modules (284 in 23 before).
+
+Review batch 2 added 20: `tests/test_speech_plan_v2.py` +3 (the new kinds before,
+not after; the old names still parse in both places), `tests/test_earcons.py` +4
+(the six tones told apart by direction, pitch and length; a replacement file
+through the map and the shipped defaults; a new earcon plays before the speech
+and never after; a new earcon moves the track and never the segments, and a
+legacy track keeps its name), `tests/test_attached_and_alternatives.py` +3 (the
+"or" after an example source and target in the alternative's language; the
+negatives; the block replacing the pauses of the gap) and the new
+`tests/test_audio_audit.py` +10 (the audited sides; a clean run; one silent side;
+the other silent reasons; empty plans; refused plans; a failed synthesis; a failed
+copy; an unattended run; the log line). The fixture
+`tests/fixtures/speech_plan_v2.json` moved its four section earcons to
+`sectionNumber`, gained a lettered sub-section (`ds-26`) and an idiom heading
+(`ds-27`), and keeps the old names in `deepRecallBack`. Total: 325 checks in 25
+modules.

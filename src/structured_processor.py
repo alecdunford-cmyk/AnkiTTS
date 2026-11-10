@@ -50,7 +50,7 @@ EDGE_RATE_PATTERN = re.compile(
 ROLE_CONNECTIVE = "connective"
 
 # What an alternative can continue: a translation or another alternative
-# (CA-64), and, since review batch 2 (CA-73), the example line it is an
+# (CA-64), and, since review batch 2 (CA-76), the example line it is an
 # alternative of: a source-language example (French "ou,") or a target-language
 # one ("or,"). A gloss is not here: a sense's gloss list keeps its small pauses.
 ALTERNATIVE_AFTER_ROLES = (
