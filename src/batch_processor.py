@@ -21,23 +21,33 @@ def process_notes(
     statistics = empty_statistics()
     started_at = perf_counter()
 
-    for job in notes:
-        if (
-            job.get(
-                "job_type"
-            )
-            == RCE_JOB_TYPE
-        ):
-            result = process_structured_job(
-                job,
-                settings,
-            )
+    for index, job in enumerate(
+        notes
+    ):
+        try:
+            if (
+                job.get(
+                    "job_type"
+                )
+                == RCE_JOB_TYPE
+            ):
+                result = process_structured_job(
+                    job,
+                    settings,
+                )
 
-        else:
-            result = process_field_definitions(
-                job["fields"],
-                settings,
-            )
+            else:
+                result = process_field_definitions(
+                    job["fields"],
+                    settings,
+                )
+
+        except Exception as error:
+            # Which job failed, for the audio audit (item C); the run is
+            # still all-or-nothing.
+            error.job_index = index
+
+            raise
 
         statistics = combine_statistics(
             statistics,

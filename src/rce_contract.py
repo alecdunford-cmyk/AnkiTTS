@@ -48,6 +48,28 @@ class RceContractError(
     """Raised when an apparent RCE note violates the RCE Card contract."""
 
 
+class RceSpeechPlanRejected(
+    RceContractError
+):
+    """
+    Raised when the validator refuses a speech plan; sides names each refused
+    side ("front", "back"), for the audio audit.
+    """
+
+    def __init__(
+        self,
+        message,
+        sides,
+    ):
+        super().__init__(
+            message
+        )
+
+        self.sides = tuple(
+            sides
+        )
+
+
 def is_apparent_rce_note(
     note,
 ):
@@ -120,25 +142,57 @@ def create_rce_speech_plan_job(
             "RCE Card ID must be a nonempty string."
         )
 
-    try:
-        front_speech_plan = parse_speech_plan(
-            note[
-                FRONT_SPEECH_PLAN_FIELD
-            ],
+    # Both sides are read, so the audio audit can count every refused plan
+    # (front first); the message is the first refusal's, as it always was.
+    speech_plans = {}
+    refusals = {}
+
+    for side, field_name in (
+        (
             "front",
-        )
-
-        back_speech_plan = parse_speech_plan(
-            note[
-                BACK_SPEECH_PLAN_FIELD
-            ],
+            FRONT_SPEECH_PLAN_FIELD,
+        ),
+        (
             "back",
+            BACK_SPEECH_PLAN_FIELD,
+        ),
+    ):
+        try:
+            speech_plans[
+                side
+            ] = parse_speech_plan(
+                note[
+                    field_name
+                ],
+                side,
+            )
+
+        except SpeechPlanValidationError as error:
+            refusals[
+                side
+            ] = error
+
+    if refusals:
+        first_error = next(
+            iter(
+                refusals.values()
+            )
         )
 
-    except SpeechPlanValidationError as error:
-        raise RceContractError(
-            f"Invalid RCE Card speech plan: {error}"
-        ) from error
+        raise RceSpeechPlanRejected(
+            f"Invalid RCE Card speech plan: {first_error}",
+            tuple(
+                refusals
+            ),
+        ) from first_error
+
+    front_speech_plan = speech_plans[
+        "front"
+    ]
+
+    back_speech_plan = speech_plans[
+        "back"
+    ]
 
     return {
         "job_type": RCE_JOB_TYPE,

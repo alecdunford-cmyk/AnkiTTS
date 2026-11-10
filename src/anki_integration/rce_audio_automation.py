@@ -296,6 +296,22 @@ class RceAudioAutomationController:
                 show_messages=False,
             )
 
+            # Never silent (CA-71 (3)): a run that nobody is watching still
+            # shows the audit when it is not clean. A watched run (a manual
+            # queued generation) shows it in its own result below.
+            if (
+                outcome.get(
+                    "audit_alarm"
+                )
+                and not show_completion
+            ):
+                showWarning(
+                    outcome.get(
+                        "audit_message",
+                        "AnkiTTS audio audit: a side has no audio.",
+                    )
+                )
+
             if outcome.get(
                 "success"
             ):

@@ -8,20 +8,39 @@ from aqt.utils import (
     showWarning,
 )
 
+from ankitts_log import get_logger
+from audio_audit import (
+    REASON_COPY_FAILED,
+    REASON_SYNTHESIS_FAILED,
+    AudioAudit,
+    audit_job,
+    audit_published,
+    audit_rejected,
+    audit_unfinished,
+)
 from batch_processor import process_notes
 from card_processor import OUTPUT_DIR
 from note_mapper import (
     create_job_from_note,
+    get_audio_field_destinations,
     get_mapped_field_names,
     is_processable_note,
     iter_processed_audio_outputs,
     write_audio_fields,
+)
+from rce_contract import (
+    RCE_JOB_TYPE,
+    RceSpeechPlanRejected,
 )
 from anki_integration.rce_audio_status import (
     mark_ready_if_managed,
 )
 from settings import AppSettings
 from stitcher import hide_subprocess_windows
+
+logger = get_logger(
+    "browser"
+)
 
 
 def get_selected_note_ids(browser):
@@ -212,6 +231,12 @@ def process_note_ids(
 
     skipped_note_types = 0
 
+    # Item C: every refused plan in the selection is counted, not only the
+    # first one the run stops at.
+    audit = AudioAudit()
+
+    first_failure = None
+
     for note_id in note_ids:
         note = mw.col.get_note(
             note_id
@@ -231,12 +256,23 @@ def process_note_ids(
             )
 
         except Exception as error:
-            return _failure(
-                "AnkiTTS cannot process selected note "
-                f"{note_id}:\n\n{error}\n\n"
-                "No selected notes were changed.",
-                show_messages,
-            )
+            if isinstance(
+                error,
+                RceSpeechPlanRejected,
+            ):
+                audit_rejected(
+                    audit,
+                    note_id,
+                    error.sides,
+                )
+
+            if first_failure is None:
+                first_failure = (
+                    note_id,
+                    error,
+                )
+
+            continue
 
         compatible_notes.append(
             note
@@ -244,6 +280,31 @@ def process_note_ids(
 
         jobs.append(
             job
+        )
+
+        audit_job(
+            audit,
+            note_id,
+            job,
+        )
+
+    if first_failure is not None:
+        failed_note_id, error = first_failure
+
+        # Nothing ran, so only the refused plans are reported.
+        refused = AudioAudit(
+            rejected=audit.rejected
+        )
+
+        return _failure(
+            "AnkiTTS cannot process selected note "
+            f"{failed_note_id}:\n\n{error}\n\n"
+            "No selected notes were changed."
+            + _audit_suffix(
+                refused
+            ),
+            show_messages,
+            refused,
         )
 
     if not jobs:
@@ -268,11 +329,35 @@ def process_note_ids(
             )
 
     except Exception as error:
+        # The run is all-or-nothing: the note that failed, and every note
+        # after it, got no audio. Only the note that failed is named.
+        failed_index = getattr(
+            error,
+            "job_index",
+            None,
+        )
+
+        if failed_index is not None:
+            audit_unfinished(
+                audit,
+                compatible_notes[
+                    failed_index
+                ].id,
+                jobs[
+                    failed_index
+                ],
+                REASON_SYNTHESIS_FAILED,
+            )
+
         return _failure(
             "AnkiTTS audio generation failed:\n\n"
             f"{error}\n\n"
-            "No selected notes were changed.",
+            "No selected notes were changed."
+            + _audit_suffix(
+                audit
+            ),
             show_messages,
+            audit,
         )
 
     try:
@@ -286,11 +371,26 @@ def process_note_ids(
             )
 
     except Exception as error:
+        for note, job in zip(
+            compatible_notes,
+            jobs,
+        ):
+            audit_unfinished(
+                audit,
+                note.id,
+                job,
+                REASON_COPY_FAILED,
+            )
+
         return _failure(
             "AnkiTTS generated audio but could not copy it "
             f"into Anki media:\n\n{error}\n\n"
-            "No selected note fields were changed.",
+            "No selected note fields were changed."
+            + _audit_suffix(
+                audit
+            ),
             show_messages,
+            audit,
         )
 
     try:
@@ -322,6 +422,48 @@ def process_note_ids(
 
     if reset_callback is not None:
         reset_callback()
+
+    # Item C, the net under "never silent": what each audited side ended with,
+    # read back from the result, Anki's media folder and the note itself.
+    try:
+        for note, job, audio_files in zip(
+            compatible_notes,
+            jobs,
+            batch_result[
+                "results"
+            ],
+        ):
+            if job.get(
+                "job_type"
+            ) != RCE_JOB_TYPE:
+                continue
+
+            audit_published(
+                audit,
+                note.id,
+                job,
+                audio_files,
+                note,
+                media_folder,
+                get_audio_field_destinations(
+                    audio_files,
+                    settings,
+                ),
+            )
+
+    except Exception as error:
+        # The audit is a check on the run, never a reason to fail it.
+        logger.warning(
+            "The audio audit could not be completed: %s",
+            type(
+                error
+            ).__name__,
+        )
+
+    if not audit.is_clean:
+        logger.warning(
+            audit.log_line()
+        )
 
     statistics = batch_result.get(
         "statistics",
@@ -372,12 +514,27 @@ def process_note_ids(
             f"Incompatible notes skipped: {skipped_note_types}"
         )
 
+    # The audit's line is never left out: quiet when nothing is silent, a
+    # banner when anything is.
+    message_lines.append(
+        ""
+    )
+
+    message_lines.extend(
+        audit.lines()
+    )
+
     message = "\n".join(
         message_lines
     )
 
     if show_messages:
-        showInfo(
+        # A nonzero audit is a warning, not an information box.
+        (
+            showWarning
+            if not audit.is_clean
+            else showInfo
+        )(
             message
         )
 
@@ -391,22 +548,59 @@ def process_note_ids(
             skipped_note_types
         ),
         "statistics": statistics,
+        "audit": audit.counts(),
+        "audit_alarm": not audit.is_clean,
+        "audit_message": audit.message(),
     }
+
+
+def _audit_suffix(
+    audit,
+):
+    """The audit's lines for the end of a failure message; none if clean."""
+
+    if audit is None or audit.is_clean:
+        return ""
+
+    return (
+        "\n\n"
+        + audit.message()
+    )
 
 
 def _failure(
     message,
     show_messages,
+    audit=None,
 ):
     if show_messages:
         showWarning(
             message
         )
 
-    return {
+    result = {
         "success": False,
         "message": message,
     }
+
+    if audit is not None and not audit.is_clean:
+        logger.warning(
+            audit.log_line()
+        )
+
+        result[
+            "audit"
+        ] = audit.counts()
+
+        result[
+            "audit_alarm"
+        ] = True
+
+        result[
+            "audit_message"
+        ] = audit.message()
+
+    return result
 
 
 def add_browser_menu_action(
