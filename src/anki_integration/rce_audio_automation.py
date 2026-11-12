@@ -87,6 +87,20 @@ class RceAudioPollingLifecycle:
         self,
         *_args,
     ):
+        if getattr(
+            self.controller,
+            "busy",
+            False,
+        ):
+            # A run is in flight. Since CA-82 a resume can arrive in the
+            # middle of one (a temporary close of the collection); the
+            # timer is left alone, not stopped for good, and the resume is
+            # tried again after the scheduled delay.
+            if self.schedule is not None:
+                self.resume_later()
+
+            return False
+
         if not self.controller.resume_polling():
             self.timer.stop()
             return False

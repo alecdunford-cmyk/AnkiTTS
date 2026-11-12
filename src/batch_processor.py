@@ -1,5 +1,6 @@
 from time import perf_counter
 
+from ankitts_log import get_logger
 from card_processor import (
     combine_statistics,
     empty_statistics,
@@ -7,6 +8,11 @@ from card_processor import (
 )
 from rce_contract import RCE_JOB_TYPE
 from structured_audio import process_structured_job
+
+
+logger = get_logger(
+    "batch"
+)
 
 
 class RunCancelled(Exception):
@@ -73,6 +79,16 @@ def process_notes(
         statistics = combine_statistics(
             statistics,
             result["statistics"],
+        )
+
+        # Where a run is, in counts only (CA-89): if a run ever stalls, the
+        # last such line in the log says how far it got.
+        logger.info(
+            "Audio run: note %d of %d done.",
+            index + 1,
+            len(
+                notes
+            ),
         )
 
         results.append(

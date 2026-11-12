@@ -711,6 +711,56 @@ def check_an_unattended_run_shows_one_notice_and_no_box():
                 "0 rejected plans [].",
             ]
 
+            # CA-89: the run says where it is, in counts, and nothing else.
+            progress = [
+                record.getMessage()
+                for record in records
+                if record.getMessage().startswith(
+                    "Audio run:"
+                )
+            ]
+
+            assert len(
+                progress
+            ) == 3
+
+            for index, line in enumerate(
+                progress,
+                1,
+            ):
+                assert line == f"Audio run: note {index} of 3 done."
+
+            started = [
+                record.getMessage()
+                for record in records
+                if record.getMessage().startswith(
+                    "Audio run started"
+                )
+                or record.getMessage().startswith(
+                    "Audio run finished"
+                )
+            ]
+
+            assert len(
+                started
+            ) == 2
+
+            # (The generator's own "synthesized ..." lines carry a short text
+            # preview, as they did before; the lines of the run, the audit and
+            # the automation never do.)
+            for record in records:
+                if record.name in (
+                    "ankitts.batch",
+                    "ankitts.browser",
+                    "ankitts.automation",
+                    "ankitts.ui",
+                ):
+                    for sentence in (
+                        FRONT_TEXT,
+                        BACK_TEXT,
+                    ):
+                        assert sentence not in record.getMessage()
+
             # The dirty audit failed, retried and re-queued nothing.
             for note in notes:
                 assert note.tags == [
@@ -1104,6 +1154,70 @@ def check_the_start_up_resume_is_deferred_and_cannot_raise():
     # The exception's text can hold card text; only its type is logged.
     for message in messages:
         assert FRONT_TEXT not in message
+
+
+def check_a_resume_during_a_run_leaves_the_timer_running_and_tries_again():
+    """
+    A temporary close of the collection can bring a resume in the middle of a
+    run (it never could while the run held the main thread). It must not stop
+    the poll timer for good: it leaves it, and tries again later.
+    """
+
+    notes = [
+        queued_note(
+            1,
+        ),
+    ]
+
+    with TemporaryDirectory() as media:
+        window = Window(
+            notes,
+            Path(
+                media
+            ),
+        )
+
+        controller = automation.RceAudioAutomationController(
+            window,
+            "AnkiTTS",
+        )
+
+        timer = FakeTimer()
+
+        scheduled = []
+
+        lifecycle = automation.RceAudioPollingLifecycle(
+            controller,
+            timer,
+            schedule=lambda delay, closure: scheduled.append(
+                closure
+            ),
+        )
+
+        assert lifecycle.resume()
+
+        assert timer.active
+
+        stops = timer.stop_calls
+
+        controller.busy = True
+
+        assert lifecycle.resume() is False
+
+        assert timer.active
+        assert timer.stop_calls == stops
+        assert len(
+            scheduled
+        ) == 1
+
+        # The run ends; the scheduled attempt finds the controller idle.
+        controller.busy = False
+
+        assert scheduled[
+            0
+        ]() is True
+
+        assert timer.active
 
 
 def check_a_run_is_stopped_between_notes_when_the_collection_closes():
@@ -1538,6 +1652,7 @@ def run():
         check_a_run_by_hand_shows_one_box_with_the_audit_and_no_notice,
         check_pending_audio_terminates_with_empty_sides,
         check_the_start_up_resume_is_deferred_and_cannot_raise,
+        check_a_resume_during_a_run_leaves_the_timer_running_and_tries_again,
         check_a_run_is_stopped_between_notes_when_the_collection_closes,
         check_one_run_at_a_time_and_a_changed_collection_is_never_written,
         check_the_cancel_hook_stops_the_batch_between_notes,

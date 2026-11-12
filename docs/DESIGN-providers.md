@@ -1734,8 +1734,9 @@ and not provable from it: that this is *all* Alec saw. The second run was progre
 at its normal pace when it was ended, and the two restart runs were inside their cache
 answers and stitching, for which the log has no lines. A stall inside ffmpeg
 (`providers.audio._run_ffmpeg` and pydub's own calls have no timeout) would look the same
-from outside and cannot be excluded; it is bounded where the add-on calls ffmpeg itself
-(CA-87), and with the run off the main thread it can no longer freeze Anki. His
+from outside and cannot be excluded; this batch does not bound it (a timeout belongs in
+`src/providers/audio.py`, which the batch's scope leaves alone, CA-87), and with the run off the
+main thread it can no longer freeze Anki: it can only hold one background run. His
 observation of about 2 per cent processor and no disk or network is what waiting for
 worker threads and the speech service looks like.
 
@@ -1746,3 +1747,129 @@ fake provider and the stand-in stitcher; three queued notes, two with an empty f
 plan; the batch held on an event. RED on `534e983` for this reason: the slot does not
 return until the batch is over, and the batch runs on the calling thread. The same
 check asserts that every dialog is raised on the main thread (true today).
+
+#### Rulings for review batch 3 (2026-11-10 to 2026-11-11)
+
+CA-81 is Alec's (above). The session's own calls, option taken, then option not
+taken. Taken unattended, on the session's own read of the code and the log. The
+Anki 26.5 install ships its modules compiled only; the signatures used here were
+read from the bytecode of `aqt/taskman.pyc` and `aqt/utils.pyc` (program files, not
+Alec's data): `TaskManager.run_in_background(task, on_done, args, uses_collection)`,
+`TaskManager.run_on_main(closure)`, `tooltip(msg, period, parent, x_offset,
+y_offset)`. Nothing here has been run in a real Anki.
+
+- **CA-82 A run has three parts, and only the middle one leaves the main thread.**
+  *Prepare* (main): settings, the notes, their jobs, the audit's first counts.
+  *Generate* (a background task through `mw.taskman.run_in_background(...,
+  uses_collection=False)`): synthesis, stitching, copying into Anki's media; it
+  touches no collection and no Qt object and never raises (a failure comes back as a
+  value). *Publish* (main, from the task's `on_done`): the notes are read again, so a
+  note edited meanwhile is written back as he left it plus the audio; the audio
+  fields are written, the notes tagged ready, each side audited, the result shown.
+  The browser menu action and the automation (the one-second poll, **Tools > Generate
+  Pending RCE Audio**) share `browser.start_note_run`; `browser.process_note_ids` keeps
+  the same three parts on the calling thread for the editor's button and the checks.
+  *Not taken:* running the whole of `process_note_ids` in the background (it reads
+  and writes the collection, which Anki's own code does off the main thread only
+  through its operation classes, and which could not be tried here); Anki's
+  `QueryOp`/`with_progress` (a progress window for an unattended run, and an API not
+  tried here); a progress dialog.
+- **CA-83 The notice is Anki's tooltip: 20 seconds, once per run, counts only.** An
+  unattended run (anything Alec did not start by hand) that finds a dirty audit shows
+  no dialog; it writes the audit's line to the log (counts and ids, as before), puts the
+  three counts in the run's outcome (`audit`, `audit_notice`), and shows
+  `AudioAudit.notice()` through `aqt.utils.tooltip` (`ui.show_notice`, 20 000 ms,
+  `ui.NOTICE_PERIOD_MS`): "AnkiTTS audio audit: 3 sides without audio that should
+  have some (0 silent, 3 empty, 0 rejected). The note ids are in the AnkiTTS log." A
+  run Alec starts by hand shows the one result box it already had, with the audit's
+  lines; no second box and no notice. A dirty audit fails, retries and re-queues
+  nothing; an empty side is reported once per run and the note is ready like any other.
+  Every function that shows something goes through `anki_integration/ui.py`: off the
+  main thread a call is queued with `mw.taskman.run_on_main`, and with no task manager
+  it is dropped and logged, never made. *Not taken:* a custom non-modal window (a Qt
+  object the checks cannot exercise); a notice that stays until clicked (a click is
+  what is being removed; the period is one constant if 20 s proves too short); one
+  notice per note.
+- **CA-84 The resume of pending audio at profile open is scheduled, not run, in the
+  hook.** `collection_did_load`, `collection_did_temporarily_close` and the import-time
+  call now call `RceAudioPollingLifecycle.resume_later`, which only schedules
+  `resume_safely` three seconds later (`RESUME_DELAY_MS`, `QTimer.singleShot`); a
+  failure in the resume, or in the scheduler, is logged by exception type and never
+  raised into Anki. The automation **still runs at start-up**: after those three
+  seconds the recovery turns interrupted `processing` notes back into pending (keeping
+  `immediate`), the poll finds them and starts the run, which is now in the background.
+  *Not taken:* removing the start-up resume (it is how the fifteen rows get their
+  audio without a click); a longer delay; running the recovery in the background (it is
+  one search and a few tag writes).
+- **CA-85 One run at a time; a closing collection stops a run between notes; a
+  changed collection is never written.** `browser.run_in_flight()` is shared by the
+  poll, the manual command and the browser action (a second request is refused with a
+  message, or ignored by the poll). Suspending the polling (profile close, temporary
+  close) sets `cancel_requested`; `process_notes(should_cancel=...)` stops with
+  `RunCancelled` before the next note, so Anki is not held open for the rest of a
+  batch. If the collection closed, or another one is open, when the run comes back, it
+  is not published and no tag is changed; the notes keep the tags they had and the next
+  start recovers them. A resume that arrives in the middle of a run (a temporary close
+  of the collection; it could not before, while the run held the main thread) leaves the
+  poll timer running and schedules itself again, instead of stopping the timer for good.
+  *Not taken:* waiting for the run at close; stopping inside a note (a thread cannot be
+  stopped safely).
+- **CA-86 Pending is the tag, an empty side does not keep a note pending, and nothing
+  had to change there.** The automation's test of pending audio is a tag search:
+  `IMMEDIATE_AUDIO_QUERY` (`tag:rce-audio::pending tag:rce-audio::immediate`, the poll)
+  and `PENDING_AUDIO_QUERY` (`tag:rce-audio::pending`, the Tools command). A note leaves
+  both when `publish_run` tags it `rce-audio::ready`, which it does for every note it
+  publishes, whether or not a side had a plan with nothing to speak. The new check runs
+  the real pipeline over three notes (two with an empty front) with three consecutive
+  polls: work 3, 0, 0, every note `ready`, the back of an empty-front note generated, the
+  manual command finding nothing. What did not terminate on 2026-11-10 was not an empty
+  side: it was a run killed before it published, plus the recovery that keeps `immediate`
+  (CA-82 and CA-84 are the cure). *Not taken:* dropping `immediate` when recovering an
+  interrupted note (the unattended run at start-up is how the audio gets made); a retry
+  counter (a note that crashed Anki on every attempt would loop at start; none has been
+  seen, and it is recorded as a residual risk).
+- **CA-87 No ffmpeg timeout in this batch.** `providers.audio._run_ffmpeg` calls
+  `subprocess.run` with no timeout while holding `_encode_lock`, and pydub's own calls
+  have none; a timeout belongs in `src/providers/audio.py`, which item E leaves alone. With
+  the run off the main thread a stuck ffmpeg holds one background run (and the
+  automation's `busy`) until Anki is restarted, and no longer the window. The next batch
+  should add one. *Not taken:* a main-thread watchdog that abandons a run after N minutes
+  (the thread cannot be killed; it would go on writing files).
+- **CA-88 The empty-plan rule is in `note_mapper.write_audio_fields`, for structured RCE
+  jobs only.** A side whose result has no filename keeps the field as it is; a side with
+  a filename replaces it; a generic field with an empty track is still cleared (it has no
+  plan: its text is gone); the destination field must still exist, whether or not the
+  side is empty. `iter_processed_audio_outputs` is unchanged (it still yields the
+  `None` filename; its docstring said "so its destination field is cleared" and now
+  says where the rule lives). The audit still counts the side as empty. Checks that
+  pinned the clearing: `check_browser_mixed_batch_publication` expected `""` for a back
+  track of `None` over `[sound:old-back.mp3]` and now expects the old tag; no other
+  check started from a non-empty field. New: `check_an_empty_plan_leaves_the_audio_field_alone`
+  (test_rce_contract) and `check_an_empty_front_keeps_its_audio_and_the_back_is_written`
+  (test_audio_audit). *Not taken:* skipping inside the iterator (it would change what the
+  media copy and the checks see, for no gain); clearing the field when the plan changes
+  from spoken to empty (CA-81 (1) says the opposite).
+- **CA-89 The run says where it is.** `Audio run requested for N note(s) (unattended |
+  by hand)`, `Audio run started: N note(s).`, one `Audio run: note i of N done.` per
+  note, and `Audio run finished: success|failure in S s; audit a silent, b empty, c
+  rejected.`: counts and seconds, never text (every line carries its own timestamp). If a
+  run ever stalls, the last such line is how far it got. *Not taken:* a heartbeat thread.
+
+**What refills.** Nothing: no version moved (`speech_text_version` `"4"`,
+`stitch_version` `"2"`, `edge_language_version` `"1"`, `role_voice_version` `"1"`,
+`loudness_version` `"1"`, `EARCON_VERSION` `"1"`), no file under `src/providers` changed,
+and the tempo table, the voices, the carrier route, the earcons and the connective rule are
+as they were. A track that was already published keeps its audio; a track for an empty plan
+is no longer cleared.
+
+**Tests.** The new `tests/test_unattended_run.py` (10 checks: the reproduction; one notice
+and no box; one box by hand; pending terminates, 3 jobs then 0 then 0; the start-up resume
+deferred and unable to raise; a resume during a run; a closing collection; one run at a
+time and a changed collection; the cancel hook; nothing reaches a dialog from another
+thread), +1 in
+`test_rce_contract.py`, +1 in `test_audio_audit.py`. Changed on purpose: the unattended
+audit check (`check_an_unattended_run_tells_alec_without_a_box_and_a_clean_one_stays_quiet`:
+a notice and no box, where it asserted a warning box), `check_browser_mixed_batch_publication`
+(CA-88), and the checks that replaced `automation.process_note_ids` now replace
+`automation.start_note_run` through `synchronous_run`. Total: 337 checks in 26 modules
+(325 in 25 before this batch).

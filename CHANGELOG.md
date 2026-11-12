@@ -6,6 +6,33 @@ in a tagged release.
 
 ## Unreleased
 
+### Anki no longer freezes while audio is generated (2026-11-10)
+
+Ruling CA-81 (Alec, 2026-11-09 and 2026-11-10) and CA-82 to CA-89,
+`docs/DESIGN-providers.md`, section 18. With the add-on enabled Anki went Not
+Responding for the length of a batch and again at every start:
+
+- **The run no longer holds Anki's main thread.** The notes are read and the
+  jobs built on the main thread, synthesis, stitching and copying run on a
+  background thread, and the fields are written and the result shown back on the
+  main thread. This applies to the automation (the poll, **Tools > Generate
+  Pending RCE Audio**) and to **Generate AnkiTTS Audio for Selected Notes**. One run
+  at a time; closing the profile stops a run between notes; a run is never written
+  into a different collection.
+- **The audio audit cannot block.** An unattended run shows no box: it logs the
+  audit's line, records its counts in the outcome, and shows a notice (Anki's
+  tooltip, 20 seconds, once per run). A run started by hand shows the one result
+  box, with the audit in it.
+- **Start-up.** The resume of pending audio is scheduled three seconds after the
+  collection opens and a failure in it is logged, not raised. Pending audio is still
+  generated at start-up, in the background.
+- **An empty plan never clears audio.** A side whose plan has no spoken segment keeps
+  the audio its field holds; the audit still counts it. A side with a new track
+  replaces its field as before; the generic path (plain notes) still clears an empty
+  track.
+- **The log says where a run is** (`Audio run: note i of N done.`), counts only.
+- **What refills.** Nothing: no cache or track version moved.
+
 ### Three earcons, the "or" after an example, the audio audit (2026-11-09)
 
 Ruling CA-71 (Alec, 2026-11-09) and CA-72 to CA-80,
