@@ -348,6 +348,7 @@ def check_browser_mixed_batch_publication():
     def fake_process_notes(
         jobs,
         settings,
+        **_options,
     ):
         jobs_received.extend(
             jobs
@@ -554,6 +555,7 @@ def check_browser_invalid_rce_aborts_safely():
     def forbidden_process_notes(
         jobs,
         settings,
+        **_options,
     ):
         raise AssertionError(
             "The engine ran for an invalid RCE note."
@@ -654,6 +656,7 @@ def check_browser_engine_failure_writes_nothing():
     def failing_process_notes(
         jobs,
         settings,
+        **_options,
     ):
         raise RuntimeError(
             "simulated synthesis failure"
@@ -755,6 +758,7 @@ def check_browser_media_failure_writes_no_fields():
     def fake_process_notes(
         jobs,
         settings,
+        **_options,
     ):
         return {
             "processed": 1,
@@ -879,6 +883,7 @@ def check_editor_structured_publication():
     def fake_process_notes(
         jobs,
         settings,
+        **_options,
     ):
         jobs_received.extend(
             jobs
@@ -1029,6 +1034,7 @@ def check_editor_failure_is_reported():
     def failing_process_notes(
         jobs,
         settings,
+        **_options,
     ):
         raise RuntimeError(
             "simulated editor failure"

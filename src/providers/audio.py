@@ -54,6 +54,39 @@ MP3_BITRATE = "96k"
 # concurrent encodes from synthesis threads take turns.
 _encode_lock = threading.Lock()
 
+# Every ffmpeg run here handles one clip: a segment's audio (seconds; a long
+# example sentence at the slowest tempo, 0.5, is about a minute), measured,
+# encoded, or cut after Edge's carrier sentence. ffmpeg does any of these in
+# well under a second, the looped measurement of a short clip included (two
+# seconds of audio). A run still going after FFMPEG_TIMEOUT_SECONDS has
+# stalled: it is ended and reaped, and the step fails with AudioStepTimedOut
+# (CA-93). The bound is about a hundred times the slowest run expected.
+FFMPEG_TIMEOUT_SECONDS = 120
+
+# After a stalled run is ended, how long to wait for the process to be reaped.
+FFMPEG_REAP_SECONDS = 10
+
+
+class AudioStepTimedOut(OSError):
+    """
+    An ffmpeg run did not finish within FFMPEG_TIMEOUT_SECONDS and was ended.
+
+    The message names the step only: no path, no text, no process output.
+    """
+
+    def __init__(
+        self,
+        step,
+        seconds,
+    ):
+        self.step = step
+        self.seconds = seconds
+
+        super().__init__(
+            f"The {step} step did not finish within {seconds:g} seconds "
+            "and was stopped."
+        )
+
 logger = get_logger(
     "providers.audio"
 )
@@ -119,22 +152,108 @@ def _ffmpeg():
 
 def _run_ffmpeg(
     arguments,
+    step="audio processing",
 ):
+    """
+    Run ffmpeg once and return a CompletedProcess.
+
+    Bounded (CA-93): a run that has not finished after FFMPEG_TIMEOUT_SECONDS
+    is ended and reaped, and AudioStepTimedOut is raised naming `step`. The
+    process reads nothing from standard input.
+    """
+
     from stitcher import hide_subprocess_windows
 
+    command = [
+        _ffmpeg(),
+        "-hide_banner",
+        "-nostats",
+        *arguments,
+    ]
+
     with hide_subprocess_windows():
-        return subprocess.run(
-            [
-                _ffmpeg(),
-                "-hide_banner",
-                "-nostats",
-                *arguments,
-            ],
-            capture_output=True,
+        process = subprocess.Popen(
+            command,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
             encoding="utf-8",
             errors="replace",
         )
+
+    timeout = FFMPEG_TIMEOUT_SECONDS
+
+    try:
+        stdout, stderr = process.communicate(
+            timeout=timeout
+        )
+
+    except subprocess.TimeoutExpired:
+        _end_and_reap(
+            process
+        )
+
+        logger.warning(
+            "An ffmpeg run (%s) did not finish within %g s; it was stopped.",
+            step,
+            timeout,
+        )
+
+        raise AudioStepTimedOut(
+            step,
+            timeout,
+        ) from None
+
+    except BaseException:
+        _end_and_reap(
+            process
+        )
+
+        raise
+
+    return subprocess.CompletedProcess(
+        command,
+        process.returncode,
+        stdout,
+        stderr,
+    )
+
+
+def _end_and_reap(
+    process,
+):
+    """End a process and wait (bounded) until it is gone."""
+
+    try:
+        process.kill()
+
+    except OSError:
+        pass
+
+    try:
+        process.communicate(
+            timeout=FFMPEG_REAP_SECONDS
+        )
+
+    except subprocess.TimeoutExpired:
+        logger.warning(
+            "A stopped ffmpeg process was not reaped within %g s.",
+            FFMPEG_REAP_SECONDS,
+        )
+
+    except (OSError, ValueError):
+        # The pipes are already closed: wait for the exit status alone.
+        try:
+            process.wait(
+                timeout=FFMPEG_REAP_SECONDS
+            )
+
+        except subprocess.TimeoutExpired:
+            logger.warning(
+                "A stopped ffmpeg process was not reaped within %g s.",
+                FFMPEG_REAP_SECONDS,
+            )
 
 
 def measure_loudness(
@@ -160,7 +279,8 @@ def measure_loudness(
             "-f",
             "null",
             "-",
-        ]
+        ],
+        step="loudness measurement",
     )
 
     try:
@@ -464,7 +584,8 @@ def encode_mp3(
                     str(
                         temporary_path
                     ),
-                ]
+                ],
+                step="MP3 encoding",
             )
 
         if (

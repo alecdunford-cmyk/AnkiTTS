@@ -398,6 +398,7 @@ def check_a_run_with_one_silent_side_reports_it():
     def losing_a_track(
         jobs,
         settings,
+        **_options,
     ):
         """The engine reports success but hands back no back track for 202."""
 

@@ -423,6 +423,9 @@ def generate_run(
             batch_result = process_notes(
                 prepared.jobs,
                 settings=prepared.settings,
+                # A note whose audio step timed out fails alone and the run
+                # goes on (CA-93).
+                continue_after_timeout=True,
                 **arguments,
             )
 
@@ -436,6 +439,10 @@ def generate_run(
         for audio_files in batch_result[
             "results"
         ]:
+            if audio_files is None:
+                # A note that timed out: nothing to copy.
+                continue
+
             copy_generated_audio_to_media(
                 audio_files,
                 prepared.media_folder,
@@ -545,6 +552,21 @@ def publish_run(
 
     batch_result = generated.batch_result
 
+    # Notes whose audio step timed out (CA-93): not written, not tagged ready,
+    # reported; the automation leaves them pending without the immediate
+    # request (mark_failed), so only the menu command retries them.
+    timed_out = list(
+        batch_result.get(
+            "timed_out",
+        )
+        or ()
+    )
+
+    timed_out_indexes = {
+        index
+        for index, _step in timed_out
+    }
+
     try:
         # The notes are read again here: the run took minutes, and a note
         # Alec edited meanwhile is written back as he left it, plus audio.
@@ -555,17 +577,27 @@ def publish_run(
             for note in compatible_notes
         ]
 
-        for note, audio_files in zip(
-            notes,
-            batch_result["results"],
+        for index, (note, audio_files) in enumerate(
+            zip(
+                notes,
+                batch_result["results"],
+            )
         ):
+            if index in timed_out_indexes:
+                continue
+
             write_audio_fields(
                 note,
                 audio_files,
                 settings,
             )
 
-        for note in notes:
+        for index, note in enumerate(
+            notes
+        ):
+            if index in timed_out_indexes:
+                continue
+
             mark_ready_if_managed(
                 note
             )
@@ -602,16 +634,29 @@ def publish_run(
     # Item C, the net under "never silent": what each audited side ended with,
     # read back from the result, Anki's media folder and the note itself.
     try:
-        for note, job, audio_files in zip(
-            compatible_notes,
-            jobs,
-            batch_result[
-                "results"
-            ],
+        for index, (note, job, audio_files) in enumerate(
+            zip(
+                compatible_notes,
+                jobs,
+                batch_result[
+                    "results"
+                ],
+            )
         ):
             if job.get(
                 "job_type"
             ) != RCE_JOB_TYPE:
+                continue
+
+            if index in timed_out_indexes:
+                # Its spoken sides got no audio: silent, counted (CA-71 (3)).
+                audit_unfinished(
+                    audit,
+                    note.id,
+                    job,
+                    REASON_SYNTHESIS_FAILED,
+                )
+
                 continue
 
             audit_published(
@@ -664,10 +709,24 @@ def publish_run(
     message_lines = [
         "Batch TTS complete!",
         "",
-        f"Notes processed: {len(compatible_notes)}",
+        f"Notes processed: {len(compatible_notes) - len(timed_out)}",
         f"Generated segments: {generated_count}",
         f"Reused from cache: {cached_count}",
     ]
+
+    if timed_out:
+        # The step only: no card text, no path, no process output.
+        steps = sorted(
+            {
+                step
+                for _index, step in timed_out
+            }
+        )
+
+        message_lines.append(
+            f"Notes not generated: {len(timed_out)} (an audio step did not "
+            f"finish in time: {', '.join(steps)}). They stay queued."
+        )
 
     elapsed_time = format_elapsed_time(
         batch_result.get(
@@ -721,6 +780,12 @@ def publish_run(
         "message": message,
         "processed": len(
             compatible_notes
+        )
+        - len(
+            timed_out
+        ),
+        "timed_out": len(
+            timed_out
         ),
         "skipped_note_types": (
             skipped_note_types
