@@ -267,8 +267,9 @@ def check_a_clitic_is_never_a_lone_letter():
 
 
 def check_the_speech_text_version_moved_with_the_bracket_rule():
-    # Every segment's audio refills once, on both paths (CA-61 (9)).
-    assert SPEECH_TEXT_VERSION == "4"
+    # Every segment's audio refills once, on both paths (CA-61 (9) moved it to
+    # "4"; CA-92, the signs that were glued into a word, to "5").
+    assert SPEECH_TEXT_VERSION == "5"
 
 
 def check_parentheses_are_kept():

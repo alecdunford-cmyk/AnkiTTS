@@ -19,7 +19,7 @@ import re
 import unicodedata
 
 
-SPEECH_TEXT_VERSION = "4"
+SPEECH_TEXT_VERSION = "5"
 
 # What the spoken text treats as an apostrophe (a clitic such as 's, 'd, 'll,
 # 're, 've, 'm or n't starts after one).
@@ -240,8 +240,10 @@ _ENUMERATOR_NAMES = {
     },
 }
 
+# A letter touching a sign is part of what the sign writes ("R&D", "AT&T",
+# "n°", "M€"), not a lone letter (CA-92 added & ° € $ £ ¥ to + @ # / \).
 _SINGLE_LETTER = re.compile(
-    r"(?<![\w'’\-./@#+\\])(?<!\w\()([A-Za-z])(?![\w'’\-/@#+\\]|\.\w|\.\s*[\da-z])"
+    r"(?<![\w'’\-./@#+\\&°€$£¥])(?<!\w\()([A-Za-z])(?![\w'’\-/@#+\\&°€$£¥]|\.\w|\.\s*[\da-z])"
 )
 
 _FRENCH_UNITS = (
@@ -683,6 +685,86 @@ def _unit_phrase(
     return entry[1] if plural else entry[0]
 
 
+def _touches_a_letter(
+    match,
+    before=True,
+    after=True,
+):
+    """True when a letter stands directly before or after the match."""
+
+    text = match.string
+
+    start = match.start()
+    end = match.end()
+
+    return (
+        before
+        and start > 0
+        and text[
+            start - 1
+        ].isalpha()
+    ) or (
+        after
+        and end < len(
+            text
+        )
+        and text[
+            end
+        ].isalpha()
+    )
+
+
+def _standing_apart(
+    word,
+    match,
+):
+    """
+    The word a sign is spoken as, with a space on each side where a letter or
+    a digit would otherwise touch it, so that it is never glued into another
+    word ("%50" is "percent 50", not "percent50"; CA-92).
+    """
+
+    text = match.string
+
+    start = match.start()
+    end = match.end()
+
+    def glue(
+        character,
+    ):
+        return character.isalpha() or character.isdecimal()
+
+    if (
+        start > 0
+        and glue(
+            text[
+                start - 1
+            ]
+        )
+        and not word.startswith(
+            " "
+        )
+    ):
+        word = " " + word
+
+    if (
+        end < len(
+            text
+        )
+        and glue(
+            text[
+                end
+            ]
+        )
+        and not word.endswith(
+            " "
+        )
+    ):
+        word = word + " "
+
+    return word
+
+
 def _expand_units(
     text,
     language,
@@ -755,16 +837,28 @@ def _expand_units(
     def bare_currency(
         match,
     ):
+        # A sign touching a letter ("M€", "k€") is part of an abbreviation:
+        # it is left as written, never glued into a word (CA-92).
+        if _touches_a_letter(
+            match
+        ):
+            return match.group(
+                0
+            )
+
         entry = _CURRENCIES[
             match.group(
                 0
             )
         ]
 
-        return _unit_phrase(
-            entry,
-            True,
-            language,
+        return _standing_apart(
+            _unit_phrase(
+                entry,
+                True,
+                language,
+            ),
+            match,
         )
 
     text = re.sub(
@@ -782,7 +876,10 @@ def _expand_units(
 
     text = re.sub(
         r"\s?%",
-        " percent" if language == "en" else " pour cent",
+        lambda match: _standing_apart(
+            " percent" if language == "en" else " pour cent",
+            match,
+        ),
         text,
     )
 
@@ -796,6 +893,16 @@ def _expand_units(
         token = match.group(
             "number"
         )
+
+        # A degree sign right after a letter is an abbreviation ("n°", "N°",
+        # numéro), not degrees: it is left as written (CA-92).
+        if token is None and _touches_a_letter(
+            match,
+            after=False,
+        ):
+            return match.group(
+                0
+            )
 
         plural = (
             True
@@ -824,7 +931,10 @@ def _expand_units(
         return (
             f"{token} {spoken}"
             if token is not None
-            else spoken
+            else _standing_apart(
+                spoken,
+                match,
+            )
         )
 
     text = re.sub(
