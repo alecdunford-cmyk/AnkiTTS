@@ -1875,3 +1875,34 @@ a notice and no box, where it asserted a warning box), `check_browser_mixed_batc
 (CA-88), and the checks that replaced `automation.process_note_ids` now replace
 `automation.start_note_run` through `synchronous_run`. Total: 337 checks in 26 modules
 (325 in 25 before this batch).
+
+### Review batch 4: "or" / "ou" after a main translation and an idiom heading; symbols reach the voice; a stitching timeout (CA-90, 2026-11-12)
+
+**Ruling CA-90 (Alec, 2026-11-12, Denver), verbatim.** Where Alec's words held a
+card's text, the text is replaced by a pointer in square brackets naming the
+construct; the bracketed pointers are the ruling's recorded text. The managing
+chat's reading follows the quote and is its own, not Alec's.
+
+```
+CA-90. (1) (Alec, 2026-11-12, 08:11): "[an English translation holding the inline connective]" is
+still being pronounced as "[the same with the connective as two English letters]" and "[an English
+example translation holding it]" likewise; it should be "[first alternative], or, [second]" in
+English, and any French examples that might have the English connective between two French
+alternatives should be pronounced "[first], ou, [second]". (2) (08:24): "I mean, shouldn't ALL
+slashes be read as "or" or "ou" according to what language they appear in? I can't really think of
+a scenario where I wouldn't want a slash to be pronounced that way during my audio-only study. Can
+you?" and his answer to the managing chat's card on how a slash inside a spoken phrase is read
+aloud, verbatim: "Always or / ou, except a counted exception list (Recommended)". (3) (08:43): "%
+and € are not being pronounced in English or French. This cannot be happening with these or any
+other common symbols that are likely to appear throughout the dictionary in both languages." (4)
+THE ORDER (his answer to the managing chat's card, verbatim): "Audio stage + AnkiTTS batch 4, then
+display stage, then Le Robert & CLÉ (Recommended)".
+```
+
+The managing chat's reading (its own): (1) and (2) are RCE's to split (it turns
+each mark into a segment of role `alternative` and drops the mark from the text);
+AnkiTTS's share is to say the word wherever RCE marks an alternative that
+continues a main translation or an idiom heading, which today it never does; (3)
+is RCE's first (its plans drop the signs before AnkiTTS sees them), and AnkiTTS's
+share is to prove, and where needed make sure, that a sign in a segment's text
+reaches the voice.
