@@ -1673,7 +1673,7 @@ the main thread; there is no ERROR, no traceback, no timeout and no
 | Time (Denver) | Thread | Event |
 |---|---|---|
 | 10:04:48, 22:50:11 | Main | the add-on loaded (twice) |
-| 22:52:41 to 22:52:57 | `ankitts-rce_0..2` | row 1: 16 syntheses completed, median 1.09 s, longest 1.87 s |
+| 22:52:41 to 22:52:57 | `ankitts-rce_0..2` | the first run (three or more notes: its audit counted three empty fronts): 16 syntheses completed, median 1.09 s, longest 1.87 s |
 | 22:53:14 | Main | the audit's WARNING line (17 s after the last synthesis: stitching, copying, publishing, auditing, all on this thread), then the warning box |
 | 22:53:14 to 23:00:24 | none | nothing logged for 7 min 10 s: the box was waiting for OK, inside the run, with the add-on's `busy` flag set |
 | 23:00:24 to 23:05:28 | `ankitts-rce_0..2` | a second run begins within seconds of the box closing: 81 syntheses, median 1.28 s, longest 2.83 s, longest silence between worker lines 16.7 s; **still completing syntheses at the same pace in its last 30 s** (2 completions); the last line is 23:05:28 |
@@ -1713,9 +1713,10 @@ one-second `QTimer`:
 **What the box did.** The warning box was not what froze Anki. It is raised on the
 main thread (the audit's line is logged by `MainThread`), inside the slot, and it
 waited seven minutes for a click because that is what a box does. The click let the
-run end; the next poll, one second later, found the other fifteen notes and began the
-long run, and from the click on the window was Not Responding with a run that was
-healthy and incomplete (81 syntheses of the order of 240).
+run end; the next poll, one second later, found the notes that were still queued and
+began the long run, and from the click on the window was Not Responding with a run that
+was healthy and not finished (81 syntheses so far; how many the run needed is not in the
+log, because a run logs nothing about how many notes it holds, which CA-89 now does).
 
 **The managing chat's two guesses, tested.** (1) *The warning dialog is raised from
 work that is not on Anki's main thread:* **wrong**. The log's thread for the audit is
@@ -1727,9 +1728,10 @@ blocking is in every unattended and every manual run, and the "loop" is the reco
 that keeps `immediate`, together with a run that publishes nothing until it is over.
 
 **What is proven and what is not.** Proven, by the code and the reproduction: a run
-of N notes holds the main thread for the whole of its duration (about 34 s a note in
-the log: row 1 took 17 s of synthesis and 17 s of the rest), for fifteen cards some
-eight minutes, and is lost if Anki is ended before it finishes. Consistent with the log
+of N notes holds the main thread for the whole of its duration (the first run, of three
+or more notes, took 34 s from its first synthesis to the audit's line, half of it
+synthesis and half stitching, copying and publishing; the second had run 303 s and was not
+finished), and is lost if Anki is ended before it finishes. Consistent with the log
 and not provable from it: that this is *all* Alec saw. The second run was progressing
 at its normal pace when it was ended, and the two restart runs were inside their cache
 answers and stitching, for which the log has no lines. A stall inside ffmpeg
