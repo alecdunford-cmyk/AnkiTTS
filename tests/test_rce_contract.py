@@ -497,6 +497,127 @@ def check_structured_audio_publication():
     ] == ""
 
 
+def check_an_empty_plan_leaves_the_audio_field_alone():
+    """
+    CA-81 (1): a structured side whose plan produced no track keeps whatever
+    audio its field already holds; a side with a new track is replaced; a
+    generic side with an empty track still clears (it has no plan; the
+    generic path is unchanged).
+    """
+
+    settings = AppSettings()
+
+    note = create_rce_note()
+
+    note[
+        "Front Audio"
+    ] = "[sound:old-front.mp3]"
+
+    note[
+        "Back Audio"
+    ] = "[sound:old-back.mp3]"
+
+    audio_files = {
+        "job_type": RCE_JOB_TYPE,
+        "audio_fields": {
+            "front": "Front Audio",
+            "back": "Back Audio",
+        },
+        "front": "rce-front.mp3",
+        "front_processed": True,
+        "back": None,
+        "back_processed": True,
+    }
+
+    write_audio_fields(
+        note,
+        audio_files,
+        settings,
+    )
+
+    # A new track replaces; no track leaves the old one.
+    assert note[
+        "Front Audio"
+    ] == "[sound:rce-front.mp3]"
+
+    assert note[
+        "Back Audio"
+    ] == "[sound:old-back.mp3]"
+
+    # Both sides empty: both fields untouched.
+    note[
+        "Front Audio"
+    ] = "[sound:old-front.mp3]"
+
+    audio_files.update(
+        front=None,
+    )
+
+    write_audio_fields(
+        note,
+        audio_files,
+        settings,
+    )
+
+    assert note[
+        "Front Audio"
+    ] == "[sound:old-front.mp3]"
+
+    assert note[
+        "Back Audio"
+    ] == "[sound:old-back.mp3]"
+
+    # The destination must still exist: an empty side does not hide a note
+    # that lacks its field.
+    del note[
+        "Back Audio"
+    ]
+
+    try:
+        write_audio_fields(
+            note,
+            audio_files,
+            settings,
+        )
+
+    except ValueError:
+        pass
+
+    else:
+        raise AssertionError(
+            "a missing destination field went unreported"
+        )
+
+    # The generic path is unchanged: an empty processed track clears.
+    generic_settings = AppSettings()
+
+    generic_settings.field_mapping = {
+        "question": {
+            "text": "Question",
+            "audio": "Question Audio",
+            "speech_profile": "fr",
+        },
+    }
+
+    generic_note = {
+        "Question": "",
+        "Question Audio": "[sound:old-question.mp3]",
+    }
+
+    write_audio_fields(
+        generic_note,
+        {
+            "question": None,
+            "question_processed": True,
+        },
+        generic_settings,
+    )
+
+    assert generic_note[
+        "Question Audio"
+    ] == ""
+
+
 def check_generic_audio_publication_is_unchanged():
     settings = AppSettings()
     settings.field_mapping = {
@@ -589,6 +710,7 @@ def run():
         check_note_is_not_mutated,
         check_batch_structured_dispatch,
         check_structured_audio_publication,
+        check_an_empty_plan_leaves_the_audio_field_alone,
         check_generic_audio_publication_is_unchanged,
         check_generic_batch_dispatch_is_unchanged,
     ]

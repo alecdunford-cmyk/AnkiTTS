@@ -206,9 +206,11 @@ def iter_processed_audio_outputs(
     """
     Yield processed result keys, Anki destinations, and filenames.
 
-    A processed empty track deliberately yields a None filename so its
-    destination field is cleared. An unprocessed generic field is omitted
-    so its existing sound tag is preserved.
+    A processed empty track yields a None filename. What that means for the
+    field is write_audio_fields' rule: a generic field is cleared (its text
+    is gone), a structured RCE side is left as it is (CA-81 (1): its plan has
+    no spoken segment, so nothing replaces what it holds). An unprocessed
+    generic field is omitted so its existing sound tag is preserved.
     """
 
     for (
@@ -238,7 +240,22 @@ def write_audio_fields(
     audio_files,
     settings,
 ):
-    """Write sound tags into structured or configured audio fields."""
+    """
+    Write sound tags into structured or configured audio fields.
+
+    A structured RCE side that came back with no track (its plan has no spoken
+    segment) keeps whatever audio its field holds: an empty plan never clears
+    audio (CA-81 (1)). The audit still counts the side as empty. A side with a
+    new track replaces the field as before, and a generic field whose track is
+    empty is still cleared.
+    """
+
+    keep_empty_tracks = (
+        audio_files.get(
+            "job_type"
+        )
+        == RCE_JOB_TYPE
+    )
 
     for (
         _field_name,
@@ -258,6 +275,8 @@ def write_audio_fields(
             field_value = (
                 f"[sound:{filename}]"
             )
+        elif keep_empty_tracks:
+            continue
         else:
             field_value = ""
 

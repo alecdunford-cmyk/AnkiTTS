@@ -481,9 +481,12 @@ def check_browser_mixed_batch_publication():
                 "Front Audio"
             ] == "[sound:rce-front.mp3]"
 
+            # Changed on purpose by CA-81 (1): this used to expect "" (an empty
+            # back track cleared the field). A side whose plan produced no
+            # track now keeps the audio it already had.
             assert rce_note[
                 "Back Audio"
-            ] == ""
+            ] == "[sound:old-back.mp3]"
 
             assert rce_note.tags == [
                 "personal",

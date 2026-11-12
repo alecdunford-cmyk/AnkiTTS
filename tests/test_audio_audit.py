@@ -978,6 +978,86 @@ def check_an_unattended_run_tells_alec_without_a_box_and_a_clean_one_stays_quiet
         ui_module.tooltip = original_tooltip
 
 
+def check_an_empty_front_keeps_its_audio_and_the_back_is_written():
+    """
+    CA-81 (1), through the whole run. An empty front beside a normal back
+    leaves the front's field as it was and writes the back's; the audit still
+    counts the empty side; a non-empty plan still replaces what was there.
+    """
+
+    kept = make_note(
+        801,
+        front=[],
+    )
+
+    kept[
+        "Front Audio"
+    ] = "[sound:old-front.mp3]"
+
+    kept[
+        "Back Audio"
+    ] = "[sound:old-back.mp3]"
+
+    replaced = make_note(
+        802,
+    )
+
+    replaced[
+        "Front Audio"
+    ] = "[sound:old-front.mp3]"
+
+    outcome, _dialogs, media = run_notes(
+        [
+            kept,
+            replaced,
+        ],
+    )
+
+    assert outcome[
+        "success"
+    ] is True
+
+    # The empty front: its audio is left as it is.
+    assert kept[
+        "Front Audio"
+    ] == "[sound:old-front.mp3]"
+
+    # The normal back beside it: written, replacing the old one.
+    assert kept[
+        "Back Audio"
+    ].startswith(
+        "[sound:"
+    )
+
+    assert kept[
+        "Back Audio"
+    ] != "[sound:old-back.mp3]"
+
+    # A plan with spoken segments still replaces the field.
+    assert replaced[
+        "Front Audio"
+    ].startswith(
+        "[sound:"
+    )
+
+    assert replaced[
+        "Front Audio"
+    ] != "[sound:old-front.mp3]"
+
+    assert len(
+        media
+    ) == 3
+
+    # And it is still reported: one empty side, nothing silent.
+    assert outcome[
+        "audit"
+    ] == {
+        "silent": 0,
+        "empty": 1,
+        "rejected": 0,
+    }
+
+
 def check_the_log_line_carries_counts_and_ids_only():
     audit = AudioAudit()
 
@@ -1032,6 +1112,7 @@ def run():
         check_a_failed_synthesis_names_the_note,
         check_a_failed_copy_marks_every_audited_side_silent,
         check_an_unattended_run_tells_alec_without_a_box_and_a_clean_one_stays_quiet,
+        check_an_empty_front_keeps_its_audio_and_the_back_is_written,
         check_the_log_line_carries_counts_and_ids_only,
     ]
 
