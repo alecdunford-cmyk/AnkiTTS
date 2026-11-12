@@ -1641,3 +1641,22 @@ copy; an unattended run; the log line). The fixture
 `sectionNumber`, gained a lettered sub-section (`ds-26`) and an idiom heading
 (`ds-27`), and keeps the old names in `deepRecallBack`. Total: 325 checks in 25
 modules.
+
+### Review batch 3: Anki freezes with the add-on enabled (CA-81, 2026-11-10)
+
+**Ruling CA-81 (Alec, 2026-11-09 and 2026-11-10, Denver), verbatim.** The
+managing chat's reading follows the quote and is its own, not Alec's.
+
+```
+(1) NO WIPE ON AN EMPTY PLAN (the managing chat's card to Alec of 2026-11-09 asked:
+AnkiTTS clears a side's audio when the plan for that side is empty; should AnkiTTS also
+refuse to wipe existing audio on an empty plan? Alec's answer, verbatim): "Yes, as a small
+AnkiTTS follow-up, bundled with the next batch (Recommended)".
+(2) NEVER SILENT (Alec's words as section 18's CA-71 (3) holds them): "This should never
+ever happen for any reason on any card in any deck."
+```
+
+The managing chat's reading (its own): (1) decides that a side whose new plan has
+no spoken segment keeps whatever audio it already has; and a report that freezes
+Anki is worse than the silence it reports, so the audit must tell Alec and must
+never be able to stop Anki or the run.
