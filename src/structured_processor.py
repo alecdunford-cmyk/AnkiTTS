@@ -52,12 +52,17 @@ ROLE_CONNECTIVE = "connective"
 # What an alternative can continue: a translation or another alternative
 # (CA-64), and, since review batch 2 (CA-76), the example line it is an
 # alternative of: a source-language example (French "ou,") or a target-language
-# one ("or,"). A gloss is not here: a sense's gloss list keeps its small pauses.
+# one ("or,"); and, since review batch 4 (CA-90, CA-91), a gloss (a sense's main
+# translation) or an idiom heading that RCE has split at a printed mark. This is
+# the PREVIOUS segment's role only: a segment whose own role is gloss never takes
+# the word, so a gloss list (separate gloss segments) keeps its small pauses.
 ALTERNATIVE_AFTER_ROLES = (
     "translation",
     "alternative",
     "exampleSource",
     "exampleTarget",
+    "gloss",
+    "idiomHead",
 )
 
 ATTACHED_BEFORE = "before"
@@ -370,8 +375,9 @@ def _takes_connective(
 ) -> bool:
     """
     True for an alternative that directly follows (among the spoken segments)
-    a translation, an alternative or an example line (exampleSource,
-    exampleTarget) of the same content node in the same base language. A repeat of an alternative (repetitionNumber above 1) is not
+    a translation, an alternative, an example line (exampleSource,
+    exampleTarget), a gloss or an idiom heading (CA-91) of the same content
+    node in the same base language. A repeat of an alternative (repetitionNumber above 1) is not
     another alternative, and a node with no id says nothing about who belongs
     to it. A language with no wording has no connective.
     """

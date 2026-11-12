@@ -1637,7 +1637,8 @@ def check_a_gloss_and_a_changed_language_after_an_example_line_take_no_or():
                 role="gloss",
                 contentNodeId="node-a",
             ),
-            # An alternative after a gloss: the gloss is not in the set.
+            # An alternative after a gloss: since CA-90 / CA-91 the gloss is in
+            # the set, so this one takes "or," (the only entry that changed).
             v2_segment(
                 3,
                 "a signal",
@@ -1739,7 +1740,7 @@ def check_a_gloss_and_a_changed_language_after_an_example_line_take_no_or():
 
     assert connectives(
         track
-    ) == [None] * 13
+    ) == [None, None, "or,"] + [None] * 10
 
 
 def check_the_or_after_an_example_line_replaces_the_pauses_of_the_gap():
@@ -1894,6 +1895,669 @@ def check_the_or_after_an_example_line_replaces_the_pauses_of_the_gap():
     )
 
 
+# CA-90 / review batch 4, item A: an alternative that continues a gloss (a main
+# translation of a sense) or an idiom heading takes the same "or" as one that
+# continues a translation or an example line. Every other condition stands.
+
+
+def pair(
+    previous_role,
+    previous_language,
+    alternative_language,
+    previous_node="node-p",
+    alternative_node="node-p",
+    repetition_number=1,
+    previous_voice_role="content",
+):
+    """A segment of previous_role, then an alternative, resolved."""
+
+    return resolved(
+        [
+            v2_segment(
+                1,
+                "a first wording",
+                previous_language,
+                previous_voice_role,
+                role=previous_role,
+                contentNodeId=previous_node,
+            ),
+            v2_segment(
+                2,
+                "a second wording",
+                alternative_language,
+                "content",
+                role="alternative",
+                contentNodeId=alternative_node,
+                repetitionNumber=repetition_number,
+                repetitionCount=max(
+                    repetition_number,
+                    1,
+                ),
+            ),
+        ]
+    )
+
+
+def check_an_alternative_after_a_gloss_takes_the_or_in_its_language():
+    english = pair(
+        "gloss",
+        "en-US",
+        "en-US",
+    )
+
+    assert connectives(
+        english
+    ) == [
+        None,
+        "or,",
+    ]
+
+    french = pair(
+        "gloss",
+        "fr-FR",
+        "fr",
+    )
+
+    assert connectives(
+        french
+    ) == [
+        None,
+        "ou,",
+    ]
+
+    clip = french.segments[
+        1
+    ].connective
+
+    # The same clip as after a translation: content voice of the
+    # alternative's language, role connective, the profile's rate.
+    assert (
+        clip.role,
+        clip.voice_role,
+        clip.language,
+        clip.voice,
+        clip.edge_rate,
+    ) == (
+        ROLE_CONNECTIVE,
+        "content",
+        "fr",
+        CA41[
+            (
+                "fr",
+                "content",
+            )
+        ],
+        "+0%",
+    )
+
+    # The word is never in a segment's text.
+    assert [
+        segment.text
+        for segment in french.segments
+    ] == [
+        "a first wording",
+        "a second wording",
+    ]
+
+
+def check_an_alternative_after_an_idiom_head_takes_the_or_in_its_language():
+    english = pair(
+        "idiomHead",
+        "en-US",
+        "en",
+    )
+
+    assert connectives(
+        english
+    ) == [
+        None,
+        "or,",
+    ]
+
+    french = pair(
+        "idiomHead",
+        "fr-FR",
+        "fr-FR",
+    )
+
+    assert connectives(
+        french
+    ) == [
+        None,
+        "ou,",
+    ]
+
+    assert french.segments[
+        1
+    ].connective.voice == CA41[
+        (
+            "fr",
+            "content",
+        )
+    ]
+
+
+def check_after_a_gloss_or_an_idiom_head_every_other_condition_stands():
+    for role in (
+        "gloss",
+        "idiomHead",
+    ):
+        # Another node.
+        assert connectives(
+            pair(
+                role,
+                "en-US",
+                "en-US",
+                alternative_node="node-q",
+            )
+        ) == [
+            None,
+            None,
+        ], role
+
+        # Another base language, both ways.
+        assert connectives(
+            pair(
+                role,
+                "fr-FR",
+                "en-US",
+            )
+        ) == [
+            None,
+            None,
+        ], role
+
+        assert connectives(
+            pair(
+                role,
+                "en-US",
+                "fr-FR",
+            )
+        ) == [
+            None,
+            None,
+        ], role
+
+        # The second reading of an alternative.
+        assert connectives(
+            pair(
+                role,
+                "en-US",
+                "en-US",
+                repetition_number=2,
+            )
+        ) == [
+            None,
+            None,
+        ], role
+
+        # No node id on either.
+        assert connectives(
+            pair(
+                role,
+                "en-US",
+                "en-US",
+                previous_node="",
+                alternative_node="",
+            )
+        ) == [
+            None,
+            None,
+        ], role
+
+        # A language with no wording.
+        assert connectives(
+            pair(
+                role,
+                "ja-JP",
+                "ja-JP",
+            )
+        ) == [
+            None,
+            None,
+        ], role
+
+
+def check_roles_outside_the_set_still_give_no_or():
+    # headword, sectionNumber, label, cue and other stay outside the set.
+    for role, voice_role in (
+        ("headword", "content"),
+        ("sectionNumber", "label"),
+        ("label", "label"),
+        ("cue", "label"),
+        ("other", "content"),
+    ):
+        assert connectives(
+            pair(
+                role,
+                "en-US",
+                "en-US",
+                previous_voice_role=voice_role,
+            )
+        ) == [
+            None,
+            None,
+        ], role
+
+
+def check_a_segment_of_role_gloss_never_takes_the_or():
+    # "A role gloss never takes it" (CA-61 (4), section 18): the CURRENT
+    # segment's role. A gloss after any member of the set, or after another
+    # gloss, on the same node and language, gets no word.
+    for previous_role in (
+        "translation",
+        "alternative",
+        "exampleSource",
+        "exampleTarget",
+        "gloss",
+        "idiomHead",
+    ):
+        track = resolved(
+            [
+                v2_segment(
+                    1,
+                    "a first wording",
+                    "en-US",
+                    "content",
+                    role=previous_role,
+                    contentNodeId="node-g",
+                ),
+                v2_segment(
+                    2,
+                    "a second wording",
+                    "en-US",
+                    "content",
+                    role="gloss",
+                    contentNodeId="node-g",
+                ),
+            ]
+        )
+
+        assert connectives(
+            track
+        ) == [
+            None,
+            None,
+        ], previous_role
+
+
+def check_the_look_back_skips_unspoken_segments_and_stops_at_other_roles():
+    def track(
+        middle_role,
+        middle_spoken,
+        first_role="gloss",
+        middle_voice_role="label",
+    ):
+        return resolved(
+            [
+                v2_segment(
+                    1,
+                    "a first wording",
+                    "en-US",
+                    "content",
+                    role=first_role,
+                    contentNodeId="node-l",
+                ),
+                v2_segment(
+                    2,
+                    "a middle wording",
+                    "en-US",
+                    middle_voice_role,
+                    role=middle_role,
+                    contentNodeId="node-l",
+                    spoken=middle_spoken,
+                ),
+                v2_segment(
+                    3,
+                    "a second wording",
+                    "en-US",
+                    "content",
+                    role="alternative",
+                    contentNodeId="node-l",
+                ),
+            ]
+        )
+
+    # A spoken label or cue between a gloss and an alternative: no word (the
+    # look-back does not reach past a spoken segment outside the set).
+    for middle in (
+        "label",
+        "cue",
+    ):
+        assert connectives(
+            track(
+                middle,
+                True,
+            )
+        ) == [
+            None,
+            None,
+            None,
+        ], middle
+
+    # The same label or cue unspoken is not between anything: the gloss is
+    # the previous spoken segment, and the alternative takes the word.
+    for middle in (
+        "label",
+        "cue",
+    ):
+        assert connectives(
+            track(
+                middle,
+                False,
+            )
+        ) == [
+            None,
+            None,
+            "or,",
+        ], middle
+
+    # An alternative after an UNSPOKEN gloss whose own predecessor is outside
+    # the set (a spoken label): no word.
+    after_unspoken_gloss = resolved(
+        [
+            v2_segment(
+                1,
+                "a tag",
+                "en-US",
+                "label",
+                role="label",
+                contentNodeId="node-u",
+            ),
+            v2_segment(
+                2,
+                "a first wording",
+                "en-US",
+                "content",
+                role="gloss",
+                contentNodeId="node-u",
+                spoken=False,
+            ),
+            v2_segment(
+                3,
+                "a second wording",
+                "en-US",
+                "content",
+                role="alternative",
+                contentNodeId="node-u",
+            ),
+        ]
+    )
+
+    assert connectives(
+        after_unspoken_gloss
+    ) == [
+        None,
+        None,
+        None,
+    ]
+
+
+def check_the_parser_accepts_an_alternative_after_every_role():
+    # RCE's cross-check imports this parser: an alternative after any role is
+    # a valid plan, before this batch and after it.
+    from speech_plan import VALID_ROLES
+
+    segments = []
+
+    for index, role in enumerate(
+        VALID_ROLES
+    ):
+        voice_role = (
+            "label"
+            if role in (
+                "label",
+                "cue",
+                "sectionNumber",
+            )
+            else "content"
+        )
+
+        segments.append(
+            v2_segment(
+                2 * index + 1,
+                f"wording {index}",
+                "en-US",
+                voice_role,
+                role=role,
+                contentNodeId=f"node-{index}",
+            )
+        )
+
+        segments.append(
+            v2_segment(
+                2 * index + 2,
+                f"other wording {index}",
+                "en-US",
+                "content",
+                role="alternative",
+                contentNodeId=f"node-{index}",
+            )
+        )
+
+    plan = parse_speech_plan(
+        v2_plan(
+            "back",
+            segments,
+        ),
+        "back",
+    )
+
+    assert [
+        segment.role
+        for segment in plan.segments
+    ] == [
+        role
+        for pair_of_roles in (
+            (
+                role,
+                "alternative",
+            )
+            for role in VALID_ROLES
+        )
+        for role in pair_of_roles
+    ]
+
+    # The parser leaves the text alone: no word is added to it.
+    assert all(
+        "or," not in segment.text
+        for segment in plan.segments
+    )
+
+
+def check_an_idiom_head_keeps_its_pauses_and_earcon_unless_an_alternative_follows():
+    from tests.test_earcons import with_earcon_directory
+
+    def lay_out(
+        follower_role,
+    ):
+        captured = {}
+
+        def action():
+            registry.set_override_chain(
+                [
+                    RecordingEdge(),
+                ]
+            )
+
+            real_stitch = structured_audio.stitch_structured_audio
+
+            def capture(
+                segments,
+                output_file,
+            ):
+                captured[
+                    "segments"
+                ] = segments
+
+                Path(
+                    output_file
+                ).write_bytes(
+                    b"track"
+                )
+
+            structured_audio.stitch_structured_audio = capture
+
+            try:
+                process_structured_job(
+                    create_rce_speech_plan_job(
+                        v2_note(
+                            [],
+                            [
+                                v2_segment(
+                                    1,
+                                    "an idiom",
+                                    "en-US",
+                                    "content",
+                                    role="idiomHead",
+                                    contentNodeId="node-i",
+                                    earconBefore="idiomHeading",
+                                    pauseAfter={
+                                        "kind": "fixed",
+                                        "milliseconds": 700,
+                                    },
+                                ),
+                                v2_segment(
+                                    2,
+                                    "its meaning",
+                                    "en-US",
+                                    "content",
+                                    role=follower_role,
+                                    contentNodeId="node-i",
+                                    pauseBefore={
+                                        "kind": "fixed",
+                                        "milliseconds": 500,
+                                    },
+                                ),
+                            ],
+                        )
+                    ),
+                    AppSettings(),
+                )
+
+            finally:
+                structured_audio.stitch_structured_audio = real_stitch
+
+        with_earcon_directory(
+            lambda _directory: with_directories(
+                action
+            )
+        )
+
+        segments = captured[
+            "segments"
+        ]
+
+        with TemporaryDirectory() as directory:
+            root = Path(
+                directory
+            )
+
+            laid_out = [
+                dict(
+                    segment,
+                    file=tone_file(
+                        root / f"s{index}.mp3",
+                        800,
+                    ),
+                    earcon_before=(
+                        None
+                        if not segment.get(
+                            "earcon_before"
+                        )
+                        else tone_file(
+                            root / f"e{index}.mp3",
+                            240,
+                            hertz=300,
+                        )
+                    ),
+                    connective_file=(
+                        None
+                        if segment.get(
+                            "connective_file"
+                        )
+                        is None
+                        else tone_file(
+                            root / "or.mp3",
+                            300,
+                            hertz=880,
+                        )
+                    ),
+                )
+                for index, segment in enumerate(
+                    segments
+                )
+            ]
+
+            return stitch_structured_audio(
+                laid_out,
+                root / "track.mp3",
+            )
+
+    # Not an alternative: the plan's 700 ms after the idiom heading and 500 ms
+    # before the next segment, as before this batch; the earcon once.
+    plain = lay_out(
+        "translation"
+    )
+
+    assert kinds(
+        plain
+    ) == [
+        "earcon_before",
+        "earcon_gap",
+        "speech",
+        "pause_after",
+        "pause_before",
+        "speech",
+    ]
+
+    assert within(
+        plain[3][
+            "duration_ms"
+        ],
+        700,
+    )
+
+    assert within(
+        plain[4][
+            "duration_ms"
+        ],
+        500,
+    )
+
+    # An alternative: the "or" block replaces the two pauses of the gap
+    # (CA-63); the idiom heading's earcon still plays once, before it.
+    alternative = lay_out(
+        "alternative"
+    )
+
+    assert kinds(
+        alternative
+    ) == [
+        "earcon_before",
+        "earcon_gap",
+        "speech",
+        "connective_pause_before",
+        "connective",
+        "connective_pause_after",
+        "speech",
+    ]
+
+    assert within(
+        alternative[3][
+            "duration_ms"
+        ],
+        TIGHT,
+    )
+
+    assert within(
+        alternative[5][
+            "duration_ms"
+        ],
+        TIGHT,
+    )
+
+
 def run():
     checks = [
         check_tight_pause_is_a_tempo_profile_field_defaulting_to_120,
@@ -1914,6 +2578,14 @@ def run():
         check_an_alternative_after_an_example_line_takes_the_or_in_its_language,
         check_a_gloss_and_a_changed_language_after_an_example_line_take_no_or,
         check_the_or_after_an_example_line_replaces_the_pauses_of_the_gap,
+        check_an_alternative_after_a_gloss_takes_the_or_in_its_language,
+        check_an_alternative_after_an_idiom_head_takes_the_or_in_its_language,
+        check_after_a_gloss_or_an_idiom_head_every_other_condition_stands,
+        check_roles_outside_the_set_still_give_no_or,
+        check_a_segment_of_role_gloss_never_takes_the_or,
+        check_the_look_back_skips_unspoken_segments_and_stops_at_other_roles,
+        check_the_parser_accepts_an_alternative_after_every_role,
+        check_an_idiom_head_keeps_its_pauses_and_earcon_unless_an_alternative_follows,
     ]
 
     for check in checks:
