@@ -6,6 +6,28 @@ in a tagged release.
 
 ## Unreleased
 
+### "or" after a main translation, symbols reach the voice, an ffmpeg timeout (2026-11-12)
+
+Ruling CA-90 (Alec, 2026-11-12) and CA-91 to CA-94,
+`docs/DESIGN-providers.md`, section 18:
+
+- **"or" / "ou" after a gloss and an idiom heading.** An alternative whose previous
+  spoken segment is a `gloss` (a sense's main translation) or an `idiomHead`, of the
+  same node and language, is now preceded by "or," / "ou," like one after a
+  translation or an example line. Every other condition is unchanged; a `gloss`
+  segment itself never takes the word.
+- **Symbols reach the voice.** Proven for 17 signs in English and French at the
+  provider and at Edge's library. Fixed: a sign's word glued to the word or number
+  beside it (`%50`, `word€`), `n°` read as degrees, and a letter touching `&` spelled
+  out (`R&D`). A currency or degree sign touching a letter (`n°`, `M€`) is left as
+  written.
+- **ffmpeg runs are bounded.** Every ffmpeg run under `src/providers` is ended after
+  120 seconds (`FFMPEG_TIMEOUT_SECONDS`) and reaped; in a batch run that note fails
+  alone (not published, audited silent, left pending without `immediate`) and the run
+  goes on. The stitch's own ffmpeg runs (pydub, `src/stitcher.py`) are not bounded yet.
+- **What refills.** `speech_text_version` 4 → 5: every segment's audio refills once,
+  the next time its card is generated. No other version moved.
+
 ### Anki no longer freezes while audio is generated (2026-11-10)
 
 Ruling CA-81 (Alec, 2026-11-09 and 2026-11-10) and CA-82 to CA-89,

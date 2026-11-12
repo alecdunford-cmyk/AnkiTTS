@@ -1906,3 +1906,199 @@ continues a main translation or an idiom heading, which today it never does; (3)
 is RCE's first (its plans drop the signs before AnkiTTS sees them), and AnkiTTS's
 share is to prove, and where needed make sure, that a sign in a segment's text
 reaches the voice.
+
+#### The connective rule as it now stands (item A)
+
+A segment is preceded by the content voice saying `or,` (English) / `ou,` (French)
+when all of these hold, among the **spoken** segments of a schema-version-2 plan
+with a tempo profile:
+
+1. its role is `alternative`;
+2. the previous spoken segment's role is `translation`, `alternative`,
+   `exampleSource`, `exampleTarget`, **`gloss` or `idiomHead`** (the last two since
+   CA-90 / CA-91);
+3. both have the same nonempty `contentNodeId`;
+4. both have the same base language (`fr-FR` and `fr` are one), which is `en` or
+   `fr`;
+5. its `repetitionNumber` is 1.
+
+The word follows the alternative's language; it is a clip of its own (role
+`connective` in its cache identity), one per language, content voice and rate; the
+block *tight pause, word, tight pause* replaces the two pauses of the gap (CA-63);
+the word is never in a segment's text. The look-back skips unspoken segments and
+stops at the previous spoken one whatever its role: a spoken `label`, `cue`,
+`headword`, `sectionNumber` or `other` between a gloss and an alternative means no
+word. **What never takes it:** a segment whose own role is anything but
+`alternative`, a `gloss` among them (a gloss list, glosses the dictionary separates
+with a comma, are separate `gloss` segments and keep their small pauses); an
+alternative after a role outside the set; another node; no node id; another base
+language; a language with no word; a second reading (`repetitionNumber` 2 or more).
+The parser accepts an alternative after every role, as before (pinned).
+
+#### Item B: what reaches the voice
+
+The path a segment's text takes: the plan's `text` → `generator.create_audio`,
+which calls `speech_text.prepare_for_speech(text, language)` once (the profile's
+language; base `en` / `fr` for the rules below) and hands the result to the
+provider's `synthesize()` (**boundary 1**; if preparation leaves nothing
+speakable, the original text). Edge's `synthesize()` sends that text unchanged to
+`edge_tts.Communicate` (**boundary 2**), on the plain route or, for a short text on
+a multilingual voice, as `"<carrier> <text>"` (CA-57; the carrier is cut off the
+audio, the text is untouched). Nothing else cleans the text before synthesis.
+After boundary 2, edge-tts 7.3.1 removes control characters and XML-escapes the
+text (`&`, `<`, `>` become entities, which the service reads back) before
+building its SSML: not changed here, and not verified against the service.
+
+Each sign beside a number and beside a word (six contexts per language), at
+boundary 1, before (`speech_text_version` 4) and after (5). "Unchanged" is the
+identical character; "its word" is the rule's word for it in the segment's
+language, standing as a word of its own; "glued" is the word stuck to a letter or
+digit next to it.
+
+| Sign | en before | en after | fr before | fr after |
+|---|---|---|---|---|
+| `%` | word ×4, glued ×2 | word ×6 | word ×4, glued ×2 | word ×6 |
+| `€ $ £ ¥` (each) | word ×4, glued ×2 | word ×4, unchanged ×2 | word ×4, glued ×2 | word ×4, unchanged ×2 |
+| `°` | word ×3, unchanged ×2, glued ×1 | word ×3, unchanged ×3 | word ×3, unchanged ×2, glued ×1 | word ×3, unchanged ×3 |
+| `+` | word ×3, unchanged ×3 | same | word ×3, unchanged ×3 | same |
+| `=` `×` (each) | word ×6 | same | word ×6 | same |
+| `& ÷ § @ # ‰ ² ³` (each) | unchanged ×6 | same | unchanged ×6 | same |
+
+The words: `percent` / `pour cent`; `euro(s)`, `dollar(s)`, `pound(s)` / `livre(s)
+sterling`, `yen` / `yen(s)`; `degree(s)` / `degré(s)`; `plus`; `equals` / `égale`;
+`times` / `fois`. `m²`, `m³` after a metric length are `square metres` / `mètres
+carrés` (CA-30). Not on the list and unchanged by this batch: `≈` is dropped and `→`
+is a pause (rule 4); in a language other than English and French `=` is a pause.
+
+Fixed (version 5): a currency sign's or the percent sign's word glued to a word or a
+number (`word€` → `wordeuros`, `%50` → `percent50`, `€word`, `%word`); a degree
+sign after a letter read as degrees (`n° 5` → `ndegrés cinq`); a letter touching
+`&` spelled (`R&D` → `erre&dé`, `AT&T` → `AT&tee`), and `N°5` → `enne°cinq`. Now:
+`%50` → `percent 50`; a currency or degree sign touching a letter (`n°`, `N°`,
+`M€`, `k€`, `word€`) is left as written, the letter too; a letter touching
+`& ° € $ £ ¥` is not spelled.
+
+#### Item C: the ffmpeg timeout
+
+`providers.audio._run_ffmpeg` runs every ffmpeg call under `src/providers` (the
+loudness measurements and the MP3 encode of every provider's clip, and Edge's
+carrier cut). It now starts ffmpeg with no standard input and waits at most
+`FFMPEG_TIMEOUT_SECONDS` (120); a run still going is killed and reaped
+(`FFMPEG_REAP_SECONDS`, 10, for the exit status) and `AudioStepTimedOut` is raised,
+whose message names the step only (`The loudness measurement step did not finish
+within 120 seconds and was stopped.`). In a batch run
+(`browser.generate_run`, `process_notes(continue_after_timeout=True)`) a note whose
+failure has that timeout behind it fails alone: the log says `Audio run: note i of N
+failed: the <step> step timed out.`, the run goes on with the next note, the note is
+not written, not tagged ready, its spoken sides are audited silent ("synthesis
+failed"), and the result message counts it (`Notes not generated: n (an audio step
+did not finish in time: <steps>). They stay queued.`). The automation's existing
+handling of a note the run did not tag ready, `mark_failed`, then sets `pending` +
+`failed` and drops `immediate` and `processing`: the poll and the start-up resume
+never pick it up again; **Tools > Generate Pending RCE Audio** does. Any other
+failure, and a timeout outside a batch run (the editor's one note), is still
+all-or-nothing (CA-78).
+
+#### Rulings for review batch 4 (2026-11-12)
+
+CA-90 is Alec's (above). The session's own calls, option taken, then option not
+taken. Taken unattended, on the session's own read of the code.
+
+- **CA-91 The previous-role set gains `gloss` and `idiomHead`; a gloss segment
+  itself still never takes the word.** The design line behind "a gloss never takes
+  it" is section 18, "The "or" (part 4), exactly" (review batch 1): "A role `gloss`
+  never takes it, so a sense's gloss list keeps its small pauses." It speaks of the
+  CURRENT segment's role (the clause before it describes which segment takes the
+  word), and it carries out CA-61 (4), Alec's "A sense's gloss alternatives keep
+  their small pauses with no "or"": a gloss list is separate `gloss` segments. It
+  stands unchanged and `check_a_segment_of_role_gloss_never_takes_the_or` pins it.
+  What CA-90 reverses is the code's comment ("A gloss is not here") and CA-76's
+  *not taken* (`gloss` as a PREVIOUS role), both about the previous segment.
+  Safe because the rule fires only for a segment RCE marked `alternative`, which it
+  does only where the dictionary prints a mark. `stitch_version` stays `"2"` (CA-72's
+  reasoning: a track that now gets an "or" changes its name through that clip; any
+  other track keeps its name). Changed on purpose: one entry of
+  `check_a_gloss_and_a_changed_language_after_an_example_line_take_no_or` (an
+  alternative after a gloss on the same node and language: was no word, now `or,`).
+  *Not taken:* letting a `gloss` segment take the word after another gloss (an "or"
+  inside every comma-listed gloss list, against CA-61 (4)); a new role for a split
+  main translation (a contract change for no audible difference).
+- **CA-92 A sign reaches the voice as the identical character or as its word, never
+  glued; the word rewrites stay; `speech_text_version` 4 → 5.** The managing chat
+  defined "arrives" as the identical character and asked for any altering rule to be
+  changed so the sign arrives unchanged, "no sign is rewritten into a word". The code
+  shows that premise false for this rule: `%`, `€ $ £ ¥`, `°`, `+`, `=`, `×` and
+  `m²`/`m³` have been spoken as words on purpose since CA-29 and rules 6 and 7, made
+  when Alec heard "€20" read as "twenty" and "=" not spoken (section 15). Taking
+  those words out would hand the reading of the very signs CA-90 (3) names back to
+  the engines that dropped them. So the test of "reaches the voice" is the identical
+  character or the word for it in the segment's language standing as a word of its
+  own, and the table above reports the identical-character count separately for RCE.
+  Where the rule glued a sign's word into another word or misread an abbreviation
+  (the "fixed" list above) it is changed, and no new sign is rewritten into a word:
+  a sign touching a letter is left as written. The version moves because what is
+  spoken changes; it is in every provider's identity, which feeds the generic key,
+  the structured key and the track name (CA-27; `check_speech_text_version_is_in_every_identity`).
+  Brackets around a placeholder and the possessive join (CA-61 (9), CA-69) are
+  unchanged (`check_bracketed_labels_are_spoken`, `check_a_bracket_touching_a_word_keeps_no_space`,
+  `check_a_clitic_is_never_a_lone_letter`, green). *Not taken:* removing the word
+  rewrites (the managing chat's literal instruction); leaving the glued cases to
+  avoid a refill (`n° 5` would stay "ndegrés cinq"); padding `n°` into `n degrés`
+  (a wrong reading of numéro); a word for `& ÷ § @ # ‰ ² ³` (CA-90 (3) asks that
+  signs be pronounced; whether the voices read these well is for Alec's ears, and a
+  word is a later call if they do not).
+- **CA-93 The bound is 120 seconds per ffmpeg run, and only a timeout fails a note
+  alone.** Every ffmpeg run in `src/providers` handles one clip of seconds (about a
+  minute for a long sentence at tempo 0.5, the slowest); ffmpeg needs well under a
+  second for any of them, so 120 s is about a hundred times the slowest run expected
+  and still ends a stall. A stall holds `_encode_lock`, so the other encodes wait for
+  it; a note costs at most one bound per stalled clip. The test fakes of
+  `process_notes` (seven) gained an ignored `**_options`. *Not taken:* a shorter bound
+  (a slow disk or a busy machine must not fail a healthy clip); failing the whole run
+  on a timeout (the brief asks the run to go on); ending the run at the first timeout;
+  failing a note alone for other errors too (CA-78 stands); a new tag or a retry
+  counter (the existing `mark_failed` already does what is asked); bounding pydub's own
+  ffmpeg runs (next ruling).
+- **CA-94 The stitch's ffmpeg runs are not in `src/providers/audio.py` and stay
+  unbounded.** The managing chat named `src/providers/audio.py` as the stitching call.
+  The track is stitched by `src/stitcher.py` through pydub (`AudioSegment.from_file`
+  for each clip and earcon, `export` for the MP3), whose ffmpeg runs have no timeout;
+  so do pydub's decodes elsewhere. This batch bounds what the item names and changes no
+  other file under `src/providers`; a stall in the stitch still holds one background
+  run (and the automation's `busy`) until Anki restarts, never the window. A later
+  batch could bound them through `stitcher.hide_subprocess_windows`, which already
+  replaces `subprocess.Popen` for pydub. *Not taken:* doing that here (a second file,
+  and a process-wide patch that is not thread-safe, batch 3's surprise 7).
+
+**What refills.** `speech_text_version` `"4"` → `"5"`: every segment's audio, on the
+generic and the structured path and for every provider, refills once, the next time
+its card is generated (the key moves for all text; only text with a glued sign or an
+abbreviation such as `n°` is spoken differently); every track is rebuilt with it. A
+track with an alternative after a gloss or an idiom heading also gains the "or" clip.
+Item C refills nothing. Unchanged: `stitch_version` `"2"`, `edge_language_version`
+`"1"`, `role_voice_version` `"1"`, `loudness_version` `"1"`, `EARCON_VERSION` `"1"`.
+
+**Tests.** `tests/test_attached_and_alternatives.py` +8 (an alternative after a gloss,
+after an idiom heading, in each language; every other condition after both; the roles
+outside the set; a gloss segment never takes it; the look-back past unspoken segments
+and not past a spoken label or cue, and after an unspoken gloss whose predecessor is a
+label; the parser accepts an alternative after every role; an idiom heading's pauses
+and earcon with and without a following alternative). The new
+`tests/test_symbols_reach_the_voice.py` (6: every sign at boundary 1 in both
+languages; the identical character for the signs with no word; the glued cases; the
+readings kept; every sign at boundary 2 on the plain and the carrier route through a
+fake `edge_tts`; the version). The new `tests/test_ffmpeg_timeout.py` (5: the named
+bound and the unmoved versions; a stalled run ended and reaped within the bound under
+the window-hiding patch; an encode that stalls leaves nothing behind and frees the
+lock; the unattended run with one stalled note, end to end; all-or-nothing outside a
+batch run and for other failures). The old predecessors' checks are unchanged and
+green: `check_two_alternatives_after_a_translation_each_take_an_or`,
+`check_the_or_follows_the_language_of_the_alternatives`,
+`check_an_alternative_after_an_example_line_takes_the_or_in_its_language`,
+`check_a_gloss_list_and_other_neighbours_take_no_or`,
+`check_the_or_is_laid_out_between_two_tight_pauses_in_place_of_the_gap`,
+`check_the_or_after_an_example_line_replaces_the_pauses_of_the_gap`,
+`check_the_or_is_one_cached_clip_per_language_and_voice`. Changed on purpose: the one
+entry under CA-91; `check_the_speech_text_version_moved_with_the_bracket_rule` ("4" →
+"5"); the seven fakes under CA-93. Total: 356 checks in 28 modules (337 in 26 before
+this batch).
