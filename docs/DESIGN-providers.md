@@ -1660,3 +1660,89 @@ The managing chat's reading (its own): (1) decides that a side whose new plan ha
 no spoken segment keeps whatever audio it already has; and a report that freezes
 Anki is worse than the silence it reports, so the audit must tell Alec and must
 never be able to stop Anki or the run.
+
+#### The freeze, diagnosed (item A, written before any edit to the code)
+
+**What the log holds.** `addon/user_files/logs/ankitts.log`, 501,948 bytes, last
+written 2026-11-10 23:10:48, 322 lines dated 2026-11-10; read only, and only the
+type of each line, its level, thread and time, and counts were taken from it. Every
+line from a worker thread is INFO; the only WARNING of the day is the audit's, from
+the main thread; there is no ERROR, no traceback, no timeout and no
+"X failed for" line.
+
+| Time (Denver) | Thread | Event |
+|---|---|---|
+| 10:04:48, 22:50:11 | Main | the add-on loaded (twice) |
+| 22:52:41 to 22:52:57 | `ankitts-rce_0..2` | row 1: 16 syntheses completed, median 1.09 s, longest 1.87 s |
+| 22:53:14 | Main | the audit's WARNING line (17 s after the last synthesis: stitching, copying, publishing, auditing, all on this thread), then the warning box |
+| 22:53:14 to 23:00:24 | none | nothing logged for 7 min 10 s: the box was waiting for OK, inside the run, with the add-on's `busy` flag set |
+| 23:00:24 to 23:05:28 | `ankitts-rce_0..2` | a second run begins within seconds of the box closing: 81 syntheses, median 1.28 s, longest 2.83 s, longest silence between worker lines 16.7 s; **still completing syntheses at the same pace in its last 30 s** (2 completions); the last line is 23:05:28 |
+| 23:05:47 | Main | the add-on loaded (Alec restarted Anki) |
+| 23:05:51 to 23:07:53 | `ankitts-rce_0..1` | a run again **4 s after the load**: 0 fresh syntheses (the cache answered), longest silence 58.3 s; the last line is 23:07:53 |
+| 23:09:49 | Main | the add-on loaded (sync off) |
+| 23:09:51 to 23:10:48 | `ankitts-rce_0..1` | a run again, **2 s after the load**: 0 fresh syntheses, longest silence 18.6 s; the last line is 23:10:48 |
+
+**The mechanism.** Everything above runs on Anki's main thread, in the slot of a
+one-second `QTimer`:
+
+- `addon/__init__.py` starts `rce_audio_timer` (1000 ms) whose timeout is
+  `RceAudioAutomationController.poll_immediate_requests`; `resume_rce_audio_polling()`
+  is called at import and on `collection_did_load`, and `RceAudioPollingLifecycle.resume`
+  runs `recover_after_restart` and starts the timer.
+- `poll_immediate_requests` finds the notes tagged `rce-audio::pending` and
+  `rce-audio::immediate` (`IMMEDIATE_AUDIO_QUERY`) and calls `_process`
+  (`rce_audio_automation.py`), which calls `process_note_ids` (`browser.py`) and
+  waits for it. That function parses every plan, calls
+  `batch_processor.process_notes` (a loop over the notes; per note
+  `structured_audio._synthesize_missing_segments` starts a `ThreadPoolExecutor`
+  and the calling thread waits on `future.result()`, then stitches with ffmpeg),
+  copies the files, and only then writes the audio fields and tags the notes
+  ready. The synthesis happens on worker threads, but the thread that called the
+  slot is blocked for the whole run: no event is pumped, and Windows reports Not
+  Responding after about five seconds.
+- Nothing is published until the last note is done. Ending Anki mid-run therefore
+  loses the run (the cache keeps the synthesised clips, not the tracks or the fields),
+  and the note keeps the `processing` tag it was given at the start.
+- At the next start `recover_after_restart` turns every `processing` note into
+  `pending` + `failed`, and **keeps its `immediate` tag**
+  (`mark_interrupted_processing`), so the poll picks it up again about a second after
+  the collection loads: the log shows the run beginning 4 s and 2 s after the add-on
+  loaded. Every start while the pending audio stands begins the same minutes-long
+  run on the main thread, before the main window is usable.
+
+**What the box did.** The warning box was not what froze Anki. It is raised on the
+main thread (the audit's line is logged by `MainThread`), inside the slot, and it
+waited seven minutes for a click because that is what a box does. The click let the
+run end; the next poll, one second later, found the other fifteen notes and began the
+long run, and from the click on the window was Not Responding with a run that was
+healthy and incomplete (81 syntheses of the order of 240).
+
+**The managing chat's two guesses, tested.** (1) *The warning dialog is raised from
+work that is not on Anki's main thread:* **wrong**. The log's thread for the audit is
+`MainThread`, `_process` is called by the timer's slot, and the reproduction below
+records the thread of every dialog and finds the main one, today. (2) *The automation
+that resumes pending audio when the profile opens blocks the main thread or loops on
+the same notes:* **right on both counts**, and it is not only the start-up path: the
+blocking is in every unattended and every manual run, and the "loop" is the recovery
+that keeps `immediate`, together with a run that publishes nothing until it is over.
+
+**What is proven and what is not.** Proven, by the code and the reproduction: a run
+of N notes holds the main thread for the whole of its duration (about 34 s a note in
+the log: row 1 took 17 s of synthesis and 17 s of the rest), for fifteen cards some
+eight minutes, and is lost if Anki is ended before it finishes. Consistent with the log
+and not provable from it: that this is *all* Alec saw. The second run was progressing
+at its normal pace when it was ended, and the two restart runs were inside their cache
+answers and stitching, for which the log has no lines. A stall inside ffmpeg
+(`providers.audio._run_ffmpeg` and pydub's own calls have no timeout) would look the same
+from outside and cannot be excluded; it is bounded where the add-on calls ffmpeg itself
+(CA-87), and with the run off the main thread it can no longer freeze Anki. His
+observation of about 2 per cent processor and no disk or network is what waiting for
+worker threads and the speech service looks like.
+
+**The reproduction** (`tests/test_unattended_run.py`,
+`check_a_slow_batch_does_not_hold_the_timer_slot`): fake window with a `taskman` that
+runs tasks on a real thread, a collection that answers tag searches as Anki does, the
+fake provider and the stand-in stitcher; three queued notes, two with an empty front
+plan; the batch held on an event. RED on `534e983` for this reason: the slot does not
+return until the batch is over, and the batch runs on the calling thread. The same
+check asserts that every dialog is raised on the main thread (true today).
