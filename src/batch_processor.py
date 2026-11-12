@@ -9,12 +9,21 @@ from rce_contract import RCE_JOB_TYPE
 from structured_audio import process_structured_job
 
 
+class RunCancelled(Exception):
+    """The run was stopped between notes (Anki is closing the profile)."""
+
+
 def process_notes(
     notes,
     settings,
+    should_cancel=None,
 ):
     """
     Process one or more generic or structured audio jobs.
+
+    should_cancel, when given, is asked before each note; the run is stopped
+    between notes with RunCancelled, so a run that cannot finish does not hold
+    Anki open at exit. The check is a plain call that reads a flag.
     """
 
     results = []
@@ -24,6 +33,18 @@ def process_notes(
     for index, job in enumerate(
         notes
     ):
+        if (
+            should_cancel is not None
+            and should_cancel()
+        ):
+            error = RunCancelled(
+                "The run was stopped before this note."
+            )
+
+            error.job_index = index
+
+            raise error
+
         try:
             if (
                 job.get(

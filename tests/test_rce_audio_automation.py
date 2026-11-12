@@ -33,6 +33,9 @@ def install_aqt_stubs():
     utils_module.showWarning = (
         lambda *args, **kwargs: None
     )
+    utils_module.tooltip = (
+        lambda *args, **kwargs: None
+    )
 
     sys.modules[
         "aqt"
@@ -318,6 +321,38 @@ class SwitchingCollection(
         return note_ids
 
 
+def synchronous_run(
+    fake_process_note_ids,
+):
+    """
+    A stand-in for automation.start_note_run (CA-82) around a fake written for
+    the old process_note_ids: the fake's outcome is delivered at once, on the
+    calling thread, to on_finished. The checks that used the old seam use this;
+    the threaded behaviour is in test_unattended_run.
+    """
+
+    def start(
+        note_ids,
+        mw,
+        addon_name,
+        on_finished,
+        reset_callback=None,
+        show_messages=True,
+        should_cancel=None,
+    ):
+        on_finished(
+            fake_process_note_ids(
+                note_ids,
+                mw,
+                addon_name,
+                reset_callback=reset_callback,
+                show_messages=show_messages,
+            )
+        )
+
+    return start
+
+
 def check_poll_does_nothing_without_a_collection():
     mw = FakeMainWindow(
         []
@@ -519,15 +554,17 @@ def check_collection_switch_after_search_aborts_old_request():
     )
 
     original_process_note_ids = (
-        automation.process_note_ids
+        automation.start_note_run
     )
 
     processed = []
 
     try:
-        automation.process_note_ids = (
-            lambda *args, **kwargs: processed.append(
-                args[0]
+        automation.start_note_run = (
+            synchronous_run(
+                lambda *args, **kwargs: processed.append(
+                    args[0]
+                )
             )
         )
 
@@ -548,7 +585,7 @@ def check_collection_switch_after_search_aborts_old_request():
         ]
 
     finally:
-        automation.process_note_ids = (
+        automation.start_note_run = (
             original_process_note_ids
         )
 
@@ -758,7 +795,7 @@ def check_immediate_request_reuses_batch_path_and_becomes_ready():
     )
 
     original_process_note_ids = (
-        automation.process_note_ids
+        automation.start_note_run
     )
 
     original_show_info = (
@@ -807,8 +844,10 @@ def check_immediate_request_reuses_batch_path_and_becomes_ready():
         }
 
     try:
-        automation.process_note_ids = (
-            fake_process_note_ids
+        automation.start_note_run = (
+            synchronous_run(
+                fake_process_note_ids
+            )
         )
 
         automation.showInfo = (
@@ -842,7 +881,7 @@ def check_immediate_request_reuses_batch_path_and_becomes_ready():
         assert not controller.busy
 
     finally:
-        automation.process_note_ids = (
+        automation.start_note_run = (
             original_process_note_ids
         )
 
@@ -872,7 +911,7 @@ def check_failed_immediate_request_remains_pending():
     )
 
     original_process_note_ids = (
-        automation.process_note_ids
+        automation.start_note_run
     )
 
     original_show_warning = (
@@ -882,11 +921,13 @@ def check_failed_immediate_request_remains_pending():
     warnings = []
 
     try:
-        automation.process_note_ids = (
-            lambda *args, **kwargs: {
-                "success": False,
-                "message": "simulated failure",
-            }
+        automation.start_note_run = (
+            synchronous_run(
+                lambda *args, **kwargs: {
+                    "success": False,
+                    "message": "simulated failure",
+                }
+            )
         )
 
         automation.showWarning = (
@@ -911,7 +952,7 @@ def check_failed_immediate_request_remains_pending():
         assert not warnings
 
     finally:
-        automation.process_note_ids = (
+        automation.start_note_run = (
             original_process_note_ids
         )
 
@@ -937,7 +978,7 @@ def check_mid_process_collection_close_stays_queued_without_error_noise():
     )
 
     original_process_note_ids = (
-        automation.process_note_ids
+        automation.start_note_run
     )
 
     original_show_warning = (
@@ -955,8 +996,10 @@ def check_mid_process_collection_close_stays_queued_without_error_noise():
         )
 
     try:
-        automation.process_note_ids = (
-            close_collection
+        automation.start_note_run = (
+            synchronous_run(
+                close_collection
+            )
         )
 
         automation.showWarning = (
@@ -982,7 +1025,7 @@ def check_mid_process_collection_close_stays_queued_without_error_noise():
         assert not controller.busy
 
     finally:
-        automation.process_note_ids = (
+        automation.start_note_run = (
             original_process_note_ids
         )
 
@@ -1008,15 +1051,17 @@ def check_unpublished_success_is_converted_to_recoverable_failure():
     )
 
     original_process_note_ids = (
-        automation.process_note_ids
+        automation.start_note_run
     )
 
     try:
-        automation.process_note_ids = (
-            lambda *args, **kwargs: {
-                "success": True,
-                "message": "completed with one incompatible note",
-            }
+        automation.start_note_run = (
+            synchronous_run(
+                lambda *args, **kwargs: {
+                    "success": True,
+                    "message": "completed with one incompatible note",
+                }
+            )
         )
 
         controller = (
@@ -1035,7 +1080,7 @@ def check_unpublished_success_is_converted_to_recoverable_failure():
         ]
 
     finally:
-        automation.process_note_ids = (
+        automation.start_note_run = (
             original_process_note_ids
         )
 

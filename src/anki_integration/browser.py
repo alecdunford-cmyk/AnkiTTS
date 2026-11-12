@@ -1,5 +1,8 @@
 import shutil
+from concurrent.futures import Future
+from dataclasses import dataclass
 from pathlib import Path
+from time import perf_counter
 
 from aqt.qt import QAction
 from aqt.utils import (
@@ -9,6 +12,7 @@ from aqt.utils import (
 )
 
 from ankitts_log import get_logger
+from anki_integration.ui import call_on_main
 from audio_audit import (
     REASON_COPY_FAILED,
     REASON_SYNTHESIS_FAILED,
@@ -18,7 +22,10 @@ from audio_audit import (
     audit_rejected,
     audit_unfinished,
 )
-from batch_processor import process_notes
+from batch_processor import (
+    RunCancelled,
+    process_notes,
+)
 from card_processor import OUTPUT_DIR
 from note_mapper import (
     create_job_from_note,
@@ -41,6 +48,36 @@ from stitcher import hide_subprocess_windows
 logger = get_logger(
     "browser"
 )
+
+# Where a background run stopped, for the failure message.
+STAGE_SYNTHESIS = "synthesis"
+STAGE_COPY = "copy"
+
+ALREADY_RUNNING_MESSAGE = (
+    "AnkiTTS is already generating audio. Wait for that run to finish, "
+    "then try again."
+)
+
+CANCELLED_MESSAGE = (
+    "The audio run was stopped because the Anki collection was closing. "
+    "The notes stay queued."
+)
+
+COLLECTION_CHANGED_MESSAGE = (
+    "The Anki collection changed while the audio was generated, so it was "
+    "not published. The notes stay queued."
+)
+
+# One generation run at a time, whoever started it (the browser menu, the
+# automation's poll, Tools > Generate Pending RCE Audio). Read and written on
+# the main thread only.
+_run_in_flight = False
+
+
+def run_in_flight():
+    """Whether a generation run is between its start and its publication."""
+
+    return _run_in_flight
 
 
 def get_selected_note_ids(browser):
@@ -157,13 +194,20 @@ def process_selected_notes(
     mw,
     addon_name,
 ):
+    """
+    The browser menu's action: a run Alec starts by hand. The long work is
+    done off the main thread (CA-82); the result box he gets when it ends
+    carries the audit's lines, and there is no second box.
+    """
+
     note_ids = get_selected_note_ids(
         browser
     )
 
     if not note_ids:
-        showWarning(
-            "Select one or more notes in the Browse window first."
+        _warn(
+            mw,
+            "Select one or more notes in the Browse window first.",
         )
         return {
             "success": False,
@@ -172,10 +216,11 @@ def process_selected_notes(
             ),
         }
 
-    return process_note_ids(
+    start_note_run(
         note_ids,
         mw,
         addon_name,
+        on_finished=lambda outcome: None,
         reset_callback=(
             browser.model.reset
         ),
@@ -183,24 +228,44 @@ def process_selected_notes(
     )
 
 
-def process_note_ids(
+@dataclass
+class PreparedRun:
+    """What the main thread worked out before the long part starts."""
+
+    settings: object
+    media_folder: Path
+    compatible_notes: list
+    jobs: list
+    audit: AudioAudit
+    skipped_note_types: int
+
+
+@dataclass
+class GeneratedRun:
+    """What the long part came back with: a batch result, or why not."""
+
+    batch_result: dict | None = None
+    error: BaseException | None = None
+    stage: str | None = None
+
+
+def prepare_run(
     note_ids,
     mw,
     addon_name,
-    reset_callback=None,
     show_messages=True,
 ):
     """
-    Process an explicit ordered set of Anki note IDs.
-
-    Browser selection, queued RCE generation, and immediate RCE automation
-    all enter this single transactional publication path.
+    The first part of a run, on the main thread: settings, the notes, their
+    jobs, the audit's first counts. Returns a PreparedRun, or the failure
+    outcome (a dict) when the run cannot start.
     """
 
     if not note_ids:
         return _failure(
             "No notes were supplied for AnkiTTS processing.",
             show_messages,
+            mw=mw,
         )
 
     try:
@@ -220,6 +285,7 @@ def process_note_ids(
             "AnkiTTS settings are invalid:\n\n"
             f"{error}",
             show_messages,
+            mw=mw,
         )
 
     media_folder = Path(
@@ -305,6 +371,7 @@ def process_note_ids(
             ),
             show_messages,
             refused,
+            mw=mw,
         )
 
     if not jobs:
@@ -319,16 +386,131 @@ def process_note_ids(
             "configured AnkiTTS fields:\n\n"
             f"{required_fields}",
             show_messages,
+            mw=mw,
         )
 
+    return PreparedRun(
+        settings=settings,
+        media_folder=media_folder,
+        compatible_notes=compatible_notes,
+        jobs=jobs,
+        audit=audit,
+        skipped_note_types=skipped_note_types,
+    )
+
+
+def generate_run(
+    prepared,
+    should_cancel=None,
+):
+    """
+    The long part of a run: synthesis, stitching, copying into Anki's media.
+
+    It touches no Anki collection and no Qt object, so it may run on a
+    background thread, and it never raises: a failure comes back in the
+    GeneratedRun, for the main thread to report.
+    """
+
     try:
+        arguments = {}
+
+        if should_cancel is not None:
+            arguments[
+                "should_cancel"
+            ] = should_cancel
+
         with hide_subprocess_windows():
             batch_result = process_notes(
-                jobs,
-                settings=settings,
+                prepared.jobs,
+                settings=prepared.settings,
+                **arguments,
             )
 
     except Exception as error:
+        return GeneratedRun(
+            error=error,
+            stage=STAGE_SYNTHESIS,
+        )
+
+    try:
+        for audio_files in batch_result[
+            "results"
+        ]:
+            copy_generated_audio_to_media(
+                audio_files,
+                prepared.media_folder,
+                prepared.settings,
+            )
+
+    except Exception as error:
+        return GeneratedRun(
+            error=error,
+            stage=STAGE_COPY,
+        )
+
+    return GeneratedRun(
+        batch_result=batch_result,
+    )
+
+
+def publish_run(
+    prepared,
+    generated,
+    mw,
+    reset_callback=None,
+    show_messages=True,
+):
+    """
+    The last part of a run, on the main thread: write the audio fields, tag
+    the notes ready, audit what each side ended with, report.
+    """
+
+    settings = prepared.settings
+    media_folder = prepared.media_folder
+    compatible_notes = prepared.compatible_notes
+    jobs = prepared.jobs
+    audit = prepared.audit
+    skipped_note_types = prepared.skipped_note_types
+
+    if generated.error is not None:
+        error = generated.error
+
+        if isinstance(
+            error,
+            RunCancelled,
+        ):
+            # Stopped on purpose, between notes, because the collection is
+            # closing: not a failure, nothing was written, no box (CA-85).
+            return {
+                "success": False,
+                "cancelled": True,
+                "message": CANCELLED_MESSAGE,
+            }
+
+        if generated.stage == STAGE_COPY:
+            for note, job in zip(
+                compatible_notes,
+                jobs,
+            ):
+                audit_unfinished(
+                    audit,
+                    note.id,
+                    job,
+                    REASON_COPY_FAILED,
+                )
+
+            return _failure(
+                "AnkiTTS generated audio but could not copy it "
+                f"into Anki media:\n\n{error}\n\n"
+                "No selected note fields were changed."
+                + _audit_suffix(
+                    audit
+                ),
+                show_messages,
+                audit,
+                mw=mw,
+            )
+
         # The run is all-or-nothing: the note that failed, and every note
         # after it, got no audio. Only the note that failed is named.
         failed_index = getattr(
@@ -358,44 +540,23 @@ def process_note_ids(
             ),
             show_messages,
             audit,
+            mw=mw,
         )
 
-    try:
-        for audio_files in batch_result[
-            "results"
-        ]:
-            copy_generated_audio_to_media(
-                audio_files,
-                media_folder,
-                settings,
-            )
-
-    except Exception as error:
-        for note, job in zip(
-            compatible_notes,
-            jobs,
-        ):
-            audit_unfinished(
-                audit,
-                note.id,
-                job,
-                REASON_COPY_FAILED,
-            )
-
-        return _failure(
-            "AnkiTTS generated audio but could not copy it "
-            f"into Anki media:\n\n{error}\n\n"
-            "No selected note fields were changed."
-            + _audit_suffix(
-                audit
-            ),
-            show_messages,
-            audit,
-        )
+    batch_result = generated.batch_result
 
     try:
+        # The notes are read again here: the run took minutes, and a note
+        # Alec edited meanwhile is written back as he left it, plus audio.
+        notes = [
+            mw.col.get_note(
+                note.id
+            )
+            for note in compatible_notes
+        ]
+
         for note, audio_files in zip(
-            compatible_notes,
+            notes,
             batch_result["results"],
         ):
             write_audio_fields(
@@ -404,7 +565,7 @@ def process_note_ids(
                 settings,
             )
 
-        for note in compatible_notes:
+        for note in notes:
             mark_ready_if_managed(
                 note
             )
@@ -418,7 +579,10 @@ def process_note_ids(
             "AnkiTTS could not update all selected notes:\n\n"
             f"{error}",
             show_messages,
+            mw=mw,
         )
+
+    compatible_notes = notes
 
     if reset_callback is not None:
         reset_callback()
@@ -529,13 +693,15 @@ def process_note_ids(
     )
 
     if show_messages:
-        # A nonzero audit is a warning, not an information box.
+        # A nonzero audit is a warning, not an information box. This is the
+        # one box of a run Alec started by hand; it carries the audit.
         (
-            showWarning
+            _warn
             if not audit.is_clean
-            else showInfo
+            else _info
         )(
-            message
+            mw,
+            message,
         )
 
     return {
@@ -551,7 +717,313 @@ def process_note_ids(
         "audit": audit.counts(),
         "audit_alarm": not audit.is_clean,
         "audit_message": audit.message(),
+        "audit_notice": audit.notice(),
     }
+
+
+def process_note_ids(
+    note_ids,
+    mw,
+    addon_name,
+    reset_callback=None,
+    show_messages=True,
+):
+    """
+    Process an explicit ordered set of Anki note IDs, start to finish, on the
+    calling thread.
+
+    The same three parts as start_note_run, one after another: the editor's
+    button and the checks use this; the browser action and the RCE automation
+    use start_note_run, which does the long part off the main thread.
+    """
+
+    prepared = prepare_run(
+        note_ids,
+        mw,
+        addon_name,
+        show_messages,
+    )
+
+    if isinstance(
+        prepared,
+        dict,
+    ):
+        return prepared
+
+    return publish_run(
+        prepared,
+        generate_run(
+            prepared
+        ),
+        mw,
+        reset_callback,
+        show_messages,
+    )
+
+
+def start_note_run(
+    note_ids,
+    mw,
+    addon_name,
+    on_finished,
+    reset_callback=None,
+    show_messages=True,
+    should_cancel=None,
+):
+    """
+    Process note IDs without holding Anki's main thread (CA-82).
+
+    The notes are read and the jobs built here, on the main thread; synthesis,
+    stitching and copying run on a background thread (`mw.taskman`); the audio
+    fields are written, the notes tagged ready and the result shown back on the
+    main thread. on_finished(outcome) is called once, on the main thread, with
+    the same outcome dict process_note_ids returns. One run at a time: a run
+    asked for while another is in flight is refused with a failure outcome
+    marked "busy".
+    """
+
+    global _run_in_flight
+
+    if _run_in_flight:
+        outcome = _failure(
+            ALREADY_RUNNING_MESSAGE,
+            show_messages,
+            mw=mw,
+        )
+
+        outcome[
+            "busy"
+        ] = True
+
+        on_finished(
+            outcome
+        )
+
+        return
+
+    prepared = prepare_run(
+        note_ids,
+        mw,
+        addon_name,
+        show_messages,
+    )
+
+    if isinstance(
+        prepared,
+        dict,
+    ):
+        on_finished(
+            prepared
+        )
+
+        return
+
+    _run_in_flight = True
+
+    collection = getattr(
+        mw,
+        "col",
+        None,
+    )
+
+    started_at = perf_counter()
+
+    logger.info(
+        "Audio run started: %d note(s).",
+        len(
+            prepared.jobs
+        ),
+    )
+
+    def task():
+        return generate_run(
+            prepared,
+            should_cancel,
+        )
+
+    def done(
+        future,
+    ):
+        """On the main thread, whatever the task did."""
+
+        global _run_in_flight
+
+        try:
+            try:
+                generated = future.result()
+
+            except BaseException as error:
+                generated = GeneratedRun(
+                    error=error,
+                    stage=STAGE_SYNTHESIS,
+                )
+
+            try:
+                if (
+                    getattr(
+                        mw,
+                        "col",
+                        None,
+                    )
+                    is not collection
+                ):
+                    # Another profile, or none: writing now could land in the
+                    # wrong collection (note ids repeat across profiles).
+                    outcome = {
+                        "success": False,
+                        "cancelled": True,
+                        "message": COLLECTION_CHANGED_MESSAGE,
+                    }
+
+                else:
+                    outcome = publish_run(
+                        prepared,
+                        generated,
+                        mw,
+                        reset_callback,
+                        show_messages,
+                    )
+
+            except Exception as error:
+                logger.warning(
+                    "The audio run could not be published: %s",
+                    type(
+                        error
+                    ).__name__,
+                )
+
+                outcome = _failure(
+                    "AnkiTTS could not publish the audio run: "
+                    f"{type(error).__name__}.",
+                    show_messages,
+                    mw=mw,
+                )
+
+        finally:
+            _run_in_flight = False
+
+        counts = outcome.get(
+            "audit"
+        ) or {}
+
+        logger.info(
+            "Audio run finished: %s in %.1f s; audit %s silent, "
+            "%s empty, %s rejected.",
+            "success"
+            if outcome.get(
+                "success"
+            )
+            else "failure",
+            perf_counter()
+            - started_at,
+            counts.get(
+                "silent",
+                0,
+            ),
+            counts.get(
+                "empty",
+                0,
+            ),
+            counts.get(
+                "rejected",
+                0,
+            ),
+        )
+
+        on_finished(
+            outcome
+        )
+
+    try:
+        _run_in_background(
+            mw,
+            task,
+            done,
+        )
+
+    except Exception as error:
+        _run_in_flight = False
+
+        on_finished(
+            _failure(
+                "AnkiTTS could not start the audio run: "
+                f"{type(error).__name__}.",
+                show_messages,
+                mw=mw,
+            )
+        )
+
+
+def _run_in_background(
+    mw,
+    task,
+    done,
+):
+    """
+    Hand the task to Anki's task manager; done(future) is called back on the
+    main thread. The task uses no collection, so Anki is not told it does.
+    Without a task manager the task runs here, with a warning in the log.
+    """
+
+    taskman = getattr(
+        mw,
+        "taskman",
+        None,
+    )
+
+    if taskman is None:
+        logger.warning(
+            "Anki's task manager is not available; the audio run executes "
+            "on the calling thread."
+        )
+
+        future = Future()
+
+        try:
+            future.set_result(
+                task()
+            )
+
+        except BaseException as error:
+            future.set_exception(
+                error
+            )
+
+        done(
+            future
+        )
+
+        return
+
+    taskman.run_in_background(
+        task,
+        done,
+        uses_collection=False,
+    )
+
+
+def _info(
+    mw,
+    text,
+):
+    call_on_main(
+        mw,
+        lambda: showInfo(
+            text
+        ),
+    )
+
+
+def _warn(
+    mw,
+    text,
+):
+    call_on_main(
+        mw,
+        lambda: showWarning(
+            text
+        ),
+    )
 
 
 def _audit_suffix(
@@ -572,10 +1044,12 @@ def _failure(
     message,
     show_messages,
     audit=None,
+    mw=None,
 ):
     if show_messages:
-        showWarning(
-            message
+        _warn(
+            mw,
+            message,
         )
 
     result = {
@@ -599,6 +1073,10 @@ def _failure(
         result[
             "audit_message"
         ] = audit.message()
+
+        result[
+            "audit_notice"
+        ] = audit.notice()
 
     return result
 

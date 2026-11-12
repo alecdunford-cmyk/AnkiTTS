@@ -193,9 +193,13 @@ qconnect(
     rce_audio_automation.poll_immediate_requests,
 )
 
+# The resume of pending audio is deferred (CA-84): Anki's hooks only schedule
+# it, a few seconds after the collection opens, and a failure in it is logged
+# and never raised into start-up.
 rce_audio_lifecycle = RceAudioPollingLifecycle(
     rce_audio_automation,
     rce_audio_timer,
+    schedule=QTimer.singleShot,
 )
 
 
@@ -208,7 +212,7 @@ def suspend_rce_audio_polling(
 def resume_rce_audio_polling(
     *_args,
 ):
-    rce_audio_lifecycle.resume()
+    rce_audio_lifecycle.resume_later()
 
 
 gui_hooks.profile_will_close.append(

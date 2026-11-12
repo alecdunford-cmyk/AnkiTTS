@@ -23,8 +23,10 @@ from tests.test_rce_audio_automation import (
     FakeMainWindow as AutomationWindow,
     FakeNote as AutomationNote,
     automation,
+    synchronous_run,
 )
 
+from anki_integration import ui as ui_module
 from anki_integration.rce_audio_status import mark_ready_if_managed
 
 import batch_processor
@@ -851,11 +853,24 @@ def check_a_failed_copy_marks_every_audited_side_silent():
     ]
 
 
-def check_an_unattended_run_shows_a_dirty_audit_and_a_clean_one_stays_quiet():
-    original_process = automation.process_note_ids
+def check_an_unattended_run_tells_alec_without_a_box_and_a_clean_one_stays_quiet():
+    """
+    Changed on purpose by CA-81/CA-83: this check used to assert that an
+    unattended run raised a warning BOX for a dirty audit. A box nobody is
+    watching is what held Anki's event loop; the run now shows a tooltip that
+    closes itself, once, and no box.
+    """
+
+    original_process = automation.start_note_run
     original_warning = automation.showWarning
+    original_tooltip = ui_module.tooltip
 
     warnings = []
+    notices = []
+
+    ui_module.tooltip = lambda text, period=None, **_: notices.append(
+        text
+    )
 
     def run(
         outcome,
@@ -891,7 +906,7 @@ def check_an_unattended_run_shows_a_dirty_audit_and_a_clean_one_stays_quiet():
 
             return outcome
 
-        automation.process_note_ids = fake_process_note_ids
+        automation.start_note_run = synchronous_run(fake_process_note_ids)
 
         automation.showWarning = warnings.append
 
@@ -913,21 +928,25 @@ def check_an_unattended_run_shows_a_dirty_audit_and_a_clean_one_stays_quiet():
             "message": "complete",
             "audit_alarm": True,
             "audit_message": "*** AUDIO AUDIT: 1 SIDE ... ***",
+            "audit_notice": "AnkiTTS audio audit: 1 side without audio.",
         }
 
-        # Unattended: shown.
+        # Unattended: a notice, once; no box at all.
         run(
             dirty,
             show_completion=False,
         )
 
-        assert warnings == [
-            "*** AUDIO AUDIT: 1 SIDE ... ***",
+        assert warnings == []
+
+        assert notices == [
+            "AnkiTTS audio audit: 1 side without audio.",
         ]
 
-        # Watched (a manual run): its own result carries the lines, so the
-        # audit is not shown a second time.
+        # Watched (a manual run): its own result box carries the lines, so
+        # neither a second box nor a notice.
         warnings.clear()
+        notices.clear()
 
         run(
             dirty,
@@ -935,6 +954,7 @@ def check_an_unattended_run_shows_a_dirty_audit_and_a_clean_one_stays_quiet():
         )
 
         assert "*** AUDIO AUDIT: 1 SIDE ... ***" not in warnings
+        assert notices == []
 
         # Clean: nothing is shown.
         warnings.clear()
@@ -950,10 +970,12 @@ def check_an_unattended_run_shows_a_dirty_audit_and_a_clean_one_stays_quiet():
         )
 
         assert warnings == []
+        assert notices == []
 
     finally:
-        automation.process_note_ids = original_process
+        automation.start_note_run = original_process
         automation.showWarning = original_warning
+        ui_module.tooltip = original_tooltip
 
 
 def check_the_log_line_carries_counts_and_ids_only():
@@ -1009,7 +1031,7 @@ def run():
         check_a_rejected_plan_lands_in_the_rejected_count_and_stops_the_run,
         check_a_failed_synthesis_names_the_note,
         check_a_failed_copy_marks_every_audited_side_silent,
-        check_an_unattended_run_shows_a_dirty_audit_and_a_clean_one_stays_quiet,
+        check_an_unattended_run_tells_alec_without_a_box_and_a_clean_one_stays_quiet,
         check_the_log_line_carries_counts_and_ids_only,
     ]
 

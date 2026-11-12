@@ -36,6 +36,9 @@ def install_aqt_stubs():
     utils_module.showWarning = (
         lambda *args, **kwargs: None
     )
+    utils_module.tooltip = (
+        lambda *args, **kwargs: None
+    )
 
     sys.modules[
         "aqt"

@@ -187,6 +187,30 @@ class AudioAudit:
             self.lines()
         )
 
+    def notice(
+        self,
+    ) -> str:
+        """
+        The short text of the notice an unattended run shows in place of a box
+        (CA-83): the three counts and where the ids are. No note id and never a
+        segment's text; the log line and the result carry the ids.
+        """
+
+        counts = self.counts()
+
+        total = sum(
+            counts.values()
+        )
+
+        return (
+            "AnkiTTS audio audit: "
+            f"{total} side{'s' if total != 1 else ''} "
+            "without audio that should have some "
+            f"({counts['silent']} silent, {counts['empty']} empty, "
+            f"{counts['rejected']} rejected). "
+            "The note ids are in the AnkiTTS log."
+        )
+
     def log_line(
         self,
     ) -> str:
