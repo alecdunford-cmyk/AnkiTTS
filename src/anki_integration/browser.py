@@ -585,7 +585,19 @@ def publish_run(
     compatible_notes = notes
 
     if reset_callback is not None:
-        reset_callback()
+        # The Browse window can be gone by now (the run took minutes): the
+        # notes are published either way, so a refresh that fails is only
+        # logged.
+        try:
+            reset_callback()
+
+        except Exception as error:
+            logger.warning(
+                "The Browse window could not be refreshed: %s",
+                type(
+                    error
+                ).__name__,
+            )
 
     # Item C, the net under "never silent": what each audited side ended with,
     # read back from the result, Anki's media folder and the note itself.

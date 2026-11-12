@@ -806,6 +806,17 @@ def check_a_run_by_hand_shows_one_box_with_the_audit_and_no_notice():
 
             outcomes = []
 
+            refreshed = []
+
+            def closed_window():
+                refreshed.append(
+                    threading.current_thread()
+                )
+
+                raise RuntimeError(
+                    "wrapped C/C++ object has been deleted"
+                )
+
             browser_integration.start_note_run(
                 [
                     1,
@@ -814,10 +825,17 @@ def check_a_run_by_hand_shows_one_box_with_the_audit_and_no_notice():
                 window,
                 "AnkiTTS",
                 on_finished=outcomes.append,
+                reset_callback=closed_window,
                 show_messages=True,
             )
 
             taskman.drain()
+
+            # The Browse window was closed during the run: the refresh fails
+            # on the main thread and the published run is still a success.
+            assert refreshed == [
+                MAIN_THREAD,
+            ]
 
             assert [
                 kind
