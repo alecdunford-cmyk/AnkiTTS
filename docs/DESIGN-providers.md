@@ -2187,3 +2187,93 @@ path with Alec's live voice settings (their voice keys only, as read; invented t
 and a fake Edge that records the voice, language and route of each request, and
 checks that no request names a voice Edge no longer offers. RED on 666d411: every
 English content segment, long and short, asks for Seraphina.
+
+**Rulings for review batch 5 (the session's own, 2026-11-13).** CA-95 is Alec's
+(above). The session's own calls, option taken, then option not taken:
+
+- **CA-96 A withdrawn Edge voice is replaced where settings load, and nothing is
+  written.** `settings.WITHDRAWN_EDGE_VOICES` maps each voice Edge no longer offers to
+  the voice that takes its place; `AppSettings.from_dict` (every load: the live
+  add-on's config, `settings.json`, the dialog's open and its Save) replaces it in
+  `voices`, in every speech profile and in every role-voice slot. Alec's `meta.json`
+  is not edited; the dialog shows the replacement and a Save stores it. Because the
+  replacement happens before any key is made, the audio made under the withdrawn name
+  is never matched again. *Not taken:* leaving the stored voice for Alec to change by
+  hand (every English clip stays German until he does, and the next withdrawn voice
+  would be as silent); checking the live catalogue at each run and falling back to
+  some offered voice (a network listing per run, and a fall-back the code chooses
+  silently is the very failure found); rewriting `meta.json` (Alec's config, written
+  unasked).
+- **CA-97 Seraphina's replacement is `en-US-AvaMultilingualNeural`, for Alec to
+  accept or change.** Of the 318 voices listed, it is the nearest to what CA-41 chose:
+  a female voice for content (CA-41 amends CA-40 (2): content voices are female),
+  multilingual like the other three CA-41 voices (so the carrier route still serves
+  its short segments), its own voice for English and not French's Vivienne (CA-41:
+  "each language has its own voice and the language switch is audible"), and native
+  to the language it speaks. It is also the new default (`DEFAULT_ROLE_VOICES`,
+  `addon/config.json`). *Not taken:* `en-US-EmmaMultilingualNeural` (as near on every
+  criterion; this session has no record of Alec's ranking between the two, and the
+  Stage 2 listening notes are under RCE's folders, which CA-95 keeps closed);
+  `en-US-JennyNeural` (the add-on's English voice before CA-41, not multilingual);
+  another German multilingual voice (none is offered); `pt-BR-ThalitaMultilingualNeural`
+  (the only other female multilingual voice, from a third locale).
+- **CA-98 The log names the voice of each synthesized segment.** The `synthesized`
+  line reads `<provider> synthesized <language> with <voice> ...` (`its own voice` for
+  a provider that takes its voice from its own settings). This batch had to recover
+  the voice from the code and the settings because the log did not carry it, and a
+  substitution by the service raises nothing. *Not taken:* leaving the line as it was.
+- **CA-99 The cards get their new audio from the Browse command; nothing re-queues
+  them by itself, and no version moves.** The voice is in every segment's key and every
+  track's name, so a card's next run makes only its English content clips (and the
+  English "or," clip) again and republishes only the sides that hold them; French
+  clips, labels and French-only sides are reused. A card tagged ready is not processed
+  again on its own: **Browse > Notes > Generate AnkiTTS Audio for Selected Notes** on
+  the RCE cards runs them with no re-export, writes the new track into the side's
+  field and keeps the tag; a re-export from RCE that queues the cards again does the
+  same. The old track file stays in the media folder until Anki's **Tools > Check
+  Media** deletes unused files. *Not taken:* re-tagging every ready RCE note pending at
+  the next start (it writes tags across Alec's collection unasked, and reruns every
+  card, French-only ones included, to find the English ones); a version bump
+  (`role_voice_version` would re-make every French clip too, and the key already moves).
+- **CA-100 The live settings read under CA-95 (2) are `addon/meta.json`'s `config`,
+  through the same whitelist.** CA-95 (2) names `settings.json`, which the live add-on
+  does not read (CLAUDE.md: the add-on reads `addon/config.json` overlaid by
+  `meta.json["config"]`); `settings.json` holds only `voices` (Jenny, Denise, Nanami).
+  The session read, in `meta.json`, `config.json` and `settings.json`, only the keys
+  that choose a voice, a provider or a language (and `settings_version`, which decides
+  whether a stored chain is the legacy one), through one script that prints those
+  alone. *Not taken:* reading `settings.json` only (it would have shown Jenny, a voice
+  the add-on was not using).
+- **CA-101 Five of the six permitted Edge calls were made: one listing and four
+  syntheses, compared, never heard.** Edge's endpoint is free and needs no account.
+  The listing showed Seraphina gone but not what answers for it; one invented English
+  sentence, sent to Seraphina, Tanja (twice) and Christoph, compared by size and by
+  the word-boundary offsets the service returns, showed it. The sixth call was not
+  made. *Not taken:* the listing alone (the "German" would have stayed a guess).
+- **CA-102 The log's text previews were turned into word counts, and only the counts
+  printed.** To test guess (ii) (RCE's shorter segments), the share of segments short
+  enough for the carrier route was counted per evening from the `synthesized` lines;
+  no text was printed or written. *Not taken:* leaving the guess untested.
+
+**What refills.** No version moved: `speech_text_version` `"5"`, `stitch_version`
+`"2"`, `edge_language_version` `"1"`, `role_voice_version` `"1"`, `loudness_version`
+`"1"`, `EARCON_VERSION` `"1"`. Every English content segment, the English "or," clip
+and every side holding one refill once (a new voice in the key), the next time the
+card runs; for Alec's live settings this includes the generic path's English profile.
+French clips and labels are reused. Unchanged: the tempo table, the earcons, the audit,
+batch 3's threading, the empty-plan rule, the plan contract (`src/rce_contract.py`,
+`src/speech_plan.py`), and batch 4's three changes.
+
+**Tests.** The new `tests/test_english_voice.py` (9: the reproduction, three checks,
+RED on 666d411 and GREEN after; every role the plan contract names, with both voice
+roles, short and long, in English and French, for Alec's live settings and the
+defaults, at the resolution and at the request with its route; an alternative after
+each of the six predecessors, short and long, in each language, its clip and the
+labels beside it; the replacement in each stored place and a voice kept; the log line;
+only the withdrawn voice's clips refill and no version moved; a card tagged ready gets
+new audio from the Browse command). Changed on purpose, following the default: the
+English content entry of `tests/test_role_voices.py`'s CA-41 table (also used by
+`tests/test_attached_and_alternatives.py`), its catalogue and offline-picker checks,
+its another-locale profile check (now `it-IT-GiuseppeMultilingualNeural`), and
+`tests/test_speech_plan_v2_e2e.py`'s voice table. Total: 365 checks in 29 modules (356
+in 28 before this batch).

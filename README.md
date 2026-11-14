@@ -158,7 +158,9 @@ A version 2 plan from RCE names roles, never voices or engines. AnkiTTS resolves
   | Language | Content | Label |
   |---|---|---|
   | French | `fr-FR-VivienneMultilingualNeural` | `en-US-BrianMultilingualNeural` |
-  | English | `de-DE-SeraphinaMultilingualNeural` | `en-US-AndrewNeural` |
+  | English | `en-US-AvaMultilingualNeural` | `en-US-AndrewNeural` |
+
+  English content was `de-DE-SeraphinaMultilingualNeural` until Edge withdrew it (2026-11-13). Edge answers a request for a withdrawn voice in another voice, with no error (Seraphina came back as a German voice reading English), so AnkiTTS replaces a withdrawn voice wherever it is stored when the settings load, and the log names the voice of every segment it synthesizes. A replaced voice is a new voice in every cache key: the next run of a card makes its English audio again and reuses everything else. A card already published is not picked up again by itself; select it in the Browse window and use **Notes > Generate AnkiTTS Audio for Selected Notes**.
 
 - **Tempo profiles.** A plain table, one row per card preset: rate, pause factor, minimum and maximum pause, section pause, and a short "tag / or" pause (120 ms). Pauses follow the length of what was just said.
 - **Tags and alternatives.** A tag or label the plan attaches to the word it qualifies is spoken close to it (the short pause, on the side facing that word). The content voice says "or" (or "ou" in French), once-synthesised and reused, between two short pauses, before a segment of role `alternative` whose previous spoken segment is a `translation`, an `alternative`, an example's line (`exampleSource`, `exampleTarget`), a `gloss` (a sense's main translation) or an `idiomHead`, of the same content node and the same language (English or French), on its first reading. The word follows the alternative's language and is never in the plan's text. A segment of role `gloss` never takes it, so a gloss list keeps its small pauses.

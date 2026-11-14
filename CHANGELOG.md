@@ -6,6 +6,29 @@ in a tagged release.
 
 ## Unreleased
 
+### English was spoken by a German voice: a withdrawn Edge voice is replaced (2026-11-13)
+
+Ruling CA-95 (Alec, 2026-11-13) and CA-96 to CA-102,
+`docs/DESIGN-providers.md`, section 18:
+
+- **The cause.** Edge withdrew `de-DE-SeraphinaMultilingualNeural`, the English
+  content voice (CA-41), and answers a request naming it, with no error, in
+  `de-DE-TanjaNeural`, a German voice that is not multilingual, reading English as
+  German. French and every label were unaffected (their voices still exist). Nothing
+  in AnkiTTS changed the request.
+- **The fix.** A withdrawn Edge voice (`settings.WITHDRAWN_EDGE_VOICES`) is replaced
+  wherever it is stored (voices, speech profiles, role-voice slots) when the settings
+  load; nothing is written back. Seraphina's replacement, and the new English content
+  default, is `en-US-AvaMultilingualNeural`; it can be changed in **Tools > AnkiTTS
+  Settings...**.
+- **The log names the voice.** Each "synthesized" line now says which voice the
+  segment asked for.
+- **What refills.** The voice is in every cache key, so only English content clips,
+  the English "or," clip and the tracks holding them are made again; French clips and
+  labels are reused. No version moved. A published card is not picked up again by
+  itself: select the cards in the Browse window and use **Notes > Generate AnkiTTS
+  Audio for Selected Notes** (no re-export from RCE is needed).
+
 ### "or" after a main translation, symbols reach the voice, an ffmpeg timeout (2026-11-12)
 
 Ruling CA-90 (Alec, 2026-11-12) and CA-91 to CA-94,
