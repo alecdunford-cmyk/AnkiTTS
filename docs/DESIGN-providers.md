@@ -2102,3 +2102,88 @@ green: `check_two_alternatives_after_a_translation_each_take_an_or`,
 entry under CA-91; `check_the_speech_text_version_moved_with_the_bracket_rule` ("4" →
 "5"); the seven fakes under CA-93. Total: 356 checks in 28 modules (337 in 26 before
 this batch).
+
+### Review batch 5: every English clip in a wrong accent (CA-95, 2026-11-13)
+
+**Ruling CA-95 (Alec, 2026-11-13, Denver), verbatim.** Written here before any edit.
+The managing chat's reading follows the quote and is its own, not Alec's.
+
+```
+CA-95. (1) (Alec, 2026-11-13, 20:15): "The English is spoken in some weird horrible accent that
+I've never heard before, it sounds German maybe?? This is the case for every card" (2) THE LOG
+(his answer to the managing chat's card "To find why English is now read in the wrong accent, may
+the AnkiTTS session read AnkiTTS's own log file from tonight?", verbatim): "Yes, read-only:
+timings, message types, counts and voice names (Recommended)"
+```
+
+*The managing chat's reading (its own):* (2) lets the session open the add-on's own
+log file or files for the evening of 2026-11-13 (located from the code that writes
+them), read-only, never copied out of place and never edited, and report from them
+timings, message types, counts, the order of events, and the names of the voices,
+languages, providers and routes requested; no card text, no segment text and no error
+text that could hold either is copied into a console, a file or the summary. The log
+is read only through a small script that prints whitelisted fields and nothing else.
+Under the same limits the session may read, in `settings.json`, only the keys that
+choose a provider, a voice, a language or a role's voice. Nothing else of Alec's is
+opened.
+
+*Added by Alec (2026-11-13, 20:20), relayed by the managing chat:* the French voices
+are perfectly normal; the English sounds like a voice built for another language
+reading English (a foreign accent, words misread as that language would read them),
+not a distorted English voice.
+
+**The diagnosis (item A).** *The voice Alec chose for English content,
+`de-DE-SeraphinaMultilingualNeural` (CA-41), is no longer offered by Edge, and the Edge
+endpoint answers a request that names it, without an error, in `de-DE-TanjaNeural`: a
+German voice that is not multilingual, reading English text as German.* Nothing in this
+repository changed the request; the code sends the configured name as it is and has no
+fall-back of its own. The evidence:
+
+- *The request.* Tonight's English segments went to `edge` with the language `en`, as on
+  2026-11-12 (the log, `synthesized` lines: 2026-11-12 214 English and 102 French,
+  07:50:22 to 08:02:42, batch 3's code; 2026-11-13 394 English and 432 French, 19:53:02
+  to 20:11:52, the first runs on batch 4's code; 16 runs over 284 notes on each
+  evening; no provider failure, no fall-back, no carrier warning on either). The log
+  names no voice (`generator.create_audio` logs the provider and the language only), so
+  the voice is read from the code and the settings: Alec's live config
+  (`addon/meta.json`'s `config`, unchanged since 2026-11-12 07:47:43, before the normal
+  run) holds Seraphina for `role_voices.en.content`, for `speech_profiles.en.voice` and
+  for `voices.en`; Andrew (`en-US-AndrewNeural`) for the English label, Vivienne
+  (`fr-FR-VivienneMultilingualNeural`) and Brian (`en-US-BrianMultilingualNeural`) for
+  French content and label. `structured_processor.resolve_role_voice` returns the
+  slot's voice unchanged; edge-tts 7.3.1 (unchanged since 2026-11-01) sends it in
+  `<voice name=...>` under `xml:lang='en-US'`. Nothing between batch 3's close 7cd1356
+  and 666d411 touches the choice of voice (the whole `src` diff: the connective's
+  predecessors, the sign rules, the ffmpeg bound, the timed-out note); the working copy
+  equals HEAD except `settings.json`, which the add-on does not read.
+- *The catalogue* (one listing, 2026-11-13): 318 voices; Seraphina is missing; Vivienne,
+  Brian, Andrew, Jenny and Denise are listed. de-DE now lists only Tanja and Christoph.
+  The multilingual voices on offer: en-AU William; en-US Andrew, Ava, Brian, Emma; fr-FR
+  Remy, Vivienne; it-IT Giuseppe; ko-KR Hyunsu; pt-BR Thalita.
+- *Who speaks a request for Seraphina* (four syntheses of one invented English sentence;
+  sizes and word offsets only, nothing heard): Seraphina 29,376 bytes; Tanja 29,376 and,
+  again, 29,376; Christoph 25,632. The eleven word-boundary offsets and durations of
+  Seraphina and of both Tanja runs are identical (one hash); Christoph's differ. The two
+  Tanja runs differ in their bytes, so a byte hash cannot match across requests, and the
+  word timings are the comparison. A request for Seraphina is Tanja's audio.
+- *Why French is normal and every English clip is not.* Every voice but Seraphina still
+  exists. Every English content segment (and the English "or," clip, and the generic
+  path's English profile) asks for Seraphina; English labels ask for Andrew.
+
+When Edge withdrew the voice is not known: after Alec's last normal English (2026-11-12,
+from the morning's runs) and before tonight's first run. Guesses (i), (ii) and (iii)
+are false: no neighbour lends a voice or a language (the connective takes the content
+voice of the alternative's own language), the carrier route is only taken for a
+multilingual voice and only adds an English sentence before the segment, and the sign
+rules change text, not the language or the voice. Guess (v) is false: the same 3 s tone
+through batch 3's `normalise_mp3_in_place` and today's gives identical ffmpeg arguments
+(but for the file name) and byte-identical output (3.000 s, 24 kHz mono, 96 kb/s, mean
+-15.7 dB, max -12.7 dB). Guess (iv) is right in its first half, and not in the way it
+guessed: the request is what it always was, there is no live list in the path, and the
+provider answers it differently because the voice it names is gone.
+
+**The reproduction.** `tests/test_english_voice.py` runs a note through the structured
+path with Alec's live voice settings (their voice keys only, as read; invented text)
+and a fake Edge that records the voice, language and route of each request, and
+checks that no request names a voice Edge no longer offers. RED on 666d411: every
+English content segment, long and short, asks for Seraphina.
