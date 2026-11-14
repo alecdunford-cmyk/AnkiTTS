@@ -31,7 +31,9 @@ from voice_manager import (
 CA41 = {
     ("fr", "content"): "fr-FR-VivienneMultilingualNeural",
     ("fr", "label"): "en-US-BrianMultilingualNeural",
-    ("en", "content"): "de-DE-SeraphinaMultilingualNeural",
+    # CA-41 chose de-DE-SeraphinaMultilingualNeural; Edge withdrew it, and
+    # this is its replacement (CA-96, CA-97, review batch 5).
+    ("en", "content"): "en-US-AvaMultilingualNeural",
     ("en", "label"): "en-US-AndrewNeural",
 }
 
@@ -1220,8 +1222,8 @@ def check_role_voice_choices_list_the_whole_catalogue():
             "Gender": "Male",
         },
         {
-            "ShortName": "de-DE-SeraphinaMultilingualNeural",
-            "Locale": "de-DE",
+            "ShortName": "en-US-AvaMultilingualNeural",
+            "Locale": "en-US",
             "Gender": "Female",
         },
     ]
@@ -1247,8 +1249,8 @@ def check_role_voice_choices_list_the_whole_catalogue():
 
     # A default the catalogue knows gets its readable label.
     assert (
-        "SeraphinaMultilingual - Female (de-DE)",
-        "de-DE-SeraphinaMultilingualNeural",
+        "AvaMultilingual - Female (en-US)",
+        "en-US-AvaMultilingualNeural",
     ) in choices
 
 
@@ -1314,11 +1316,13 @@ def check_profile_picker_works_offline_and_keeps_the_current_voice():
     ]
 
     assert "en-US-JennyNeural" in voices
-    assert "de-DE-SeraphinaMultilingualNeural" in voices
+    # The English content default, offered with no network (CA-97).
+    assert "en-US-AvaMultilingualNeural" in voices
 
 
 def check_profile_voice_from_another_locale_resolves_for_v1():
-    # A German-locale voice on the English profile: the language stays English.
+    # A voice of another locale on the English profile: the language stays
+    # English. (Seraphina, de-DE, until Edge withdrew it: CA-96.)
     plan = parse_speech_plan(
         json.dumps(
             {
@@ -1348,13 +1352,13 @@ def check_profile_voice_from_another_locale_resolves_for_v1():
         AppSettings.from_dict(
             {
                 "voices": {
-                    "en": "de-DE-SeraphinaMultilingualNeural",
+                    "en": "it-IT-GiuseppeMultilingualNeural",
                 },
             }
         ),
     ).segments[0]
 
-    assert segment.voice == "de-DE-SeraphinaMultilingualNeural"
+    assert segment.voice == "it-IT-GiuseppeMultilingualNeural"
     assert segment.resolved_profile_language == "en"
     assert segment.voice_role is None
 

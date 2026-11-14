@@ -334,10 +334,22 @@ def create_audio(
                 ),
             )
 
+        # The voice is named (CA-98): a voice Edge withdrew is answered in
+        # another voice without an error, and only the log can show which
+        # voice each segment asked for.
         logger.info(
-            "%s synthesized %s %r in %.2f s",
+            "%s synthesized %s with %s %r in %.2f s",
             provider_id,
             language,
+            (
+                "its own voice"
+                if provider.uses_own_voice()
+                else getattr(
+                    profile,
+                    "voice",
+                    None,
+                )
+            ),
             text_preview(
                 text
             ),

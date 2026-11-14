@@ -50,7 +50,7 @@
     "en": {
       "content": {
         "provider": "edge",
-        "voice": "de-DE-SeraphinaMultilingualNeural"
+        "voice": "en-US-AvaMultilingualNeural"
       },
       "label": {
         "provider": "edge",

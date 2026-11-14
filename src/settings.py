@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from copy import deepcopy
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -115,7 +115,9 @@ DEFAULT_ROLE_VOICES = {
     "en": {
         "content": {
             "provider": "edge",
-            "voice": "de-DE-SeraphinaMultilingualNeural",
+            # CA-41 chose de-DE-SeraphinaMultilingualNeural; Edge withdrew it
+            # (CA-96, review batch 5), and this is its replacement (CA-97).
+            "voice": "en-US-AvaMultilingualNeural",
         },
         "label": {
             "provider": "edge",
@@ -123,6 +125,31 @@ DEFAULT_ROLE_VOICES = {
         },
     },
 }
+
+
+# CA-96 (review batch 5): Edge voices withdrawn from Edge's catalogue, each with
+# the voice that takes its place. Edge answers a request that names a withdrawn
+# voice in another voice and without an error (Seraphina is spoken by
+# de-DE-TanjaNeural, a German voice that is not multilingual), so a stored name
+# is replaced wherever settings are loaded: in the voices, the speech profiles
+# and the role-voice slots. Nothing is written back; the dialog shows the
+# replacement and its Save stores it. A replaced voice is a different voice in
+# every cache key, so the audio made under the old name is never matched again.
+WITHDRAWN_EDGE_VOICES = {
+    # Missing from the listing of 2026-11-13 (CA-97: the replacement).
+    "de-DE-SeraphinaMultilingualNeural": "en-US-AvaMultilingualNeural",
+}
+
+
+def current_edge_voice(
+    voice: str,
+) -> str:
+    """The voice to request for a stored voice name: its replacement if withdrawn."""
+
+    return WITHDRAWN_EDGE_VOICES.get(
+        voice,
+        voice,
+    )
 
 
 def merge_role_voices(
@@ -1395,9 +1422,60 @@ class AppSettings:
                     pitch=settings.pitch,
                 )
 
+        settings.replace_withdrawn_voices()
+
         settings.validate()
 
         return settings
+
+    def replace_withdrawn_voices(self) -> None:
+        """
+        Replace every withdrawn Edge voice (CA-96) in the voices, the speech
+        profiles and the role-voice slots with the voice that takes its place.
+        """
+
+        self.voices = {
+            language: current_edge_voice(
+                voice
+            )
+            for language, voice in self.voices.items()
+        }
+
+        self.speech_profiles = {
+            key: (
+                replace(
+                    profile,
+                    voice=current_edge_voice(
+                        profile.voice
+                    ),
+                )
+                if isinstance(
+                    profile,
+                    SpeechProfile,
+                )
+                else profile
+            )
+            for key, profile in self.speech_profiles.items()
+        }
+
+        for slots in self.role_voices.values():
+            for slot in slots.values():
+                if isinstance(
+                    slot,
+                    dict,
+                ) and isinstance(
+                    slot.get(
+                        "voice"
+                    ),
+                    str,
+                ):
+                    slot[
+                        "voice"
+                    ] = current_edge_voice(
+                        slot[
+                            "voice"
+                        ]
+                    )
 
 
 def read_addon_config(

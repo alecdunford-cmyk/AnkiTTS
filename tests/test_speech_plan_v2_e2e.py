@@ -44,14 +44,14 @@ FIXTURES = Path(__file__).resolve().parent / "fixtures"
 CA41_VOICES = {
     ("fr", "content"): "fr-FR-VivienneMultilingualNeural",
     ("fr", "label"): "en-US-BrianMultilingualNeural",
-    ("en", "content"): "de-DE-SeraphinaMultilingualNeural",
+    ("en", "content"): "en-US-AvaMultilingualNeural",  # CA-97 (was Seraphina)
     ("en", "label"): "en-US-AndrewNeural",
 }
 
 VOICE_HERTZ = {
     "fr-FR-VivienneMultilingualNeural": 200,
     "en-US-BrianMultilingualNeural": 270,
-    "de-DE-SeraphinaMultilingualNeural": 340,
+    "en-US-AvaMultilingualNeural": 340,
     "en-US-AndrewNeural": 460,
     "fr-FR-HenriNeural": 240,
 }
